@@ -1,0 +1,4 @@
+{
+    "cmake.sourceDirectory": "${workspaceFolder:LumenX}",
+    "cmake.buildDirectory": "${workspaceFolder:LumenX}/build"
+}

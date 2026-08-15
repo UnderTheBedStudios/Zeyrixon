@@ -1,0 +1,34 @@
+{
+    "folders": [
+        {
+            "name": "LumenX",
+            "path": "."
+        },
+        {
+            "name": "Editor",
+            "path": "Editor"
+        },
+        {
+            "name": "Engine",
+            "path": "Engine"
+        }
+    ],
+    "settings": {
+        "typescript.tsc.autoDetect": "off"
+    },
+    "extensions": {
+        "recommendations": [
+            "ms-dotnettools.csharp",
+            "ms-dotnettools.csdevkit",
+            "ms-vscode.cpptools",
+            "ms-vscode.cpp-devtools",
+            "ms-vscode.cmake-tools",
+            "ms-vscode.cpptools-extension-pack",
+            "ms-vscode.vscode-typescript-next",
+            "ms-vscode.vscode-typescript-tslint-plugin",
+            "esbenp.prettier-vscode",
+            "eamodio.gitlens",
+            "AvaloniaTeam.vscode-avalonia"
+        ]
+    }
+}
