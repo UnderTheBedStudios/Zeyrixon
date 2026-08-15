@@ -1,9 +1,10 @@
-// Engine.cpp : Defines the functions for the shared library.
+// Engine.cpp : Defines the functions for the static library.
 
 #include <Engine/Public/Engine.h>
 #include <Engine/pch.h>
 #include <Engine/framework.h>
 #include <Engine/Public/General/Shader.h>
+#include <Engine/Public/Components/Common/Model.h>
 #include <glad/glad.h>
 #include <cstdio>
 #include <chrono>
@@ -24,6 +25,7 @@ namespace {
 
 std::unique_ptr<Shader> g_MainShader;
 std::unique_ptr<Shader> g_DepthShader;
+std::unique_ptr<Model> g_TestModel;
 
 glm::vec3 g_LightDir = glm::normalize(glm::vec3(0.3f, 1.0f, 0.2f));
 glm::vec3 g_LightColor = glm::vec3(1.0f, 1.0f, 1.0f);
@@ -89,6 +91,7 @@ void Engine_Shutdown()
 
     g_MainShader.reset();
     g_DepthShader.reset();
+    g_TestModel.reset();
 }
 
 void Engine_Init(void* getProcAddress, const char* assetRoot)
@@ -114,6 +117,12 @@ void Engine_Init(void* getProcAddress, const char* assetRoot)
 
     InitShadowMap();
     UpdateLightSpaceMatrix();
+
+    // TODO: temporary - swap for real scene/entity loading once that pipeline exists
+    g_TestModel = std::make_unique<Model>();
+    std::string testModelPath = g_AssetRoot + "/Engine/Models/Camera/Camera.obj";
+    if (!g_TestModel->LoadFromFile(testModelPath))
+        fprintf(stderr, "[Engine] Failed to load test model from %s\n", testModelPath.c_str());
 }
 
 void Engine_RenderFrame(int fb, int width, int height, const float* viewProj, const float* model)
@@ -129,6 +138,9 @@ void Engine_RenderFrame(int fb, int width, int height, const float* viewProj, co
     g_DepthShader->use();
     g_DepthShader->setMat4("uLightSpaceMatrix", g_LightSpaceMatrix);
     g_DepthShader->setMat4("uModel", glm::make_mat4(model));
+
+    if (g_TestModel)
+        g_TestModel->Draw();
 
     glDisable(GL_CULL_FACE);
 
@@ -156,6 +168,9 @@ void Engine_RenderFrame(int fb, int width, int height, const float* viewProj, co
     g_MainShader->setInt("uShadowMap", 1);
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+    if (g_TestModel)
+        g_TestModel->Draw();
 }
 
 void Engine_SetLight(const float* lightDir, const float* lightColor, const float* viewPos)
@@ -166,7 +181,7 @@ void Engine_SetLight(const float* lightDir, const float* lightColor, const float
     UpdateLightSpaceMatrix();
 }
 
-}
+} // extern "C"
 
 // TODO: This is an example of a library function
 void fnEngine()

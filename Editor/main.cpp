@@ -65,11 +65,11 @@ int main(int, char**)
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
 #else
-    // GL 3.0 + generally GLSL 130
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
+    // GL 4.6 core to match the shaders (#version 460 core in basic.vert/frag, depth.vert/frag)
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
 
     // Create window with graphics context
@@ -191,7 +191,7 @@ int main(int, char**)
         {
             glfwGetWindowSize(window, &screenWidth, &screenHeight);
             ImGui::Begin("Viewport");
-            ImGui::SetWindowSize(ImVec2((int)(screenWidth / 1.60), (int)(screenHeight / 1.3)));
+            ImGui::SetWindowSize(ImVec2(800, 600));
             ImGui::SetWindowPos(ImVec2((screenWidth / 2) - (ImGui::GetWindowSize().x / 2), 0));
             ImVec2 contentSize = ImGui::GetContentRegionAvail();
 

@@ -16,6 +16,9 @@ add_library(glad STATIC Engine/vendor/glad/src/glad.c)
 target_include_directories(glad PUBLIC Engine/vendor/glad/include)
 set_target_properties(glad PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Set OpenGL preference policy to suppress warning
+cmake_policy(SET CMP0072 NEW)
+
 # find system installed stuff
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
@@ -32,7 +35,7 @@ add_library(imgui_lib STATIC
 )
 
 add_library(Engine STATIC
-    Engine/Engine.cpp 
+    Engine/Private/Engine.cpp 
     Engine/pch.cpp
     Engine/Private/Base.cpp
     Engine/Private/Components/Common/BaseComponent.cpp
@@ -58,7 +61,11 @@ target_include_directories(Engine PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(Engine PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/Engine/vendor/stb)
 target_include_directories(Engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Engine/vendor/glm)
 
-add_executable(Editor ${CMAKE_CURRENT_SOURCE_DIR}/Editor/main.cpp)
+add_executable(Editor
+    Editor/main.cpp
+    Editor/Private/Common/Window.cpp
+)
+target_include_directories(Editor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Editor/..)
 target_link_libraries(Editor PRIVATE imgui_lib glad glfw OpenGL::GL Engine)
 
 target_link_libraries(Engine PUBLIC glad OpenGL::GL)
