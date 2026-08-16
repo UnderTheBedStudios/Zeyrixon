@@ -64,7 +64,10 @@ target_include_directories(Engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Engine/vend
 add_executable(Editor
     Editor/main.cpp
     Editor/Private/Common/Window.cpp
+    Editor/Private/Common/EditorCamera.cpp
+    Editor/Private/Utils/PathUtils.cpp
     Editor/Private/Windows/MainWindow.cpp
+    Editor/Private/Windows/ProjectBrowserDialog.cpp
 )
 target_include_directories(Editor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Editor/..)
 target_link_libraries(Editor PRIVATE imgui_lib glad glfw OpenGL::GL Engine)

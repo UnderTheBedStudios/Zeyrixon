@@ -11,6 +11,7 @@
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
 #include <Editor/Public/Windows/MainWindow.h>
+#include <Editor/Public/Windows/ProjectBrowserDialog.h>
 #include <stdio.h>
 #define GL_SILENCE_DEPRECATION
 #if defined(IMGUI_IMPL_OPENGL_ES2)
@@ -22,6 +23,9 @@
 #include <glm.hpp>
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
+#include <memory>
+#include <string>
+
 
 // [Win32] Our example includes a copy of glfw3.lib pre-compiled with VS2010 to maximize ease of testing and compatibility with old VS compilers.
 // To link with VS2010-era libraries, VS2015+ requires linking with legacy_stdio_definitions.lib, which we do using this pragma.
@@ -39,6 +43,12 @@ static void glfw_error_callback(int error, const char* description)
 {
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
+
+void LoadProject(std::string projectPath)
+{
+
+}
+
 
 // Main code
 int main(int, char**)
@@ -77,7 +87,13 @@ int main(int, char**)
     int screenWidth = 1280, screenHeight = 720;
     float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor()); // Valid on GLFW 3.3+ onlys
 
-    MainWindow* mainWindow = new MainWindow(screenWidth, screenHeight, "LumenX Editor", WindowType::Normal, false);
+    MainWindow mainWin({.title = "LumenX Editor", .width = (int)(1600 * main_scale), .height = (int)(900 * main_scale)});
+
+    std::unique_ptr<ProjectBrowserDialog> browser;
+    browser = std::make_unique<ProjectBrowserDialog>(
+        WindowDesc{ .title = "Project Browser", .width = 800, .height = 550,
+                    .type = WindowType::Dialog, .parent = mainWin.Handle(), .alwaysOnTop = true },
+        &mainWin);
 
     // Main loop
 #ifdef __EMSCRIPTEN__
@@ -87,7 +103,7 @@ int main(int, char**)
     EMSCRIPTEN_MAINLOOP_BEGIN
 #else
 #endif
-    while (!glfwWindowShouldClose(mainWindow->GetWindowHeader(mainWindow)))
+    while (!mainWin.ShouldClose())
     {
         // Poll and handle events (inputs, window resize, etc.)
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
@@ -95,15 +111,26 @@ int main(int, char**)
         // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
         // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
         
-        mainWindow->PollEvents();
+        glfwPollEvents();
 
-        mainWindow->DrawFrame(screenWidth, screenHeight);
+        mainWin.DrawFrame(screenWidth, screenHeight);
+
+        if (browser)
+        {
+            browser->DrawFrame();
+            if (browser->IsFinished())
+            {
+                if (browser->HasSelectedProject())
+                    LoadProject(browser->SelectedProjectPath());
+                else
+                    mainWin.Close();
+                browser.reset();
+            }
+        }
     }
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_END;
 #endif
-
-    delete(mainWindow);
 
     return 0;
 }

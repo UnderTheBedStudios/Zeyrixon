@@ -1,39 +1,57 @@
 #pragma once
-#include <cstdint>
+#include <string>
+#include <functional>
 #include <glad/glad.h>
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
+#include <imgui.h>
 
-enum class WindowType : uint8_t
+enum class WindowType
 {
-    Normal = 0,
-    Dialog = 1
+    Normal,
+    Dialog
+};
+
+struct WindowDesc{
+    std::string title   = "LumenX";
+    int width           = 1280;
+    int height          = 720;
+    WindowType type     = WindowType::Normal;
+    GLFWwindow* parent  = nullptr;
+    bool resizable      = true;
+    bool decorated      = true;
+    bool alwaysOnTop    = false;
+    bool centerOnParent = true;
 };
 
 class Window
 {
 public:
-    Window(int width = 800, int height = 600, const char* title = "New Window", WindowType type = WindowType::Normal,
-           bool closeOnEsc = false);
+    explicit Window(const WindowDesc& desc);
     ~Window();
 
-    void InitWindow(Window* window, int width = 800, int height = 600, const char* title = "New Window", WindowType type = WindowType::Normal,
-           bool closeOnEsc = false);
+    Window(const Window&) = delete;
+    Window& operator=(const Window&) = delete;
 
-    void DestroyWindow(Window* window);
+    bool ShouldClose() const { return glfwWindowShouldClose(m_handle); }
+    void Close()             { glfwSetWindowShouldClose(m_handle, GLFW_TRUE); }
 
-    bool ShouldClose() const;
-    void SwapBuffers();
-    virtual void PollEvents() {};
+    void MakeCurrent();
 
-    GLFWwindow* GetWindowHeader(Window* window) const;
-    const char* GetGLSLVersion(Window* window) const;
+    void BeginFrame();
+    void EndFrame();
+
+    GLFWwindow*   Handle()   const { return m_handle; }
+    ImGuiContext* ImGuiCtx() const { return m_imguiContext; }
+    WindowType    Type()     const { return m_type; }
+
+    std::function<void()> OnUI;
 
 private:
-    GLFWwindow* m_WindowHandler;
-    static void KeyCallbackRoute(GLFWwindow* glfwWindow, int key, int scancode, int action, int mods);
-    void HandleKeyInput(int key, int scancode, int action, int mods);
-    WindowType  m_WindowType;
-    bool        m_CloseOnEsc;
-    const char* m_Glsl_Version;
+    void InitGLFW(const WindowDesc& desc);
+    void InitImGui();
+
+    GLFWwindow*   m_handle       = nullptr;
+    ImGuiContext* m_imguiContext = nullptr;
+    WindowType    m_type;
 };

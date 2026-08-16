@@ -7,16 +7,14 @@
 class MainWindow : public Window
 {
 public:
-    MainWindow(int width = 800, int height = 600, const char* title = "New Window", WindowType type = WindowType::Normal,
-           bool closeOnEsc = false);
+    explicit MainWindow(const WindowDesc& desc = WindowDesc{});
     ~MainWindow();
 
-    virtual void PollEvents() override;
     void DrawFrame(int& screenWidth, int& screenHeight);
 
 private:
-    GLuint viewportFBO, viewportColorTex, viewportDepthRBO;
-    int viewportW, viewportH;
+    GLuint viewportFBO = 0, viewportColorTex = 0, viewportDepthRBO = 0;
+    int viewportW = 0, viewportH = 0;
 
     ImVec4 clear_color;
 };

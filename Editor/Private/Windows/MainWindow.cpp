@@ -8,23 +8,25 @@
 #if defined(IMGUI_IMPL_OPENGL_ES2)
 #include <GLES2/gl2.h>
 #endif
-#include <GLFW/glfw3.h> // Will drag system OpenGL headers
+#include <GLFW/glfw3.h>
 #include <Engine/Public/Engine.h>
 #include <glm.hpp>
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
 #include <imgui_internal.h>
+#include <Editor/Public/Utils/PathUtils.h>
+#include <filesystem>
 
-MainWindow::MainWindow(int width, int height, const char* title, WindowType type, bool closeOnEsc)
+MainWindow::MainWindow(const WindowDesc& desc)
+    : Window(desc)
 {
-    InitWindow(this, width, height, title, type, closeOnEsc);
+    // Base Window ctor already handled: glfwCreateWindow, GL 4.6 core context,
+    // ImGui::CreateContext + SetCurrentContext, ImGui_ImplGlfw_InitForOpenGL,
+    // ImGui_ImplOpenGL3_Init.
 
-    float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
+    MakeCurrent();
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableSetMousePos;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -32,18 +34,14 @@ MainWindow::MainWindow(int width, int height, const char* title, WindowType type
 
     ImGui::StyleColorsDark();
 
+    float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
     ImGuiStyle& style = ImGui::GetStyle();
     style.ScaleAllSizes(main_scale);
     style.FontScaleDpi = main_scale;
 
 #if GLFW_VERSION_MAJOR >= 3 && GLFW_VERSION_MINOR >= 3
-    io.ConfigDpiScaleFonts = true;          // [Experimental] Automatically overwrite style.FontScaleDpi in Begin() when Monitor DPI changes. This will scale fonts but _NOT_ scale sizes/padding for now.
-    io.ConfigDpiScaleViewports = true;      // [Experimental] Scale Dear ImGui and Platform Windows when Monitor DPI changes.
-#endif
-
-    ImGui_ImplGlfw_InitForOpenGL(GetWindowHeader(this), true);
-#ifdef __EMSCRIPTEN__
-    ImGui_ImplGlfw_InstallEmscriptenCallbacks(GetWindowHeader(), "#canvas");
+    io.ConfigDpiScaleFonts = true;
+    io.ConfigDpiScaleViewports = true;
 #endif
 
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
@@ -52,35 +50,17 @@ MainWindow::MainWindow(int width, int height, const char* title, WindowType type
         style.Colors[ImGuiCol_WindowBg].w = 1.0f;
     }
 
-    ImGui_ImplOpenGL3_Init(GetGLSLVersion(this));
-
-    Engine_Init((void*)glfwGetProcAddress, "."); // asset root is a placeholder for now
-
-    viewportFBO = 0, viewportColorTex = 0, viewportDepthRBO = 0;
-    viewportW = 0, viewportH = 0;
+    std::filesystem::path assetRoot = PathUtils::ResolveProjectRoot();
+    Engine_Init((void*)glfwGetProcAddress, assetRoot.string().c_str()); // asset root is a placeholder for now
 
     clear_color = ImVec4(0.2f, 0.2f, 0.2f, 1.00f);
 }
 
 MainWindow::~MainWindow()
 {
-    DestroyWindow(this);
-
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
-
-    glfwDestroyWindow(GetWindowHeader(this));
-    glfwTerminate();
-}
-
-void MainWindow::PollEvents()
-{
-    glfwPollEvents();
-    if (glfwGetWindowAttrib(GetWindowHeader(this), GLFW_ICONIFIED) != 0)
-    {
-        ImGui_ImplGlfw_Sleep(10);
-    }
+    Engine_Shutdown(); // now that this is implemented — see prior discussion
+    // Base ~Window() handles ImGui_ImplOpenGL3_Shutdown, ImGui_ImplGlfw_Shutdown,
+    // ImGui::DestroyContext, glfwDestroyWindow.
 }
 
 void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
@@ -115,12 +95,9 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     };
 
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
+    BeginFrame(); // MakeCurrent + ImGui_ImplOpenGL3_NewFrame + ImGui_ImplGlfw_NewFrame + ImGui::NewFrame
 
     ImVec2 ViewportSize;
-
     ImGuiWindowFlags windowFlags = 0
         | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar
         | ImGuiWindowFlags_NoCollapse;
@@ -188,7 +165,6 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
         ImGui::End();
     }
 
-    // Popups
     {
         if (ImGui::BeginPopup("File Dropdown"))
         {
@@ -199,7 +175,6 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             ImGui::EndPopup();
         }
 
-        // Edit Dropdown
         if (ImGui::BeginPopup("Edit Dropdown"))
         {
             if (ImGui::Button("Damn")) {  }
@@ -210,7 +185,7 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
     {
         ImGui::Begin("Viewport", nullptr, windowFlags);
 
-        ViewportSize = ImVec2((int)(screenWidth * .625), (int)(screenHeight * (5/6)));
+        ViewportSize = ImVec2((int)(screenWidth * .625), (int)(screenHeight * (5.0/6.0)));
 
         ImGui::SetWindowSize(ViewportSize, ImGuiCond_FirstUseEver);
         ImGui::SetWindowPos(ImVec2((int)(screenWidth * 0.5) - (int)(ImGui::GetWindowSize().x * 0.5), 0), ImGuiCond_FirstUseEver);
@@ -226,13 +201,12 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             glm::mat4 model = glm::mat4(1.0f);
 
             Engine_RenderFrame(viewportFBO, viewportW, viewportH, glm::value_ptr(viewProj), glm::value_ptr(model));
-            glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default so ImGui draws on-screen next
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
             ImGui::Image((ImTextureID)(intptr_t)viewportColorTex, contentSize, ImVec2(0, 1), ImVec2(1, 0));
         }
-            
-        ImGui::End();
 
+        ImGui::End();
     }
 
     {
@@ -282,20 +256,14 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
         ImGui::UpdatePlatformWindows();
         ImGui::RenderPlatformWindowsDefault();
         glfwMakeContextCurrent(backup_current_context);
-
-        fprintf(stdout, "[Editor]: It has Viewports enabled.\n");
     }
-    if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_DockingEnable)
-        fprintf(stdout, "[Editor]: It has Docked Enabled.\n");
 
-    // Rendering
-    ImGui::Render();
+    // Clear pass before ImGui draws — base EndFrame() doesn't clear, so do it here.
     int display_w, display_h;
-    glfwGetFramebufferSize(GetWindowHeader(this), &display_w, &display_h);
+    glfwGetFramebufferSize(Handle(), &display_w, &display_h);
     glViewport(0, 0, display_w, display_h);
     glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
     glClear(GL_COLOR_BUFFER_BIT);
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-    glfwSwapBuffers(GetWindowHeader(this));
+    EndFrame(); // ImGui::Render + viewport + ImGui_ImplOpenGL3_RenderDrawData + glfwSwapBuffers
 }
