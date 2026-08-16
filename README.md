@@ -14,7 +14,7 @@
 | Programming Language Used | Where it's used | Positives | Negatives |
 | --- | --- | --- | --- |
 | C/C++ | Engine | Speedy Engine | Hard to read/use |
-| C#/.Net | Editor | Speedy UI Creation | Limited to just Engine UI |
+| C/C++ | Editor | Complex UI Customization | Limited to just Engine Editor UI |
 | HTML | User Created UI (Intended User's game) | It's good for UI Creation (Shown with Websites) | Hard for beginners |
 | CSS | User Created Style Sheets for UI (Intended for User's game) | It's pretty darn flexible if you use it correctly | Hard for beginners |
 
