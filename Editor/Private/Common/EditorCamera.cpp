@@ -1,9 +1,10 @@
 #include <Editor/Public/Common/EditorCamera.h>
 
 EditorCamera::EditorCamera(glm::vec3 startPosition, glm::vec3 startUp, float startYaw, float startPitch)
-                            : front(glm::vec3(0.0f, 0.0f, -1.0f)), 
-                              movementSpeed(2.5f), 
-                              mouseSensitivity(0.1f), 
+                            : front(glm::vec3(0.0f, 0.0f, -1.0f)),
+                              movementSpeed(2.5f),
+                              mouseSensitivity(0.1f),
+                              panSensitivity(0.005f),
                               fov(45.0f)
 {
     position = startPosition;
@@ -11,31 +12,69 @@ EditorCamera::EditorCamera(glm::vec3 startPosition, glm::vec3 startUp, float sta
     yaw = startYaw;
     pitch = startPitch;
     UpdateCameraVectors();
+
+    m_Flying = false;
+    m_Pivoting = false;
 }
 
 void EditorCamera::ProcessKeyboard(CameraMovement dir, float dt)
 {
     float velocity = movementSpeed * dt;
-    if (dir == CameraMovement::FORWARD) position += front * velocity;
+    if (dir == CameraMovement::FORWARD)  position += front * velocity;
     if (dir == CameraMovement::BACKWARD) position -= front * velocity;
-    if (dir == CameraMovement::LEFT) position -= right * velocity;
-    if (dir == CameraMovement::RIGHT) position += right * velocity;
+    if (dir == CameraMovement::LEFT)     position -= right * velocity;
+    if (dir == CameraMovement::RIGHT)    position += right * velocity;
+    if (dir == CameraMovement::UP)       position += up    * velocity;
+    if (dir == CameraMovement::DOWN)     position -= up    * velocity;
 }
 
-void EditorCamera::ProcessMouseMovement(float xoffset, float yoffset, bool constrainPitch)
+void EditorCamera::ProcessMouseMovement(float xoffset, float yoffset, float dt, bool constrainPitch)
 {
-    xoffset *= mouseSensitivity;
-    yoffset *= mouseSensitivity;
+    if (m_Flying)
+    {
+        xoffset *= mouseSensitivity;
+        yoffset *= mouseSensitivity;
 
-    yaw   += xoffset;
-    pitch += yoffset;
+        yaw   += xoffset;
+        pitch += yoffset;
 
-    if (constrainPitch) {
-        if (pitch > 89.0f)  pitch = 89.0f;
-        if (pitch < -89.0f) pitch = -89.0f;
+        if (constrainPitch) {
+            if (pitch > 89.0f)  pitch = 89.0f;
+            if (pitch < -89.0f) pitch = -89.0f;
+        }
+
+        UpdateCameraVectors();
     }
+    else if (m_Pivoting)
+    {
+        // Pan along the camera's own right/up, not world axes, so it stays
+        // correct once the camera has rotated. Sign: dragging the mouse
+        // right pushes the camera left, so the scene appears to follow
+        // the drag (standard "grab and pan" feel). Flip if you want the
+        // opposite convention.
+        position -= right * xoffset * panSensitivity;
+        position += up    * yoffset * panSensitivity;
+    }
+}
 
-    UpdateCameraVectors();
+void EditorCamera::ProcessMouseButtonPressed(MouseButton button)
+{
+    if (button == MouseButton::Right)
+    {
+        m_Flying = true;
+        m_Pivoting = false;
+    }
+    else if (button == MouseButton::Middle)
+    {
+        m_Flying = false;
+        m_Pivoting = true;
+    }
+}
+
+void EditorCamera::ProcessMouseButtonReleased(MouseButton button)
+{
+    if (button == MouseButton::Right)   m_Flying = false;
+    if (button == MouseButton::Middle)  m_Pivoting = false;
 }
 
 void EditorCamera::ProcessMouseScroll(float yoffset)
@@ -47,13 +86,12 @@ void EditorCamera::ProcessMouseScroll(float yoffset)
 
 void EditorCamera::UpdateCameraVectors()
 {
-     glm::vec3 newFront;
+    glm::vec3 newFront;
     newFront.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
     newFront.y = sin(glm::radians(pitch));
     newFront.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
     front = glm::normalize(newFront);
-        
-    // Re-calculate the Right and Up vector
-    right = glm::normalize(glm::cross(front, worldUp));  
+
+    right = glm::normalize(glm::cross(front, worldUp));
     up    = glm::normalize(glm::cross(right, front));
 }

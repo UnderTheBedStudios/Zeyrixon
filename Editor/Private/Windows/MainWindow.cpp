@@ -31,6 +31,8 @@ MainWindow::MainWindow(const WindowDesc& desc)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+    io.WantCaptureKeyboard = false;
+    io.WantCaptureMouse = false;
 
     ImGui::StyleColorsDark();
 
@@ -191,12 +193,55 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
         ImGui::SetWindowPos(ImVec2((int)(screenWidth * 0.5) - (int)(ImGui::GetWindowSize().x * 0.5), 0), ImGuiCond_FirstUseEver);
         ImVec2 contentSize = ImGui::GetContentRegionAvail();
 
+        ImGuiIO& io = ImGui::GetIO();
+        bool viewportHovered = ImGui::IsWindowHovered();
+
+        // Entering a mode requires the click to start over the viewport.
+        if (viewportHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+        {
+            editorCamera.ProcessMouseButtonPressed(MouseButton::Right);
+            glfwSetInputMode(Handle(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        }
+        if (viewportHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Middle))
+        {
+            editorCamera.ProcessMouseButtonPressed(MouseButton::Middle);
+            glfwSetInputMode(Handle(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        }
+
+        // Releasing works regardless of hover, so drags that leave the viewport
+        // rect (cursor is hidden/warped anyway) still end cleanly.
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Right) && editorCamera.IsFlying())
+        {
+            editorCamera.ProcessMouseButtonReleased(MouseButton::Right);
+            glfwSetInputMode(Handle(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Middle) && editorCamera.IsPivoting())
+        {
+            editorCamera.ProcessMouseButtonReleased(MouseButton::Middle);
+            glfwSetInputMode(Handle(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
+
+        if (editorCamera.IsFlying() || editorCamera.IsPivoting())
+        {
+            editorCamera.ProcessMouseMovement(io.MouseDelta.x, -io.MouseDelta.y, io.DeltaTime);
+        }
+
+        if (editorCamera.IsFlying())
+        {
+            if (ImGui::IsKeyDown(ImGuiKey_W)) editorCamera.ProcessKeyboard(CameraMovement::FORWARD,  io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_S)) editorCamera.ProcessKeyboard(CameraMovement::BACKWARD, io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_A)) editorCamera.ProcessKeyboard(CameraMovement::LEFT,     io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_D)) editorCamera.ProcessKeyboard(CameraMovement::RIGHT,    io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_E)) editorCamera.ProcessKeyboard(CameraMovement::UP,       io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_Q)) editorCamera.ProcessKeyboard(CameraMovement::DOWN,     io.DeltaTime);
+        }
+
         EnsureViewportTarget((int)contentSize.x, (int)contentSize.y);
 
         if (viewportFBO != 0)
         {
-            glm::mat4 proj = glm::perspective(glm::radians(45.0f), contentSize.x / contentSize.y, 0.1f, 100.0f);
-            glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 1.0f, 3.0f), glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::mat4 proj = glm::perspective(glm::radians(editorCamera.fov), contentSize.x / contentSize.y, 0.1f, 100.0f);
+            glm::mat4 view = editorCamera.GetViewMatrix();
             glm::mat4 viewProj = proj * view;
             glm::mat4 model = glm::mat4(1.0f);
 
