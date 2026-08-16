@@ -15,6 +15,7 @@
 #include <fstream>
 #include <vector>
 #include <cstring>
+#include <Editor/Public/Utils/FileCreator.h>
 
 #include <stb_image.h>
 
@@ -222,60 +223,175 @@ void ProjectBrowserDialog::DrawFrame()
             }
             if (ImGui::BeginTabItem(tab_labels[1]))
             {
-                static char nameBuf[128] = "NewProject";
-                static char locationBuf[512] = "";
-                static bool locationInitialized = false;
+                if (!m_templatesLoaded)
+                    LoadTemplates();
 
-                if (!locationInitialized)
+                static char nameBuf[128] = "New Project";
+                static char pathBuf[512] = "";
+                static bool pathInitialized = false;
+                static std::string validationError;
+
+                if (!pathInitialized)
                 {
-                    locationInitialized = true;
-                    std::string defaultLoc = (PathUtils::GetDocumentsDirectory() / "LumenX Projects").string();
-                    strncpy(locationBuf, defaultLoc.c_str(), sizeof(locationBuf) - 1);
+                    pathInitialized = true;
+                    std::string defaultPath = (PathUtils::GetDocumentsDirectory() / "LumenX Projects").string();
+                    strncpy(pathBuf, defaultPath.c_str(), sizeof(pathBuf) - 1);
                 }
 
-                ImGui::Spacing();
-                ImGui::Text("Project Name");
-                ImGui::InputText("##ProjectName", nameBuf, sizeof(nameBuf));
+                const float listWidth = 200.0f;
+                const float formHeight = 100.0f;   // Name + Path rows
+                const float bottomBarHeight = 40.0f;
+                const float errorHeight = validationError.empty() ? 0.0f : 22.0f;
+                ImVec2 avail = ImGui::GetContentRegionAvail();
+                float panesHeight = avail.y - formHeight - bottomBarHeight - errorHeight;
 
-                ImGui::Spacing();
-                ImGui::Text("Location");
-                ImGui::InputText("##Location", locationBuf, sizeof(locationBuf));
+                // Left: template list
+                ImGui::BeginChild("TemplateList", ImVec2(listWidth, panesHeight), true);
+                for (int i = 0; i < (int)m_templates.size(); i++)
+                {
+                    auto& tmpl = m_templates[i];
+                    ImGui::PushID(i);
+
+                    bool isSelected = (m_selectedTemplateIndex == i);
+                    ImVec2 rowStart = ImGui::GetCursorScreenPos();
+
+                    if (ImGui::Selectable("##row", isSelected, 0, ImVec2(0, 48)))
+                        m_selectedTemplateIndex = i;
+
+                    ImGui::SetCursorScreenPos(rowStart);
+                    ImDrawList* dl = ImGui::GetWindowDrawList();
+                    ImVec2 badgeMin = rowStart;
+                    ImVec2 badgeMax = ImVec2(badgeMin.x + 40, badgeMin.y + 40);
+                    dl->AddRectFilled(badgeMin, badgeMax, IM_COL32(40, 40, 40, 255), 3.0f);
+                    ImVec2 textSize = ImGui::CalcTextSize(tmpl.badge.c_str());
+                    dl->AddText(ImVec2(badgeMin.x + (40 - textSize.x) * 0.5f, badgeMin.y + (40 - textSize.y) * 0.5f),
+                                IM_COL32(255, 255, 255, 255), tmpl.badge.c_str());
+
+                    ImGui::Dummy(ImVec2(40, 40));
+                    ImGui::SameLine();
+                    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 12.0f);
+                    ImGui::Text("%s", tmpl.name.c_str());
+
+                    ImGui::PopID();
+                }
+                ImGui::EndChild();
+
                 ImGui::SameLine();
-                if (ImGui::Button("Browse##Location"))
+
+                // Right: preview of selected template
+                ImGui::BeginChild("TemplatePreview", ImVec2(0, panesHeight), true);
+                if (m_selectedTemplateIndex >= 0 && m_selectedTemplateIndex < (int)m_templates.size())
+                {
+                    auto& tmpl = m_templates[m_selectedTemplateIndex];
+                    if (tmpl.previewTex != 0)
+                    {
+                        ImVec2 previewAvail = ImGui::GetContentRegionAvail();
+                        float aspect = (float)tmpl.previewW / (float)tmpl.previewH;
+                        ImVec2 imgSize = previewAvail;
+                        if (imgSize.x / aspect < imgSize.y)
+                            imgSize.y = imgSize.x / aspect;
+                        else
+                            imgSize.x = imgSize.y * aspect;
+                        ImGui::SetCursorPos(ImVec2(
+                            (previewAvail.x - imgSize.x) * 0.5f,
+                            (previewAvail.y - imgSize.y) * 0.5f));
+                        ImGui::Image((ImTextureID)(intptr_t)tmpl.previewTex, imgSize);
+                    }
+                    else
+                    {
+                        ImGui::TextDisabled("No preview available");
+                    }
+                }
+                ImGui::EndChild();
+
+                // Name / Path form
+                ImGui::Dummy(ImVec2(0, 8));
+                ImGui::Text("Name");
+                ImGui::SameLine(80);
+                ImGui::SetNextItemWidth(avail.x - 80);
+                if (ImGui::InputText("##Name", nameBuf, sizeof(nameBuf)))
+                    validationError.clear(); // re-validate on next Create press rather than every keystroke
+
+                ImGui::Text("Path");
+                ImGui::SameLine(80);
+                ImGui::SetNextItemWidth(avail.x - 80 - 70);
+                ImGui::InputText("##Path", pathBuf, sizeof(pathBuf));
+                ImGui::SameLine();
+                if (ImGui::Button("Browse", ImVec2(60, 0)))
                 {
                     // TODO: native folder picker
                 }
 
-                ImGui::Spacing();
-                if (ImGui::Button("Create"))
+                // Bottom action bar
+                ImGui::Dummy(ImVec2(0, 6));
+                std::filesystem::path targetDir = std::filesystem::path(pathBuf) / nameBuf;
+                bool alreadyExists = std::filesystem::exists(targetDir) && !std::filesystem::is_empty(targetDir);
+                bool nameEmpty = (nameBuf[0] == '\0');
+
+                ImGui::BeginDisabled(alreadyExists || nameEmpty);
+                if (ImGui::Button("Create", ImVec2(90, 0)))
                 {
-                    std::filesystem::path projectDir = std::filesystem::path(locationBuf) / nameBuf;
                     std::error_code ec;
-                    std::filesystem::create_directories(projectDir, ec);
+                    std::filesystem::create_directories(targetDir, ec);
+                    std::filesystem::create_directories(targetDir / "Content", ec);
+                    std::filesystem::create_directories(targetDir / "Source Code", ec);
+                    std::filesystem::create_directories(targetDir / ".LumenX", ec);
 
                     if (!ec)
                     {
-                        std::filesystem::path lumenxFile = projectDir / (std::string(nameBuf) + ".lumenx");
-                        std::ofstream out(lumenxFile);
-                        if (out)
+                        // Copy the template's preview into .LumenX/Screenshot.png (icon intentionally skipped)
+                        auto& tmpl = m_templates[m_selectedTemplateIndex];
+                        if (std::filesystem::exists(tmpl.previewPath))
                         {
-                            out << "<Project Name=\"" << nameBuf << "\" />\n";
-                            out.close();
+                            std::filesystem::copy_file(tmpl.previewPath, targetDir / ".LumenX" / "Screenshot.png",
+                                std::filesystem::copy_options::overwrite_existing, ec);
+                        }
 
+                        // Copy any other template source content (Content/, Source Code/ seed files) if present
+                        if (std::filesystem::exists(tmpl.templateDir))
+                        {
+                            std::filesystem::copy(tmpl.templateDir, targetDir,
+                                std::filesystem::copy_options::recursive |
+                                std::filesystem::copy_options::skip_existing, ec);
+                        }
+
+                        std::string projectDirWithSlash = targetDir.string();
+                        if (projectDirWithSlash.empty() || projectDirWithSlash.back() != '/')
+                            projectDirWithSlash += '/';
+
+                        std::filesystem::path lumenxFile = targetDir / (std::string(nameBuf) + ".lumenx");
+                        if (FileCreator::WriteLumenxFile(lumenxFile, nameBuf, projectDirWithSlash))
+                        {
                             m_selectedProjectPath = lumenxFile.string();
                             m_hasSelectedProject = true;
                             m_finished = true;
                         }
                         else
                         {
-                            fprintf(stderr, "[ProjectBrowser] Failed to write %s\n", lumenxFile.string().c_str());
+                            validationError = "Failed to write project file.";
                         }
                     }
                     else
                     {
-                        fprintf(stderr, "[ProjectBrowser] Failed to create directory %s: %s\n",
-                                projectDir.string().c_str(), ec.message().c_str());
+                        validationError = "Failed to create project directory.";
                     }
+                }
+                ImGui::EndDisabled();
+                ImGui::SameLine();
+                if (ImGui::Button("Exit", ImVec2(80, 0)))
+                {
+                    m_finished = true;
+                }
+
+                if (alreadyExists)
+                    validationError = "A non-empty directory with the same name already exists.";
+                else if (nameEmpty)
+                    validationError = "Project name cannot be empty.";
+
+                if (!validationError.empty())
+                {
+                    ImGui::Dummy(ImVec2(0, 4));
+                    ImGui::TextColored(ImVec4(0.9f, 0.25f, 0.25f, 1.0f), "%s", validationError.c_str());
                 }
 
                 ImGui::EndTabItem();
@@ -325,8 +441,35 @@ void ProjectBrowserDialog::ScanProjects()
         ProjectEntry proj;
         proj.name = lumenxFile.stem().string();
         proj.lumenxPath = lumenxFile;
-        proj.thumbnailPath = entry.path() / ".LumenX/thumbnail.png";
+        proj.thumbnailPath = entry.path() / ".LumenX" / "Screenshot.png";
         proj.thumbnailTex = LoadThumbnailTexture(proj.thumbnailPath, proj.thumbW, proj.thumbH);
         m_recentProjects.push_back(std::move(proj));
+    }
+}
+
+void ProjectBrowserDialog::LoadTemplates()
+{
+    m_templatesLoaded = true;
+    std::filesystem::path templatesRoot = PathUtils::ResolveProjectRoot() / "Editor" / "ProjectTemplates";
+
+    fprintf(stdout, "templatesRoot = %s\n", templatesRoot.string().c_str());
+
+    struct TemplateDef { const char* name; const char* badge; const char* folder; };
+    static const TemplateDef defs[] = {
+        { "Empty Project",       "EP", "Empty" },
+        { "First Person Project","FP", "FirstPerson" },
+        { "Third Person Project","TP", "ThirdPerson" },
+        { "Top Down Project",    "TD", "TopDown" },
+    };
+
+    for (auto& def : defs)
+    {
+        ProjectTemplate t;
+        t.name = def.name;
+        t.badge = def.badge;
+        t.templateDir = templatesRoot / def.folder;
+        t.previewPath = t.templateDir / "Screenshot.png";
+        t.previewTex = LoadThumbnailTexture(t.previewPath, t.previewW, t.previewH); // reuse helper from Open Project tab
+        m_templates.push_back(std::move(t));
     }
 }

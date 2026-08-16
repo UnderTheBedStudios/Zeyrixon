@@ -15,6 +15,16 @@ struct ProjectEntry
     int thumbW = 0, thumbH = 0;
 };
 
+struct ProjectTemplate
+{
+    std::string name;
+    std::string badge;
+    std::filesystem::path templateDir;
+    std::filesystem::path previewPath;
+    GLuint previewTex = 0;
+    int previewW = 0, previewH = 0;
+};
+
 class ProjectBrowserDialog : public Window
 {
 public:
@@ -31,11 +41,16 @@ public:
     const std::string& SelectedProjectPath() const { return m_selectedProjectPath; }
 
     void ScanProjects();
+    void LoadTemplates();
 
 private:
     std::vector<ProjectEntry> m_recentProjects;
     bool m_scanned = false;
     int m_selectedIndex = -1;
+
+    std::vector<ProjectTemplate> m_templates;
+    bool m_templatesLoaded = false;
+    int m_selectedTemplateIndex = 0;
 
     Window* m_parentWindow = nullptr;
 
