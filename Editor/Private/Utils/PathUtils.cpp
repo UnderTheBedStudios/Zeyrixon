@@ -79,7 +79,7 @@ fs::path GetDocumentsDirectory()
     }
     return fs::path();
 #else
-    #error "Unsupported platform
+    #error "Unsupported platform"
     return fs::path();
 #endif
 }
