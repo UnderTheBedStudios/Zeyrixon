@@ -84,14 +84,13 @@ int main(int, char**)
 #endif
 
     // Create window with graphics context
-    int screenWidth = 1280, screenHeight = 720;
     float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor()); // Valid on GLFW 3.3+ onlys
 
     MainWindow mainWin({.title = "LumenX Editor", .width = (int)(1600 * main_scale), .height = (int)(900 * main_scale)});
 
     std::unique_ptr<ProjectBrowserDialog> browser;
     browser = std::make_unique<ProjectBrowserDialog>(
-        WindowDesc{ .title = "Project Browser", .width = 800, .height = 550,
+        WindowDesc{ .title = "Project Browser", .width = (int)(800 * main_scale), .height = (int)(550 * main_scale),
                     .type = WindowType::Dialog, .parent = mainWin.Handle(), .alwaysOnTop = true },
         &mainWin);
 
@@ -110,10 +109,12 @@ int main(int, char**)
         // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
         // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
         // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
-        
+
         glfwPollEvents();
 
-        mainWin.DrawFrame(screenWidth, screenHeight);
+        int mainWinWidth, mainWinHeight;
+        glfwGetWindowSize(mainWin.Handle(), &mainWinWidth, &mainWinHeight);
+        mainWin.DrawFrame(mainWinWidth, mainWinHeight);
 
         if (browser)
         {
