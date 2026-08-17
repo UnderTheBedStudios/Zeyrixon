@@ -35,9 +35,8 @@ As you can see, everything should go back and fourth depending on the inputs you
 ## User Instructions 📜 :
 In order to build this project (I can only tell you in Visual Studio Code) you will need to have a few things.
 1. CMake
-2. .Net 10.0
-3. GCC/Clang (Any C++ compiler for that matter)
-4. Visual Studio Code
+2. GCC/Clang (Any C++ compiler for that matter)
+3. Visual Studio Code
 
 Now lets get to seeing some extensions Visual Studio Code will use... nvm, I just realized you should just download whatever the workspace recommends you to. In order to open and get access to the workspace you just need Visual Studio Code, then click File->Open Workspace From File, then select `LumenX.code-workspace` in the file explorer Visual Studio Code will open.
 
