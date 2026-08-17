@@ -259,6 +259,9 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
         ImGui::Begin("Inspector", nullptr, windowFlags);
         ImGui::SetWindowSize(ImVec2((int)(std::abs(ViewportSize.x - screenWidth) * 0.5f), (int)((2.0f/3.0f) * ViewportSize.y)), ImGuiCond_FirstUseEver);
         ImGui::SetWindowPos(ImVec2(screenWidth - ImGui::GetWindowSize().x, 0), ImGuiCond_FirstUseEver);
+
+        if (ImGui::Button("Make New Entity")) { fprintf(stdout, "[Editor]: Make New Entity called!\n"); }
+        
         ImGui::End();
     }
 
@@ -321,4 +324,31 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
     glClear(GL_COLOR_BUFFER_BIT);
 
     EndFrame(); // ImGui::Render + viewport + ImGui_ImplOpenGL3_RenderDrawData + glfwSwapBuffers
+}
+
+void MainWindow::LoadProject(const std::string& lumenxPath)
+{
+    Project proj;
+    if (!proj.LoadFromFile(lumenxPath))
+    {
+        fprintf(stderr, "[Editor] Failed to load project: %s\n", lumenxPath.c_str());
+        return;
+    }
+
+    m_project = std::move(proj);
+    m_hasProject = true;
+
+    std::string title = "LumenX Editor - " + m_project.Name();
+    glfwSetWindowTitle(Handle(), title.c_str());
+
+    if (const ProjectWorld* world = m_project.ActiveWorld())
+    {
+        float lightDir[3]   = { world->lightDir.x, world->lightDir.y, world->lightDir.z };
+        float lightColor[3] = { world->lightColor.x, world->lightColor.y, world->lightColor.z };
+        float viewPos[3]    = { editorCamera.position.x, editorCamera.position.y, editorCamera.position.z };
+        Engine_SetLight(lightDir, lightColor, viewPos);
+    }
+
+    fprintf(stdout, "[Editor] Loaded project \"%s\" from %s\n",
+            m_project.Name().c_str(), m_project.Directory().string().c_str());
 }

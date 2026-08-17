@@ -17,16 +17,19 @@
 | C/C++ | Editor | Complex UI Customization | Limited to just Engine Editor UI |
 | HTML | User Created UI (Intended User's game) | It's good for UI Creation (Shown with Websites) | Hard for beginners |
 | CSS | User Created Style Sheets for UI (Intended for User's game) | It's pretty darn flexible if you use it correctly | Hard for beginners |
+| C/C++ | User's Code | Speedy code | Complicated |
 
 ## How it's meant to work 🖥️ :
 ``` mermaid
 %%{init: { 'config': { 'boxMargin': 25, 'actorMargin': 0 } } }%%
 sequenceDiagram
     User->>Editor: User Interacts with Editor
-    Editor->>Engine: Editor acts as a messenger for the User, Interacting with Engine.
+    Editor->>User's Code: Editor acts as a messenger for the User, Interacting with User's Code.
+    User's Code->>Engine: Asks to gain something from the Engine
     Engine->>OpenGL Rendering: Gives OpenGL things to render.
     OpenGL Rendering->>Engine: Renders everything for Engine.
-    Engine->>Editor: Gives the Editor what it wants (Unless it's code, it will need to be compiled first).
+    Engine->>User's Code: Gives the User's Code what it wants.
+    User's Code->>Editor: Gives the Editor what it wants.
     Editor->>User: Gives User what they want.
     OpenGL Rendering->>User: Gives User Visual Feedback of the output.
 ```
@@ -52,13 +55,7 @@ You may also need to input some commands into the terminal.
 > ```shell
 > > CMake: Build
 > ```
-6. Then type in this command in the terminal
-> ```shell
-> dotnet build
-> ```
-7. Then all you need to do now is run the project!
->```shell
-> dotnet run
->```
+6. Now you should run it and you can do it in two ways, either you can open it from the build folder, or you can just go into the build folder and open the executable, it doesn't really matter.
+
 
 # I hope you all enjoy the Engine! Best Reguards!

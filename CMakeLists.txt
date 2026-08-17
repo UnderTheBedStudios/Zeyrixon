@@ -1,6 +1,8 @@
 # CMake stuff
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.14) # 3.14+ needed for FetchContent_MakeAvailable
 project(LumenX)
+
+include(FetchContent)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -20,8 +22,23 @@ set_target_properties(glad PROPERTIES POSITION_INDEPENDENT_CODE ON)
 cmake_policy(SET CMP0072 NEW)
 
 # find system installed stuff
-find_package(OpenGL REQUIRED)
-find_package(glfw3 REQUIRED)
+find_package(OpenGL REQUIRED) # OpenGL comes from the graphics driver, can't be fetched - install mesa/nvidia drivers if missing
+
+# glfw3: use system package if present, otherwise fetch and build from source
+find_package(glfw3 QUIET)
+if(NOT glfw3_FOUND)
+    message(STATUS "glfw3 not found on system, fetching from source instead")
+    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        glfw
+        GIT_REPOSITORY https://github.com/glfw/glfw.git
+        GIT_TAG 3.4
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(glfw)
+endif()
 
 # Add your files
 add_library(imgui_lib STATIC
@@ -46,9 +63,36 @@ add_library(Engine STATIC
     Engine/Private/Entities/Common/Camera.cpp
 )
 
-# Assimp stuff
-find_package(assimp REQUIRED)
+# Assimp stuff: use system package if present, otherwise fetch and build from source
+find_package(assimp QUIET)
+if(NOT assimp_FOUND)
+    message(STATUS "assimp not found on system, fetching from source instead")
+    set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
+    set(ASSIMP_BUILD_ZLIB ON CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        assimp
+        GIT_REPOSITORY https://github.com/assimp/assimp.git
+        GIT_TAG v5.4.3
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(assimp)
+    add_library(assimp::assimp ALIAS assimp)
+endif()
 target_link_libraries(Engine PRIVATE assimp::assimp)
+
+find_package(pugixml QUIET)
+if(NOT pugixml_FOUND)
+    message(STATUS "pugixml not found on system, fetching from source instead")
+    FetchContent_Declare(
+        pugixml
+        GIT_REPOSITORY https://github.com/zeux/pugixml.git
+        GIT_TAG v1.14
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(pugixml)
+endif()
 
 # If you have include folders
 target_include_directories(imgui_lib PUBLIC 
@@ -69,8 +113,10 @@ add_executable(Editor
     Editor/Private/Windows/MainWindow.cpp
     Editor/Private/Windows/ProjectBrowserDialog.cpp
     Editor/Private/Utils/FileCreator.cpp
+    Editor/Private/Common/Project.cpp
+    Editor/Private/Utils/FileManagement.cpp
 )
 target_include_directories(Editor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Editor/..)
-target_link_libraries(Editor PRIVATE imgui_lib glad glfw OpenGL::GL Engine)
+target_link_libraries(Editor PRIVATE imgui_lib glad glfw OpenGL::GL Engine pugixml)
 
 target_link_libraries(Engine PUBLIC glad OpenGL::GL)

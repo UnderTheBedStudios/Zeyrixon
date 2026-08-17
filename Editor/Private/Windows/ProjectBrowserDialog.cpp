@@ -24,6 +24,8 @@ static GLuint LoadThumbnailTexture(const std::filesystem::path& path, int& outW,
     if (!std::filesystem::exists(path))
         return 0;
 
+    stbi_set_flip_vertically_on_load(false);
+
     int channels;
     unsigned char* data = stbi_load(path.string().c_str(), &outW, &outH, &channels, 4);
     if (!data)
@@ -331,49 +333,23 @@ void ProjectBrowserDialog::DrawFrame()
                 ImGui::BeginDisabled(alreadyExists || nameEmpty);
                 if (ImGui::Button("Create", ImVec2(90, 0)))
                 {
-                    std::error_code ec;
-                    std::filesystem::create_directories(targetDir, ec);
-                    std::filesystem::create_directories(targetDir / "Content", ec);
-                    std::filesystem::create_directories(targetDir / "Source Code", ec);
-                    std::filesystem::create_directories(targetDir / ".LumenX", ec);
+                    auto& tmpl = m_templates[m_selectedTemplateIndex];
 
-                    if (!ec)
+                    // NOTE: this folder list matches every template's template.xml today (.LumenX, Content,
+                    // Source Code). If templates ever need different folders, this should read template.xml's
+                    // <Folders> element instead of being hardcoded — would need an XML parser (pugixml/tinyxml2)
+                    // vendored, since this project doesn't have one yet.
+                    static const std::vector<std::string> kStandardFolders = { ".LumenX", "Content", "Source Code" };
+
+                    if (FileCreator::InstantiateProjectFromTemplate(tmpl.templateDir, targetDir, nameBuf, kStandardFolders))
                     {
-                        // Copy the template's preview into .LumenX/Screenshot.png (icon intentionally skipped)
-                        auto& tmpl = m_templates[m_selectedTemplateIndex];
-                        if (std::filesystem::exists(tmpl.previewPath))
-                        {
-                            std::filesystem::copy_file(tmpl.previewPath, targetDir / ".LumenX" / "Screenshot.png",
-                                std::filesystem::copy_options::overwrite_existing, ec);
-                        }
-
-                        // Copy any other template source content (Content/, Source Code/ seed files) if present
-                        if (std::filesystem::exists(tmpl.templateDir))
-                        {
-                            std::filesystem::copy(tmpl.templateDir, targetDir,
-                                std::filesystem::copy_options::recursive |
-                                std::filesystem::copy_options::skip_existing, ec);
-                        }
-
-                        std::string projectDirWithSlash = targetDir.string();
-                        if (projectDirWithSlash.empty() || projectDirWithSlash.back() != '/')
-                            projectDirWithSlash += '/';
-
-                        std::filesystem::path lumenxFile = targetDir / (std::string(nameBuf) + ".lumenx");
-                        if (FileCreator::WriteLumenxFile(lumenxFile, nameBuf, projectDirWithSlash))
-                        {
-                            m_selectedProjectPath = lumenxFile.string();
-                            m_hasSelectedProject = true;
-                            m_finished = true;
-                        }
-                        else
-                        {
-                            validationError = "Failed to write project file.";
-                        }
+                        m_selectedProjectPath = (targetDir / (std::string(nameBuf) + ".lumenx")).string();
+                        m_hasSelectedProject = true;
+                        m_finished = true;
                     }
                     else
                     {
-                        validationError = "Failed to create project directory.";
+                        validationError = "Failed to create project from template.";
                     }
                 }
                 ImGui::EndDisabled();
@@ -452,14 +428,12 @@ void ProjectBrowserDialog::LoadTemplates()
     m_templatesLoaded = true;
     std::filesystem::path templatesRoot = PathUtils::ResolveProjectRoot() / "Editor" / "ProjectTemplates";
 
-    fprintf(stdout, "templatesRoot = %s\n", templatesRoot.string().c_str());
-
     struct TemplateDef { const char* name; const char* badge; const char* folder; };
     static const TemplateDef defs[] = {
-        { "Empty Project",       "EP", "Empty" },
-        { "First Person Project","FP", "FirstPerson" },
-        { "Third Person Project","TP", "ThirdPerson" },
-        { "Top Down Project",    "TD", "TopDown" },
+        { "Empty Project",       "EP", "EmptyProject" },
+        { "First Person Project","FP", "FirstPersonProject" },
+        { "Third Person Project","TP", "ThirdPersonProject" },
+        { "Top Down Project",    "TD", "TopDownProject" },
     };
 
     for (auto& def : defs)
@@ -469,7 +443,7 @@ void ProjectBrowserDialog::LoadTemplates()
         t.badge = def.badge;
         t.templateDir = templatesRoot / def.folder;
         t.previewPath = t.templateDir / "Screenshot.png";
-        t.previewTex = LoadThumbnailTexture(t.previewPath, t.previewW, t.previewH); // reuse helper from Open Project tab
+        t.previewTex = LoadThumbnailTexture(t.previewPath, t.previewW, t.previewH);
         m_templates.push_back(std::move(t));
     }
 }

@@ -4,6 +4,7 @@
 #include <Engine/pch.h>
 #include <Engine/framework.h>
 #include <Engine/Public/General/Shader.h>
+#include <Engine/Public/Entities/Common/BaseEntity.h>
 #include <Engine/Public/Components/Common/Model.h>
 #include <glad/glad.h>
 #include <cstdio>

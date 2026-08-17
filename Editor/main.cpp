@@ -44,12 +44,6 @@ static void glfw_error_callback(int error, const char* description)
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
-void LoadProject(std::string projectPath)
-{
-
-}
-
-
 // Main code
 int main(int, char**)
 {
@@ -122,7 +116,7 @@ int main(int, char**)
             if (browser->IsFinished())
             {
                 if (browser->HasSelectedProject())
-                    LoadProject(browser->SelectedProjectPath());
+                    mainWin.LoadProject(browser->SelectedProjectPath());
                 else
                     mainWin.Close();
                 browser.reset();
