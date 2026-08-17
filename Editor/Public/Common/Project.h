@@ -29,6 +29,8 @@ public:
     // or nullptr if there are no Worlds at all.
     const ProjectWorld* ActiveWorld() const;
 
+    ProjectWorld* ActiveWorldMutable();
+
 private:
     std::string m_name;
     std::filesystem::path m_directory;  // actual folder the .lumenx was opened from — authoritative

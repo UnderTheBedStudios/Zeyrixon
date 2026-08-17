@@ -363,6 +363,28 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                                     ImGuiCond_FirstUseEver);
         ImGui::SetWindowPos(ImVec2((int)(screenWidth + ImGui::GetWindowSize().x), (int)(ViewportSize.y)), ImGuiCond_FirstUseEver);
 
+        if (m_hasProject)
+        {
+            if (m_project.ActiveWorldMutable() != nullptr)
+            {
+                std::string currentName = m_project.ActiveWorldMutable()->name;
+                strncpy(m_renameWorldBuffer, currentName.c_str(), sizeof(m_renameWorldBuffer) - 1);
+                m_renameWorldBuffer[sizeof(m_renameWorldBuffer) - 1] = '\0';
+
+                ImGui::Text("Name");
+                if (ImGui::InputText("##WorldName", m_renameWorldBuffer, sizeof(m_renameWorldBuffer)))
+                    m_project.ActiveWorldMutable()->name = m_renameWorldBuffer;
+            }
+            else
+            {
+                ImGui::TextDisabled("There Are No Worlds");
+            }
+        }
+        else
+        {
+            ImGui::TextDisabled("No Project Selected!");
+        }
+
         ImGui::End();
     }
 

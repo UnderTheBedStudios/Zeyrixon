@@ -30,6 +30,8 @@ private:
     Project m_project;
     bool m_hasProject = false;
 
+    char m_renameWorldBuffer[128] = {};
+
     int m_selectedEntity = -1;
 
     // Local editable copy of the selected entity's name — only re-synced from the Engine

@@ -75,3 +75,8 @@ const ProjectWorld* Project::ActiveWorld() const
             return &w;
     return m_worlds.empty() ? nullptr : &m_worlds.front();
 }
+
+ProjectWorld* Project::ActiveWorldMutable()
+{
+    return const_cast<ProjectWorld*>(static_cast<const Project*>(this)->ActiveWorld());
+}
