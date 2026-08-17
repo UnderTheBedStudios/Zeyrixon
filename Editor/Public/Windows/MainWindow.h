@@ -29,4 +29,11 @@ private:
 
     Project m_project;
     bool m_hasProject = false;
+
+    int m_selectedEntity = -1;
+
+    // Local editable copy of the selected entity's name — only re-synced from the Engine
+    // when the selection changes, so it doesn't overwrite what the user is mid-typing.
+    char m_renameBuffer[128] = {};
+    int m_renameBufferForEntity = -1;
 };

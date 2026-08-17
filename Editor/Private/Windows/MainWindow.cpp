@@ -16,6 +16,8 @@
 #include <imgui_internal.h>
 #include <Editor/Public/Utils/PathUtils.h>
 #include <filesystem>
+#include <string>
+#include <cstring>
 
 MainWindow::MainWindow(const WindowDesc& desc)
     : Window(desc)
@@ -288,7 +290,10 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             std::string name = Engine_GetEntityName(i);
             std::string type = Engine_GetEntityType(i);
             std::string label = name + " (" + type + ")";
-            ImGui::Selectable(label.c_str());
+
+            bool isSelected = (m_selectedEntity == i);
+            if (ImGui::Selectable(label.c_str(), isSelected))
+                m_selectedEntity = i;
         }
 
         ImGui::End();
@@ -316,6 +321,38 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                                     (int)(std::abs(ViewportSize.y - screenHeight))),
                                     ImGuiCond_FirstUseEver);
         ImGui::SetWindowPos(ImVec2((int)(screenWidth + ImGui::GetWindowSize().x), (int)(ViewportSize.y)), ImGuiCond_FirstUseEver);
+
+        int entityCount = Engine_GetEntityCount();
+        if (m_selectedEntity < 0 || m_selectedEntity >= entityCount)
+        {
+            ImGui::TextDisabled("No entity selected.");
+            m_selectedEntity = -1; // clamp — selection can go stale if something else deleted it
+        }
+        else
+        {
+            if (m_renameBufferForEntity != m_selectedEntity)
+            {
+                std::string currentName = Engine_GetEntityName(m_selectedEntity);
+                strncpy(m_renameBuffer, currentName.c_str(), sizeof(m_renameBuffer) - 1);
+                m_renameBuffer[sizeof(m_renameBuffer) - 1] = '\0';
+                m_renameBufferForEntity = m_selectedEntity;
+            }
+
+            ImGui::Text("Type: %s", Engine_GetEntityType(m_selectedEntity));
+
+            ImGui::Text("Name");
+            if (ImGui::InputText("##EntityName", m_renameBuffer, sizeof(m_renameBuffer)))
+                Engine_SetEntityName(m_selectedEntity, m_renameBuffer);
+
+            ImGui::Spacing();
+            if (ImGui::Button("Delete Entity"))
+            {
+                Engine_DeleteEntity(m_selectedEntity);
+                m_selectedEntity = -1;
+                m_renameBufferForEntity = -1;
+            }
+        }
+
         ImGui::End();
     }
 
@@ -325,6 +362,7 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                                     (int)(std::abs(ViewportSize.y - screenHeight))),
                                     ImGuiCond_FirstUseEver);
         ImGui::SetWindowPos(ImVec2((int)(screenWidth + ImGui::GetWindowSize().x), (int)(ViewportSize.y)), ImGuiCond_FirstUseEver);
+
         ImGui::End();
     }
 

@@ -17,4 +17,7 @@ extern "C" {
     // copy into a std::string immediately on the caller side rather than holding onto them.
     const char* Engine_GetEntityName(int index);
     const char* Engine_GetEntityType(int index);
+
+    bool Engine_SetEntityName(int index, const char* newName);
+    bool Engine_DeleteEntity(int index);
 }

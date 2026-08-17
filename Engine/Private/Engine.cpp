@@ -24,10 +24,10 @@ typedef void* (*GLADloadproc)(const char* name);
 
 namespace {
 
+std::vector<std::unique_ptr<BaseEntity>> g_Entities;
+
 std::unique_ptr<Shader> g_MainShader;
 std::unique_ptr<Shader> g_DepthShader;
-
-std::vector<std::unique_ptr<BaseEntity>> g_Entities;
 
 glm::vec3 g_LightDir = glm::normalize(glm::vec3(0.3f, 1.0f, 0.2f));
 glm::vec3 g_LightColor = glm::vec3(1.0f, 1.0f, 1.0f);
@@ -155,6 +155,22 @@ const char* Engine_GetEntityType(int index)
     if (index < 0 || index >= (int)g_Entities.size())
         return "";
     return g_Entities[index]->GetTypeName();
+}
+
+bool Engine_SetEntityName(int index, const char* newName)
+{
+    if (index < 0 || index >= (int)g_Entities.size())
+        return false;
+    g_Entities[index]->Name = newName ? newName : "";
+    return true;
+}
+
+bool Engine_DeleteEntity(int index)
+{
+    if (index < 0 || index >= (int)g_Entities.size())
+        return false;
+    g_Entities.erase(g_Entities.begin() + index);
+    return true;
 }
 
 void Engine_RenderFrame(int fb, int width, int height, const float* viewProj)
