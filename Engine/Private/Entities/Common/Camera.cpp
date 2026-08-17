@@ -20,5 +20,5 @@ Camera::Camera(std::string assetRoot)
 
 Camera::~Camera()
 {
-
+    delete m_Transform;
 }

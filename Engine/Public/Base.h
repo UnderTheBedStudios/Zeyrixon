@@ -4,7 +4,7 @@ class Base
 {
 public:
     Base();
-    ~Base();
+    virtual ~Base();
 
     virtual void OnPlay() {};
     virtual void EachFrame() {};

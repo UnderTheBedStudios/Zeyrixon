@@ -19,6 +19,8 @@ public:
     const Project& CurrentProject() const { return m_project; }
 
 private:
+    void CreateEntity(const std::string& entityType);
+
     GLuint viewportFBO = 0, viewportColorTex = 0, viewportDepthRBO = 0;
     int viewportW = 0, viewportH = 0;
 

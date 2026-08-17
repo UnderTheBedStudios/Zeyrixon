@@ -244,9 +244,8 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             glm::mat4 proj = glm::perspective(glm::radians(editorCamera.fov), contentSize.x / contentSize.y, 0.1f, 100.0f);
             glm::mat4 view = editorCamera.GetViewMatrix();
             glm::mat4 viewProj = proj * view;
-            glm::mat4 model = glm::mat4(1.0f);
 
-            Engine_RenderFrame(viewportFBO, viewportW, viewportH, glm::value_ptr(viewProj), glm::value_ptr(model));
+            Engine_RenderFrame(viewportFBO, viewportW, viewportH, glm::value_ptr(viewProj));
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
             ImGui::Image((ImTextureID)(intptr_t)viewportColorTex, contentSize, ImVec2(0, 1), ImVec2(1, 0));
@@ -260,8 +259,38 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
         ImGui::SetWindowSize(ImVec2((int)(std::abs(ViewportSize.x - screenWidth) * 0.5f), (int)((2.0f/3.0f) * ViewportSize.y)), ImGuiCond_FirstUseEver);
         ImGui::SetWindowPos(ImVec2(screenWidth - ImGui::GetWindowSize().x, 0), ImGuiCond_FirstUseEver);
 
-        if (ImGui::Button("Make New Entity")) { fprintf(stdout, "[Editor]: Make New Entity called!\n"); }
-        
+        if (ImGui::Button("Make New Entity"))
+            ImGui::OpenPopup("CreateEntityPopup");
+
+        if (ImGui::BeginPopup("CreateEntityPopup"))
+        {
+            ImGui::TextDisabled("Create Entity");
+            ImGui::Separator();
+
+            static const char* entityTypes[] = { "Empty Entity", "Camera" };
+            for (const char* type : entityTypes)
+            {
+                if (ImGui::Selectable(type))
+                {
+                    CreateEntity(type);
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+
+            ImGui::EndPopup();
+        }
+
+        ImGui::Separator();
+
+        int entityCount = Engine_GetEntityCount();
+        for (int i = 0; i < entityCount; i++)
+        {
+            std::string name = Engine_GetEntityName(i);
+            std::string type = Engine_GetEntityType(i);
+            std::string label = name + " (" + type + ")";
+            ImGui::Selectable(label.c_str());
+        }
+
         ImGui::End();
     }
 
@@ -351,4 +380,14 @@ void MainWindow::LoadProject(const std::string& lumenxPath)
 
     fprintf(stdout, "[Editor] Loaded project \"%s\" from %s\n",
             m_project.Name().c_str(), m_project.Directory().string().c_str());
+}
+
+void MainWindow::CreateEntity(const std::string& entityType)
+{
+    static int s_entityCounter = 0;
+    std::string name = entityType + " " + std::to_string(s_entityCounter++);
+
+    int id = Engine_CreateEntity(entityType.c_str(), name.c_str());
+    if (id < 0)
+        fprintf(stderr, "[Editor] Failed to create entity of type \"%s\"\n", entityType.c_str());
 }

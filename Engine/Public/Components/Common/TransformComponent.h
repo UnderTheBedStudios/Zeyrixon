@@ -33,4 +33,6 @@ public:
     glm::vec3 GetForward();
     glm::vec3 GetRight();
     glm::vec3 GetUp();
+
+    glm::mat4 GetModelMatrix();
 };

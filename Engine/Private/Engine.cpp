@@ -1,10 +1,9 @@
-// Engine.cpp : Defines the functions for the static library.
-
 #include <Engine/Public/Engine.h>
 #include <Engine/pch.h>
 #include <Engine/framework.h>
 #include <Engine/Public/General/Shader.h>
 #include <Engine/Public/Entities/Common/BaseEntity.h>
+#include <Engine/Public/Entities/Common/Camera.h>
 #include <Engine/Public/Components/Common/Model.h>
 #include <glad/glad.h>
 #include <cstdio>
@@ -12,6 +11,7 @@
 #include <math.h>
 #include <unistd.h>
 #include <string>
+#include <vector>
 #include <glm.hpp>
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
@@ -26,7 +26,8 @@ namespace {
 
 std::unique_ptr<Shader> g_MainShader;
 std::unique_ptr<Shader> g_DepthShader;
-std::unique_ptr<Model> g_TestModel;
+
+std::vector<std::unique_ptr<BaseEntity>> g_Entities;
 
 glm::vec3 g_LightDir = glm::normalize(glm::vec3(0.3f, 1.0f, 0.2f));
 glm::vec3 g_LightColor = glm::vec3(1.0f, 1.0f, 1.0f);
@@ -47,6 +48,7 @@ const char* depthFragmentShaderPath = "/Engine/Shaders/depth.frag";
 
 void InitShadowMap()
 {
+    // unchanged — see prior version
     glGenFramebuffers(1, &g_ShadowFBO);
 
     glGenTextures(1, &g_ShadowMap);
@@ -92,7 +94,7 @@ void Engine_Shutdown()
 
     g_MainShader.reset();
     g_DepthShader.reset();
-    g_TestModel.reset();
+    g_Entities.clear();
 }
 
 void Engine_Init(void* getProcAddress, const char* assetRoot)
@@ -118,15 +120,44 @@ void Engine_Init(void* getProcAddress, const char* assetRoot)
 
     InitShadowMap();
     UpdateLightSpaceMatrix();
-
-    // TODO: temporary - swap for real scene/entity loading once that pipeline exists
-    g_TestModel = std::make_unique<Model>();
-    std::string testModelPath = g_AssetRoot + "/Engine/Models/Camera/Camera.obj";
-    if (!g_TestModel->LoadFromFile(testModelPath))
-        fprintf(stderr, "[Engine] Failed to load test model from %s\n", testModelPath.c_str());
 }
 
-void Engine_RenderFrame(int fb, int width, int height, const float* viewProj, const float* model)
+int Engine_CreateEntity(const char* type, const char* name)
+{
+    std::unique_ptr<BaseEntity> entity;
+
+    std::string typeStr = type ? type : "";
+    if (typeStr == "Camera")
+        entity = std::make_unique<Camera>(g_AssetRoot);
+    else
+        entity = std::make_unique<BaseEntity>();
+
+    entity->Name = (name && name[0] != '\0') ? name : entity->GetTypeName();
+
+    g_Entities.push_back(std::move(entity));
+    return (int)g_Entities.size() - 1;
+}
+
+int Engine_GetEntityCount()
+{
+    return (int)g_Entities.size();
+}
+
+const char* Engine_GetEntityName(int index)
+{
+    if (index < 0 || index >= (int)g_Entities.size())
+        return "";
+    return g_Entities[index]->Name.c_str();
+}
+
+const char* Engine_GetEntityType(int index)
+{
+    if (index < 0 || index >= (int)g_Entities.size())
+        return "";
+    return g_Entities[index]->GetTypeName();
+}
+
+void Engine_RenderFrame(int fb, int width, int height, const float* viewProj)
 {
     // --- Pass 1: render depth from the light's POV ---
     glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
@@ -138,10 +169,17 @@ void Engine_RenderFrame(int fb, int width, int height, const float* viewProj, co
 
     g_DepthShader->use();
     g_DepthShader->setMat4("uLightSpaceMatrix", g_LightSpaceMatrix);
-    g_DepthShader->setMat4("uModel", glm::make_mat4(model));
 
-    if (g_TestModel)
-        g_TestModel->Draw();
+    for (auto& entity : g_Entities)
+    {
+        Model* model = entity->GetModel();
+        TransformComponent* transform = entity->GetTransform();
+        if (!model || !transform)
+            continue;
+
+        g_DepthShader->setMat4("uModel", transform->GetModelMatrix());
+        model->Draw();
+    }
 
     glDisable(GL_CULL_FACE);
 
@@ -154,7 +192,6 @@ void Engine_RenderFrame(int fb, int width, int height, const float* viewProj, co
 
     g_MainShader->use();
     g_MainShader->setMat4("uViewProj", glm::make_mat4(viewProj));
-    g_MainShader->setMat4("uModel", glm::make_mat4(model));
     g_MainShader->setMat4("uLightSpaceMatrix", g_LightSpaceMatrix);
     g_MainShader->setVec3("uLightDir", g_LightDir);
     g_MainShader->setVec3("uLightColor", g_LightColor);
@@ -170,8 +207,16 @@ void Engine_RenderFrame(int fb, int width, int height, const float* viewProj, co
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-    if (g_TestModel)
-        g_TestModel->Draw();
+    for (auto& entity : g_Entities)
+    {
+        Model* model = entity->GetModel();
+        TransformComponent* transform = entity->GetTransform();
+        if (!model || !transform)
+            continue;
+
+        g_MainShader->setMat4("uModel", transform->GetModelMatrix());
+        model->Draw();
+    }
 }
 
 void Engine_SetLight(const float* lightDir, const float* lightColor, const float* viewPos)
@@ -183,9 +228,3 @@ void Engine_SetLight(const float* lightDir, const float* lightColor, const float
 }
 
 } // extern "C"
-
-// TODO: This is an example of a library function
-void fnEngine()
-{
-    
-}

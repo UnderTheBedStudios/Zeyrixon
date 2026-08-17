@@ -32,3 +32,11 @@ glm::vec3 TransformComponent::GetForward() { return glm::normalize(GetQuaternion
 glm::vec3 TransformComponent::GetRight() { return glm::normalize(GetQuaternion() * glm::vec3(1.0f, 0.0f, 0.0f));}
 
 glm::vec3 TransformComponent::GetUp() { return glm::normalize(GetQuaternion() * glm::vec3(0.0f, 1.0f, 0.0f));}
+
+glm::mat4 TransformComponent::GetModelMatrix()
+{
+    glm::mat4 t = glm::translate(glm::mat4(1.0f), ComponentTransform.Position);
+    glm::mat4 r = glm::mat4_cast(ComponentTransform.Rotation);
+    glm::mat4 s = glm::scale(glm::mat4(1.0f), ComponentTransform.Scale);
+    return t * r * s;
+}
