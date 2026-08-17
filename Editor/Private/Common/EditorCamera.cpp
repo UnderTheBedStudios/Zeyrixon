@@ -52,7 +52,7 @@ void EditorCamera::ProcessMouseMovement(float xoffset, float yoffset, float dt, 
         // right pushes the camera left, so the scene appears to follow
         // the drag (standard "grab and pan" feel). Flip if you want the
         // opposite convention.
-        position -= right * xoffset * panSensitivity;
+        position += right * xoffset * panSensitivity;
         position += up    * yoffset * panSensitivity;
     }
 }

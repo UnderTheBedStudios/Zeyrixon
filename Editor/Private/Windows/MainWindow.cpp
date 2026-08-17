@@ -149,6 +149,7 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             ImGui::DockBuilderDockWindow("Inspector", dockInspector);
             ImGui::DockBuilderDockWindow("File Explorer", dockFileExplorer);
             ImGui::DockBuilderDockWindow("Properties", dockProperties);
+            ImGui::DockBuilderDockWindow("World Properties", dockProperties);
             ImGui::DockBuilderDockWindow("Recent Entities", dockRecentEntities);
 
             ImGui::DockBuilderFinish(dockspaceId);
@@ -279,6 +280,15 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
 
     {
         ImGui::Begin("Properties", nullptr, windowFlags);
+        ImGui::SetWindowSize(ImVec2((int)(std::abs(ViewportSize.x - screenWidth) * 0.5f),
+                                    (int)(std::abs(ViewportSize.y - screenHeight))),
+                                    ImGuiCond_FirstUseEver);
+        ImGui::SetWindowPos(ImVec2((int)(screenWidth + ImGui::GetWindowSize().x), (int)(ViewportSize.y)), ImGuiCond_FirstUseEver);
+        ImGui::End();
+    }
+
+    {
+        ImGui::Begin("World Properties", nullptr, windowFlags);
         ImGui::SetWindowSize(ImVec2((int)(std::abs(ViewportSize.x - screenWidth) * 0.5f),
                                     (int)(std::abs(ViewportSize.y - screenHeight))),
                                     ImGuiCond_FirstUseEver);
