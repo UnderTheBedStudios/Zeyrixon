@@ -18,8 +18,6 @@
     },
     "extensions": {
         "recommendations": [
-            "ms-dotnettools.csharp",
-            "ms-dotnettools.csdevkit",
             "ms-vscode.cpptools",
             "ms-vscode.cpp-devtools",
             "ms-vscode.cmake-tools",
