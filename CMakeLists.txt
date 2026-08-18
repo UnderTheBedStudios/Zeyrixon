@@ -1,6 +1,6 @@
 # CMake stuff
 cmake_minimum_required(VERSION 3.14) # 3.14+ needed for FetchContent_MakeAvailable
-project(LumenX)
+project(Zeyrixon)
 
 include(FetchContent)
 
