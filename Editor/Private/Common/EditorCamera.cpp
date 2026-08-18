@@ -2,7 +2,9 @@
 
 EditorCamera::EditorCamera(glm::vec3 startPosition, glm::vec3 startUp, float startYaw, float startPitch)
                             : front(glm::vec3(0.0f, 0.0f, -1.0f)),
-                              movementSpeed(2.5f),
+                              movementSpeed(5.f),
+                              fastMovementSpeed(10.f),
+                              slowMovementSpeed(2.5f),
                               mouseSensitivity(0.1f),
                               panSensitivity(0.005f),
                               fov(45.0f)
@@ -15,17 +17,30 @@ EditorCamera::EditorCamera(glm::vec3 startPosition, glm::vec3 startUp, float sta
 
     m_Flying = false;
     m_Pivoting = false;
+
+    m_MoveFast = false;
+    m_MoveSlow = false;
 }
 
 void EditorCamera::ProcessKeyboard(CameraMovement dir, float dt)
 {
-    float velocity = movementSpeed * dt;
+    float velocity = m_MoveFast ? fastMovementSpeed * dt :
+                     m_MoveSlow ? slowMovementSpeed * dt :
+                     movementSpeed * dt;
     if (dir == CameraMovement::FORWARD)  position += front * velocity;
     if (dir == CameraMovement::BACKWARD) position -= front * velocity;
     if (dir == CameraMovement::LEFT)     position -= right * velocity;
     if (dir == CameraMovement::RIGHT)    position += right * velocity;
     if (dir == CameraMovement::UP)       position += up    * velocity;
     if (dir == CameraMovement::DOWN)     position -= up    * velocity;
+
+    if (dir == CameraMovement::FAST)       m_MoveFast = true;
+    if (dir == CameraMovement::SLOW)       m_MoveSlow = true;
+    if (dir == CameraMovement::NORMAL)
+    {
+        m_MoveFast = false;
+        m_MoveSlow = false;
+    }
 }
 
 void EditorCamera::ProcessMouseMovement(float xoffset, float yoffset, float dt, bool constrainPitch)

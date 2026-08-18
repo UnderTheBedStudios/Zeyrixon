@@ -5,6 +5,8 @@
 #include <Engine/Public/Entities/Common/BaseEntity.h>
 #include <Engine/Public/Entities/Common/Camera.h>
 #include <Engine/Public/Components/Common/Model.h>
+#include <Engine/Public/Entities/Shapes/Cube.h>
+#include <Engine/Public/Entities/Shapes/Sphere.h>
 #include <glad/glad.h>
 #include <cstdio>
 #include <chrono>
@@ -26,6 +28,13 @@ namespace {
 
 std::vector<std::unique_ptr<BaseEntity>> g_Entities;
 
+BaseEntity* GetEntitySafe(int index)
+{
+    if (index < 0 || index >= (int)g_Entities.size())
+        return nullptr;
+    return g_Entities[index].get();
+}
+
 std::unique_ptr<Shader> g_MainShader;
 std::unique_ptr<Shader> g_DepthShader;
 
@@ -34,6 +43,20 @@ glm::vec3 g_LightColor = glm::vec3(1.0f, 1.0f, 1.0f);
 glm::vec3 g_ViewPos    = glm::vec3(0.0f);
 
 std::string g_AssetRoot;
+
+// path may be an absolute filesystem path, or relative to the asset root. Existing callers
+// (Camera/PrimativeShape ctors) always pass assetRoot + "/Engine/..." themselves, so this only
+// needs to handle what the editor UI hands in.
+std::string ResolveModelPath(const std::string& path)
+{
+    if (!path.empty() && path[0] == '/')
+    {
+        if (access(path.c_str(), F_OK) == 0)
+            return path;
+        return g_AssetRoot + path;
+    }
+    return g_AssetRoot + "/" + path;
+}
 
 GLuint g_ShadowFBO = 0;
 GLuint g_ShadowMap = 0;
@@ -129,6 +152,10 @@ int Engine_CreateEntity(const char* type, const char* name)
     std::string typeStr = type ? type : "";
     if (typeStr == "Camera")
         entity = std::make_unique<Camera>(g_AssetRoot);
+    else if (typeStr == "Cube")
+        entity = std::make_unique<Cube>(g_AssetRoot);
+    else if (typeStr == "Sphere")
+        entity = std::make_unique<Sphere>(g_AssetRoot);
     else
         entity = std::make_unique<BaseEntity>();
 
@@ -171,6 +198,85 @@ bool Engine_DeleteEntity(int index)
         return false;
     g_Entities.erase(g_Entities.begin() + index);
     return true;
+}
+
+bool Engine_GetEntityPosition(int index, float* outXYZ)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    if (!entity || !outXYZ)
+        return false;
+    glm::vec3 p = entity->GetTransform()->GetPosition();
+    outXYZ[0] = p.x; outXYZ[1] = p.y; outXYZ[2] = p.z;
+    return true;
+}
+
+bool Engine_SetEntityPosition(int index, const float* xyz)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    if (!entity || !xyz)
+        return false;
+    entity->GetTransform()->SetPosition(glm::vec3(xyz[0], xyz[1], xyz[2]));
+    return true;
+}
+
+bool Engine_GetEntityRotation(int index, float* outXYZ)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    if (!entity || !outXYZ)
+        return false;
+    glm::vec3 r = entity->GetTransform()->GetRotation();
+    outXYZ[0] = r.x; outXYZ[1] = r.y; outXYZ[2] = r.z;
+    return true;
+}
+
+bool Engine_SetEntityRotation(int index, const float* xyz)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    if (!entity || !xyz)
+        return false;
+    entity->GetTransform()->SetRotation(glm::vec3(xyz[0], xyz[1], xyz[2]));
+    return true;
+}
+
+bool Engine_GetEntityScale(int index, float* outXYZ)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    if (!entity || !outXYZ)
+        return false;
+    glm::vec3 s = entity->GetTransform()->GetScale();
+    outXYZ[0] = s.x; outXYZ[1] = s.y; outXYZ[2] = s.z;
+    return true;
+}
+
+bool Engine_SetEntityScale(int index, const float* xyz)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    if (!entity || !xyz)
+        return false;
+    entity->GetTransform()->SetScale(glm::vec3(xyz[0], xyz[1], xyz[2]));
+    return true;
+}
+
+bool Engine_EntityHasModel(int index)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    return entity && entity->GetModel() != nullptr;
+}
+
+const char* Engine_GetEntityModelPath(int index)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    if (!entity || !entity->GetModel())
+        return "";
+    return entity->GetModel()->GetPath().c_str();
+}
+
+bool Engine_SetEntityModelPath(int index, const char* path)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    if (!entity || !entity->GetModel() || !path)
+        return false;
+    return entity->GetModel()->LoadFromFile(ResolveModelPath(path));
 }
 
 void Engine_RenderFrame(int fb, int width, int height, const float* viewProj)

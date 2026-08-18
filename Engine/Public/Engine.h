@@ -20,4 +20,29 @@ extern "C" {
 
     bool Engine_SetEntityName(int index, const char* newName);
     bool Engine_DeleteEntity(int index);
+
+    // --- Transform component ---
+    // outXYZ/xyz are always 3 floats. Rotation is Euler degrees (matches
+    // TransformComponent::SetRotation/GetRotation, which store the quaternion internally).
+    // All return false (leaving outXYZ untouched) if index is out of range.
+    bool Engine_GetEntityPosition(int index, float* outXYZ);
+    bool Engine_SetEntityPosition(int index, const float* xyz);
+    bool Engine_GetEntityRotation(int index, float* outXYZ);
+    bool Engine_SetEntityRotation(int index, const float* xyz);
+    bool Engine_GetEntityScale(int index, float* outXYZ);
+    bool Engine_SetEntityScale(int index, const float* xyz);
+
+    // --- Model component ---
+    // false for entities with no model slot (e.g. a plain "Empty Entity") — GetModel()
+    // returns nullptr for those, and this API does not add one.
+    bool Engine_EntityHasModel(int index);
+
+    // Path last successfully loaded, or "" if none has loaded yet. Same lifetime contract
+    // as Engine_GetEntityName: owned by the Engine, valid as long as the entity exists.
+    const char* Engine_GetEntityModelPath(int index);
+
+    // path may be absolute, or relative to the asset root (e.g. "/Engine/Models/Cube/cube.obj").
+    // Reloads the entity's existing Model in place; fails (returns false) if the entity has
+    // no model slot or the file can't be loaded, leaving the previous model intact.
+    bool Engine_SetEntityModelPath(int index, const char* path);
 }

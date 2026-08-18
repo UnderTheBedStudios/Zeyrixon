@@ -61,6 +61,9 @@ add_library(Engine STATIC
     Engine/Private/Components/Common/TransfromComponent.cpp
     Engine/Private/Entities/Common/BaseEntity.cpp
     Engine/Private/Entities/Common/Camera.cpp
+    Engine/Private/Entities/Shapes/PrimativeShape.cpp
+    Engine/Private/Entities/Shapes/Cube.cpp
+    Engine/Private/Entities/Shapes/Sphere.cpp
 )
 
 # Assimp stuff: use system package if present, otherwise fetch and build from source

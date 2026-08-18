@@ -38,4 +38,10 @@ private:
     // when the selection changes, so it doesn't overwrite what the user is mid-typing.
     char m_renameBuffer[128] = {};
     int m_renameBufferForEntity = -1;
+
+    // Local editable copy of the selected entity's model path — same re-sync-on-selection-
+    // change pattern as m_renameBuffer above.
+    char m_modelPathBuffer[256] = {};
+    int m_modelPathBufferForEntity = -1;
+    std::string m_modelLoadError;
 };

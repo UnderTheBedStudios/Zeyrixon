@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <string>
 #include <cstring>
+#include <cfloat>
 
 MainWindow::MainWindow(const WindowDesc& desc)
     : Window(desc)
@@ -237,6 +238,12 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             if (ImGui::IsKeyDown(ImGuiKey_D)) editorCamera.ProcessKeyboard(CameraMovement::RIGHT,    io.DeltaTime);
             if (ImGui::IsKeyDown(ImGuiKey_E)) editorCamera.ProcessKeyboard(CameraMovement::UP,       io.DeltaTime);
             if (ImGui::IsKeyDown(ImGuiKey_Q)) editorCamera.ProcessKeyboard(CameraMovement::DOWN,     io.DeltaTime);
+
+            if (ImGui::IsKeyPressed(ImGuiKey_LeftShift))  editorCamera.ProcessKeyboard(CameraMovement::FAST, io.DeltaTime);
+            if (ImGui::IsKeyReleased(ImGuiKey_LeftShift)) editorCamera.ProcessKeyboard(CameraMovement::NORMAL, io.DeltaTime);
+
+            if (ImGui::IsKeyPressed(ImGuiKey_LeftCtrl))  editorCamera.ProcessKeyboard(CameraMovement::SLOW, io.DeltaTime);
+            if (ImGui::IsKeyReleased(ImGuiKey_LeftCtrl)) editorCamera.ProcessKeyboard(CameraMovement::NORMAL, io.DeltaTime);
         }
 
         EnsureViewportTarget((int)contentSize.x, (int)contentSize.y);
@@ -269,7 +276,7 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             ImGui::TextDisabled("Create Entity");
             ImGui::Separator();
 
-            static const char* entityTypes[] = { "Empty Entity", "Camera" };
+            static const char* entityTypes[] = { "Empty Entity", "Camera", "Cube", "Sphere" };
             for (const char* type : entityTypes)
             {
                 if (ImGui::Selectable(type))
@@ -345,11 +352,76 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                 Engine_SetEntityName(m_selectedEntity, m_renameBuffer);
 
             ImGui::Spacing();
+            ImGui::Separator();
+
+            // --- Transform component ---
+            if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                float position[3], rotation[3], scale[3];
+                Engine_GetEntityPosition(m_selectedEntity, position);
+                Engine_GetEntityRotation(m_selectedEntity, rotation);
+                Engine_GetEntityScale(m_selectedEntity, scale);
+
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
+
+                ImGui::Text("Position");
+                if (ImGui::DragFloat3("##Position", position, 0.05f))
+                    Engine_SetEntityPosition(m_selectedEntity, position);
+
+                ImGui::Text("Rotation");
+                if (ImGui::DragFloat3("##Rotation", rotation, 0.5f))
+                    Engine_SetEntityRotation(m_selectedEntity, rotation);
+
+                ImGui::Text("Scale");
+                if (ImGui::DragFloat3("##Scale", scale, 0.05f, 0.0001f, FLT_MAX))
+                    Engine_SetEntityScale(m_selectedEntity, scale);
+
+                ImGui::PopItemWidth();
+            }
+
+            // --- Model component ---
+            if (Engine_EntityHasModel(m_selectedEntity))
+            {
+                ImGui::Spacing();
+                if (ImGui::CollapsingHeader("Model", ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    if (m_modelPathBufferForEntity != m_selectedEntity)
+                    {
+                        std::string currentPath = Engine_GetEntityModelPath(m_selectedEntity);
+                        strncpy(m_modelPathBuffer, currentPath.c_str(), sizeof(m_modelPathBuffer) - 1);
+                        m_modelPathBuffer[sizeof(m_modelPathBuffer) - 1] = '\0';
+                        m_modelPathBufferForEntity = m_selectedEntity;
+                        m_modelLoadError.clear();
+                    }
+
+                    ImGui::Text("Model Path");
+                    ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
+                    ImGui::InputText("##ModelPath", m_modelPathBuffer, sizeof(m_modelPathBuffer));
+                    ImGui::PopItemWidth();
+
+                    ImGui::TextWrapped("Absolute, or relative to the asset root (e.g. /Engine/Models/Cube/cube.obj).");
+
+                    if (ImGui::Button("Load Model"))
+                    {
+                        if (Engine_SetEntityModelPath(m_selectedEntity, m_modelPathBuffer))
+                            m_modelLoadError.clear();
+                        else
+                            m_modelLoadError = "Failed to load model — check the path and console output.";
+                    }
+
+                    if (!m_modelLoadError.empty())
+                        ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.3f, 1.0f), "%s", m_modelLoadError.c_str());
+                }
+            }
+
+            ImGui::Spacing();
+            ImGui::Separator();
             if (ImGui::Button("Delete Entity"))
             {
                 Engine_DeleteEntity(m_selectedEntity);
                 m_selectedEntity = -1;
                 m_renameBufferForEntity = -1;
+                m_modelPathBufferForEntity = -1;
             }
         }
 

@@ -1,17 +1,19 @@
 #pragma once
 
 #include <Engine/Public/Entities/Common/BaseEntity.h>
-#include <Engine/Public/Components/Common/TransformComponent.h>
 #include <Engine/Public/Components/Common/Model.h>
 #include <memory>
 
-class Camera : public BaseEntity
+class Model;
+class TransformComponent;
+
+class PrimativeShape : public BaseEntity
 {
 public:
-    Camera(std::string assetRoot);
-    ~Camera();
+    PrimativeShape(std::string assetRoot, std::string shapePath);
+    ~PrimativeShape();
 
-    const char* GetTypeName() const override { return "Camera"; }
+    const char* GetTypeName() const override { return "Primative Shape"; }
     Model* GetModel() override { return m_BaseModel.get(); }
 
 private:

@@ -18,8 +18,6 @@ public:
     TransformComponent();
     ~TransformComponent();
 
-    Transform ComponentTransform;
-
     void SetPosition(glm::vec3 newPos);
     void SetRotation(glm::vec3 newRot);
     void SetQuaternion(glm::quat newQuat);
@@ -35,4 +33,7 @@ public:
     glm::vec3 GetUp();
 
     glm::mat4 GetModelMatrix();
+
+private:
+    Transform m_ComponentTransform;
 };

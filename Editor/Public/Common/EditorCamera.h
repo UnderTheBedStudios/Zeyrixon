@@ -9,7 +9,10 @@ enum class CameraMovement {
     LEFT,
     RIGHT,
     UP,
-    DOWN
+    DOWN,
+    FAST,
+    NORMAL,
+    SLOW
 };
 
 enum class MouseButton {
@@ -33,6 +36,8 @@ public:
 
     // Camera options
     float movementSpeed;
+    float fastMovementSpeed;
+    float slowMovementSpeed;
     float mouseSensitivity;
     float panSensitivity;
     float fov;
@@ -63,5 +68,7 @@ private:
     void UpdateCameraVectors();
 
     bool m_Flying;
+    bool m_MoveFast;
+    bool m_MoveSlow;
     bool m_Pivoting;
 };

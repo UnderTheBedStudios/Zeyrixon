@@ -13,8 +13,12 @@ public:
     bool LoadFromFile(const std::string& path);
     void Draw() const;
 
+    // Path last passed to a *successful* LoadFromFile call. Empty if nothing has loaded yet.
+    const std::string& GetPath() const { return m_Path; }
+
 private:
     std::string m_Directory;
+    std::string m_Path;
 
     void ProcessNode(aiNode* node, const aiScene* scene);
 

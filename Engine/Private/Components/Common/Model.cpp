@@ -24,6 +24,7 @@ bool Model::LoadFromFile(const std::string& path)
 
     Meshes.clear();
     ProcessNode(scene->mRootNode, scene);
+    m_Path = path;
     return true;
 }
 
