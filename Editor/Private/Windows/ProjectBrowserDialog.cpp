@@ -210,7 +210,7 @@ void ProjectBrowserDialog::DrawFrame()
                 ImGui::BeginDisabled(!hasSelection);
                 if (ImGui::Button("Open Project", ImVec2(120, 0)))
                 {
-                    m_selectedProjectPath = m_recentProjects[m_selectedIndex].lumenxPath.string();
+                    m_selectedProjectPath = m_recentProjects[m_selectedIndex].zeyrixonPath.string();
                     m_hasSelectedProject = true;
                     m_finished = true;
                 }
@@ -236,7 +236,7 @@ void ProjectBrowserDialog::DrawFrame()
                 if (!pathInitialized)
                 {
                     pathInitialized = true;
-                    std::string defaultPath = (PathUtils::GetDocumentsDirectory() / "LumenX Projects").string();
+                    std::string defaultPath = (PathUtils::GetDocumentsDirectory() / "Zeyrixon Projects").string();
                     strncpy(pathBuf, defaultPath.c_str(), sizeof(pathBuf) - 1);
                 }
 
@@ -335,15 +335,15 @@ void ProjectBrowserDialog::DrawFrame()
                 {
                     auto& tmpl = m_templates[m_selectedTemplateIndex];
 
-                    // NOTE: this folder list matches every template's template.xml today (.LumenX, Content,
+                    // NOTE: this folder list matches every template's template.xml today (.Zeyrixon, Content,
                     // Source Code). If templates ever need different folders, this should read template.xml's
                     // <Folders> element instead of being hardcoded — would need an XML parser (pugixml/tinyxml2)
                     // vendored, since this project doesn't have one yet.
-                    static const std::vector<std::string> kStandardFolders = { ".LumenX", "Content", "Source Code" };
+                    static const std::vector<std::string> kStandardFolders = { ".Zeyrixon", "Content", "Source Code" };
 
                     if (FileCreator::InstantiateProjectFromTemplate(tmpl.templateDir, targetDir, nameBuf, kStandardFolders))
                     {
-                        m_selectedProjectPath = (targetDir / (std::string(nameBuf) + ".lumenx")).string();
+                        m_selectedProjectPath = (targetDir / (std::string(nameBuf) + ".zeyrixon")).string();
                         m_hasSelectedProject = true;
                         m_finished = true;
                     }
@@ -393,7 +393,7 @@ void ProjectBrowserDialog::DrawFrame()
 void ProjectBrowserDialog::ScanProjects()
 {
     m_scanned = true;
-    std::filesystem::path projectsDir = PathUtils::GetDocumentsDirectory() / "LumenX Projects";
+    std::filesystem::path projectsDir = PathUtils::GetDocumentsDirectory() / "Zeyrixon Projects";
     if (!std::filesystem::exists(projectsDir))
         return;
 
@@ -402,22 +402,22 @@ void ProjectBrowserDialog::ScanProjects()
         if (!entry.is_directory())
             continue;
 
-        std::filesystem::path lumenxFile;
+        std::filesystem::path zeyrixonFile;
         for (auto& sub : std::filesystem::directory_iterator(entry.path()))
         {
-            if (sub.path().extension() == ".lumenx")
+            if (sub.path().extension() == ".zeyrixon")
             {
-                lumenxFile = sub.path();
+                zeyrixonFile = sub.path();
                 break;
             }
         }
-        if (lumenxFile.empty())
+        if (zeyrixonFile.empty())
             continue;
 
         ProjectEntry proj;
-        proj.name = lumenxFile.stem().string();
-        proj.lumenxPath = lumenxFile;
-        proj.thumbnailPath = entry.path() / ".LumenX" / "Screenshot.png";
+        proj.name = zeyrixonFile.stem().string();
+        proj.zeyrixonPath = zeyrixonFile;
+        proj.thumbnailPath = entry.path() / ".Zeyrixon" / "Screenshot.png";
         proj.thumbnailTex = LoadThumbnailTexture(proj.thumbnailPath, proj.thumbW, proj.thumbH);
         m_recentProjects.push_back(std::move(proj));
     }

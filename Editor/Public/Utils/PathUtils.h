@@ -9,5 +9,5 @@ namespace PathUtils
 
     std::filesystem::path GetExecutablePath();
 
-    std::filesystem::path ResolveProjectRoot(const std::string& markerFilename = "LumenX.code-workspace");
+    std::filesystem::path ResolveProjectRoot(const std::string& markerFilename = "Zeyrixon.code-workspace");
 }

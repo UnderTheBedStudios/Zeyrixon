@@ -80,7 +80,7 @@ int main(int, char**)
     // Create window with graphics context
     float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor()); // Valid on GLFW 3.3+ onlys
 
-    MainWindow mainWin({.title = "LumenX Editor", .width = (int)(1600 * main_scale), .height = (int)(900 * main_scale)});
+    MainWindow mainWin({.title = "Zeyrixon Editor", .width = (int)(1600 * main_scale), .height = (int)(900 * main_scale)});
 
     std::unique_ptr<ProjectBrowserDialog> browser;
     browser = std::make_unique<ProjectBrowserDialog>(

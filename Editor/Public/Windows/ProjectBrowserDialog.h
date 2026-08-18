@@ -9,7 +9,7 @@
 struct ProjectEntry
 {
     std::string name;
-    std::filesystem::path lumenxPath;
+    std::filesystem::path zeyrixonPath;
     std::filesystem::path thumbnailPath;
     GLuint thumbnailTex = 0;
     int thumbW = 0, thumbH = 0;

@@ -415,19 +415,19 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
     EndFrame(); // ImGui::Render + viewport + ImGui_ImplOpenGL3_RenderDrawData + glfwSwapBuffers
 }
 
-void MainWindow::LoadProject(const std::string& lumenxPath)
+void MainWindow::LoadProject(const std::string& zeyrixonPath)
 {
     Project proj;
-    if (!proj.LoadFromFile(lumenxPath))
+    if (!proj.LoadFromFile(zeyrixonPath))
     {
-        fprintf(stderr, "[Editor] Failed to load project: %s\n", lumenxPath.c_str());
+        fprintf(stderr, "[Editor] Failed to load project: %s\n", zeyrixonPath.c_str());
         return;
     }
 
     m_project = std::move(proj);
     m_hasProject = true;
 
-    std::string title = "LumenX Editor - " + m_project.Name();
+    std::string title = "Zeyrixon Editor - " + m_project.Name();
     glfwSetWindowTitle(Handle(), title.c_str());
 
     if (const ProjectWorld* world = m_project.ActiveWorld())

@@ -5,16 +5,16 @@
 namespace FileCreator
 {
 
-bool WriteLumenxFile(const std::filesystem::path& lumenxPath,
+bool WriteZeyrixonPath(const std::filesystem::path& zeyrixonPath,
                       const std::string& projectName,
                       const std::string& projectDirWithSlash)
 {
     // unchanged from before — see prior version
-    std::ofstream out(lumenxPath);
+    std::ofstream out(zeyrixonPath);
     if (!out)
         return false;
 
-    out << "<Game z:Id=\"i1\" xmlns=\"http://schemas.datacontract.org/2004/07/LumenX.GameProject\"\n"
+    out << "<Game z:Id=\"i1\" xmlns=\"http://schemas.datacontract.org/2004/07/Zeyrixon.GameProject\"\n"
         "    xmlns:i=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
         "    xmlns:z=\"http://schemas.microsoft.com/2003/10/Serialization/\">\n"
         "    <ProjectName>" << projectName << "</ProjectName>\n"
@@ -69,11 +69,11 @@ bool InstantiateProjectFromTemplate(const std::filesystem::path& templateDir,
             return false;
     }
 
-    std::filesystem::path templateLumenx = templateDir / "project.lumenx";
-    if (!std::filesystem::exists(templateLumenx))
+    std::filesystem::path templateZeyrixon = templateDir / "project.zeyrixon";
+    if (!std::filesystem::exists(templateZeyrixon))
         return false;
 
-    std::ifstream in(templateLumenx);
+    std::ifstream in(templateZeyrixon);
     if (!in)
         return false;
     std::stringstream buf;
@@ -87,7 +87,7 @@ bool InstantiateProjectFromTemplate(const std::filesystem::path& templateDir,
     content = ReplaceAll(content, "{0}", projectName);
     content = ReplaceAll(content, "{1}", projectDirWithSlash);
 
-    std::filesystem::path outFile = targetDir / (projectName + ".lumenx");
+    std::filesystem::path outFile = targetDir / (projectName + ".zeyrixon");
     std::ofstream out(outFile);
     if (!out)
         return false;
@@ -97,7 +97,7 @@ bool InstantiateProjectFromTemplate(const std::filesystem::path& templateDir,
     std::filesystem::path templateScreenshot = templateDir / "Screenshot.png";
     if (std::filesystem::exists(templateScreenshot))
     {
-        std::filesystem::copy_file(templateScreenshot, targetDir / ".LumenX" / "Screenshot.png",
+        std::filesystem::copy_file(templateScreenshot, targetDir / ".Zeyrixon" / "Screenshot.png",
             std::filesystem::copy_options::overwrite_existing, ec);
     }
 

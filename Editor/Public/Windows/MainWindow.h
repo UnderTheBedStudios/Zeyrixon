@@ -14,7 +14,7 @@ public:
 
     void DrawFrame(int& screenWidth, int& screenHeight);
 
-    void LoadProject(const std::string& lumenxPath);
+    void LoadProject(const std::string& zeyrixonPath);
     bool HasProject() const { return m_hasProject; }
     const Project& CurrentProject() const { return m_project; }
 

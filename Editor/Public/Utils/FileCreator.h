@@ -8,12 +8,12 @@ namespace FileCreator
 {
     // Old direct writer — kept for now in case anything else calls it, but Create Project
     // should prefer InstantiateProjectFromTemplate below.
-    bool WriteLumenxFile(const std::filesystem::path& lumenxPath,
+    bool WriteZeyrixonFile(const std::filesystem::path& zeyrixonPath,
                           const std::string& projectName,
                           const std::string& projectDirWithSlash);
 
-    // Reads <templateDir>/project.lumenx, substitutes {0}=projectName and {1}=projectDirWithSlash,
-    // and writes the result to <targetDir>/<projectName>.lumenx.
+    // Reads <templateDir>/project.zeyrixon, substitutes {0}=projectName and {1}=projectDirWithSlash,
+    // and writes the result to <targetDir>/<projectName>.zeyrixon.
     // folders is the set of subfolders to create under targetDir (currently hardcoded to match
     // every template's template.xml — see note in ProjectBrowserDialog.cpp).
     bool InstantiateProjectFromTemplate(const std::filesystem::path& templateDir,
