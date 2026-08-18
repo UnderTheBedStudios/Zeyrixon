@@ -17,8 +17,9 @@ public:
 
     std::string Name;
 
-    virtual const char* GetTypeName() const { return "Entity"; }
-    TransformComponent* GetTransform() { return m_Transform; }
+    [[nodiscard]] std::string GetName() const { return Name; }
+    [[nodiscard]] virtual const char* GetTypeName() const { return "Entity"; }
+    [[nodiscard]] TransformComponent* GetTransform() const { return m_Transform; }
     virtual Model* GetModel() { return nullptr; }
 
 private:

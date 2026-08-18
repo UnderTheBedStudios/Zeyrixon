@@ -2,8 +2,7 @@
 #include <Editor/Public/Windows/MainWindow.h>
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
-#include <backends/imgui_impl_opengl3.h>
-#include <stdio.h>
+#include <cstdio>
 #define GL_SILENCE_DEPRECATION
 #if defined(IMGUI_IMPL_OPENGL_ES2)
 #include <GLES2/gl2.h>
@@ -19,6 +18,7 @@
 #include <string>
 #include <cstring>
 #include <cfloat>
+#include <Engine/Public/Entities/Common/Camera.h>
 
 MainWindow::MainWindow(const WindowDesc& desc)
     : Window(desc)
@@ -70,31 +70,31 @@ MainWindow::~MainWindow()
 
 void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
 {
-    auto EnsureViewportTarget = [&](int width, int height)
+    auto EnsureViewportTarget = [&](GLuint& fbo, GLuint& colorTex, GLuint& depthRBO, int& outW, int& outH, int width, int height)
     {
-        if (width == viewportW && height == viewportH && viewportFBO != 0) return;
+        if (width == outW && height == outH && fbo != 0) return;
         if (width <= 0 || height <= 0) return;
-        if (viewportFBO != 0) {
-            glDeleteFramebuffers(1, &viewportFBO);
-            glDeleteTextures(1, &viewportColorTex);
-            glDeleteRenderbuffers(1, &viewportDepthRBO);
+        if (fbo != 0) {
+            glDeleteFramebuffers(1, &fbo);
+            glDeleteTextures(1, &colorTex);
+            glDeleteRenderbuffers(1, &depthRBO);
         }
-        viewportW = width; viewportH = height;
+        outW = width; outH = height;
 
-        glGenTextures(1, &viewportColorTex);
-        glBindTexture(GL_TEXTURE_2D, viewportColorTex);
+        glGenTextures(1, &colorTex);
+        glBindTexture(GL_TEXTURE_2D, colorTex);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-        glGenRenderbuffers(1, &viewportDepthRBO);
-        glBindRenderbuffer(GL_RENDERBUFFER, viewportDepthRBO);
+        glGenRenderbuffers(1, &depthRBO);
+        glBindRenderbuffer(GL_RENDERBUFFER, depthRBO);
         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
 
-        glGenFramebuffers(1, &viewportFBO);
-        glBindFramebuffer(GL_FRAMEBUFFER, viewportFBO);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, viewportColorTex, 0);
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, viewportDepthRBO);
+        glGenFramebuffers(1, &fbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTex, 0);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthRBO);
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
             fprintf(stderr, "[Editor] Viewport FBO incomplete\n");
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -144,10 +144,8 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             ImGuiID dockProperties = ImGui::DockBuilderSplitNode(dockInspector, ImGuiDir_Down, 0.5f, nullptr, &dockInspector);
             ImGuiID dockRecentEntities = ImGui::DockBuilderSplitNode(dockViewport, ImGuiDir_Left, 0.15f, nullptr, &dockViewport);
 
-            if (ImGuiDockNode* node = ImGui::DockBuilderGetNode(dockViewport))
-                node->LocalFlags |= ImGuiDockNodeFlags_NoTabBar;
-
             ImGui::DockBuilderDockWindow("Viewport", dockViewport);
+            ImGui::DockBuilderDockWindow("Game View", dockViewport);
             ImGui::DockBuilderDockWindow("Content Browser", dockContentBrowser);
             ImGui::DockBuilderDockWindow("Inspector", dockInspector);
             ImGui::DockBuilderDockWindow("File Explorer", dockFileExplorer);
@@ -246,18 +244,56 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             if (ImGui::IsKeyReleased(ImGuiKey_LeftCtrl)) editorCamera.ProcessKeyboard(CameraMovement::NORMAL, io.DeltaTime);
         }
 
-        EnsureViewportTarget((int)contentSize.x, (int)contentSize.y);
+        EnsureViewportTarget(sceneViewportFBO, sceneViewportColorTex, sceneViewportDepthRBO, sceneViewportW, sceneViewportH, (int)contentSize.x, (int)contentSize.y);
 
-        if (viewportFBO != 0)
+        if (sceneViewportFBO != 0)
         {
             glm::mat4 proj = glm::perspective(glm::radians(editorCamera.fov), contentSize.x / contentSize.y, 0.1f, 100.0f);
             glm::mat4 view = editorCamera.GetViewMatrix();
             glm::mat4 viewProj = proj * view;
 
-            Engine_RenderFrame(viewportFBO, viewportW, viewportH, glm::value_ptr(viewProj));
+            Engine_RenderFrame(sceneViewportFBO, sceneViewportW, sceneViewportH, glm::value_ptr(viewProj));
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-            ImGui::Image((ImTextureID)(intptr_t)viewportColorTex, contentSize, ImVec2(0, 1), ImVec2(1, 0));
+            ImGui::Image((ImTextureID)(intptr_t)sceneViewportColorTex, contentSize, ImVec2(0, 1), ImVec2(1, 0));
+        }
+
+        ImGui::End();
+    }
+
+    {
+        ImGui::Begin("Game View", nullptr, windowFlags);
+
+        ImVec2 contentSize = ImGui::GetContentRegionAvail();
+
+        ImGui::SetWindowSize(ViewportSize, ImGuiCond_FirstUseEver);
+        ImGui::SetWindowPos(ImVec2((int)(screenWidth * 0.5) - (int)(ImGui::GetWindowSize().x * 0.5), 0), ImGuiCond_FirstUseEver);
+
+        EnsureViewportTarget(gameViewportFBO, gameViewportColorTex, gameViewportDepthRBO, gameViewportW, gameViewportH, (int)contentSize.x, (int)contentSize.y);
+
+        if (gameViewportFBO != 0)
+        {
+            glm::mat4 proj;
+            glm::mat4 view;
+            if (m_project.ActiveWorldMutable() != nullptr && m_project.ActiveWorldMutable()->defaultCamera != nullptr)
+            {
+                proj = glm::perspective(glm::radians(m_project.ActiveWorldMutable()->defaultCamera->fov / 2.f),
+                    contentSize.x / contentSize.y,
+                    0.1f,
+                    100.0f);
+                view = m_project.ActiveWorldMutable()->defaultCamera->GetViewMatrix();
+            }
+            else
+            {
+                proj = glm::perspective(glm::radians(editorCamera.fov), contentSize.x / contentSize.y, 0.1f, 100.0f);
+                view = editorCamera.GetViewMatrix();
+            }
+            glm::mat4 viewProj = proj * view;
+
+            Engine_RenderFrame(gameViewportFBO, gameViewportW, gameViewportH, glm::value_ptr(viewProj));
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+            ImGui::Image((ImTextureID)(intptr_t)gameViewportColorTex, contentSize, ImVec2(0, 1), ImVec2(1, 0));
         }
 
         ImGui::End();
@@ -414,6 +450,12 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                 }
             }
 
+            if (Engine_EntityIs<Camera>(m_selectedEntity))
+            {
+                ImGui::Text("FOV");
+                ImGui::DragFloat("##FOV", &dynamic_cast<Camera*>(Engine_GetEntity(m_selectedEntity))->fov);
+            }
+
             ImGui::Spacing();
             ImGui::Separator();
             if (ImGui::Button("Delete Entity"))
@@ -461,6 +503,28 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                 {
                     float viewPos[3] = { editorCamera.position.x, editorCamera.position.y, editorCamera.position.z };
                     Engine_SetLight(glm::value_ptr(m_project.ActiveWorldMutable()->lightDir), glm::value_ptr(m_project.ActiveWorldMutable()->lightColor), viewPos);
+                }
+
+                ImGui::Text("Default Camera");
+
+                if (ImGui::BeginCombo("Camera: ", m_project.ActiveWorldMutable()->defaultCamera ?
+                                                                   m_project.ActiveWorldMutable()->defaultCamera->GetName().c_str() :
+                                                                   "No Camera"))
+                {
+                    const auto& entities = Engine_GetAllEntities();
+                    for (size_t i = 0; i < entities.size(); ++i)
+                    {
+                        const BaseEntity* entity = entities[i].get();
+                        if (Engine_EntityIs<Camera>(*entity))   // dereferenced, T = Camera not Camera*
+                        {
+                            if (ImGui::Selectable(entity->Name.c_str(), m_selectedEntity == (int)i))
+                            {
+                                m_selectedEntity = (int)i;
+                                m_project.ActiveWorldMutable()->defaultCamera = dynamic_cast<Camera*>(Engine_GetEntity(m_selectedEntity));
+                            }
+                        }
+                    }
+                    ImGui::EndCombo();
                 }
             }
             else

@@ -21,8 +21,11 @@ public:
 private:
     void CreateEntity(const std::string& entityType);
 
-    GLuint viewportFBO = 0, viewportColorTex = 0, viewportDepthRBO = 0;
-    int viewportW = 0, viewportH = 0;
+    GLuint sceneViewportFBO = 0, sceneViewportColorTex = 0, sceneViewportDepthRBO = 0;
+    int sceneViewportW = 0, sceneViewportH = 0;
+
+    GLuint gameViewportFBO = 0, gameViewportColorTex = 0, gameViewportDepthRBO = 0;
+    int gameViewportW = 0, gameViewportH = 0;
 
     ImVec4 clear_color;
     EditorCamera editorCamera;

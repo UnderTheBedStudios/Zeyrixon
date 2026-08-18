@@ -9,8 +9,6 @@
 #include <Engine/Public/Entities/Shapes/Sphere.h>
 #include <glad/glad.h>
 #include <cstdio>
-#include <chrono>
-#include <math.h>
 #include <unistd.h>
 #include <string>
 #include <vector>
@@ -255,6 +253,16 @@ bool Engine_SetEntityScale(int index, const float* xyz)
         return false;
     entity->GetTransform()->SetScale(glm::vec3(xyz[0], xyz[1], xyz[2]));
     return true;
+}
+
+BaseEntity* Engine_GetEntity(int index)
+{
+    return GetEntitySafe(index);
+}
+
+const std::vector<std::unique_ptr<BaseEntity>>& Engine_GetAllEntities()
+{
+    return g_Entities;
 }
 
 bool Engine_EntityHasModel(int index)

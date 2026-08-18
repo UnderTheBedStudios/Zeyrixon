@@ -1,5 +1,11 @@
 #pragma once
 
+#include <typeinfo>
+#include <vector>
+#include <memory>
+
+class BaseEntity;
+
 extern "C" {
     void Engine_Init(void* getProcAddress, const char* assetRoot);
     void Engine_RenderFrame(int fb, int width, int height, const float* viewProj);
@@ -32,6 +38,11 @@ extern "C" {
     bool Engine_GetEntityScale(int index, float* outXYZ);
     bool Engine_SetEntityScale(int index, const float* xyz);
 
+    BaseEntity* Engine_GetEntity(int index);
+
+    const std::vector<std::unique_ptr<BaseEntity>>& Engine_GetAllEntities();
+
+
     // --- Model component ---
     // false for entities with no model slot (e.g. a plain "Empty Entity") — GetModel()
     // returns nullptr for those, and this API does not add one.
@@ -46,3 +57,6 @@ extern "C" {
     // no model slot or the file can't be loaded, leaving the previous model intact.
     bool Engine_SetEntityModelPath(int index, const char* path);
 }
+
+template <typename T, typename ObjType>
+bool Engine_EntityIs(const ObjType& obj) { return typeid(obj) == typeid(T); }

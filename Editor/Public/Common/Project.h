@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <glm.hpp>
+#include <Engine/Public/Entities/Common/Camera.h>
 
 struct ProjectWorld
 {
@@ -11,6 +12,7 @@ struct ProjectWorld
     bool active = false;
     glm::vec3 lightDir = glm::vec3(1.0f);
     glm::vec3 lightColor = glm::vec3(1.0f);
+    Camera* defaultCamera = nullptr;
 };
 
 class Project

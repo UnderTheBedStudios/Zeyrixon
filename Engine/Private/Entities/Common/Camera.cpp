@@ -3,15 +3,18 @@
 
 Camera::Camera(std::string assetRoot)
 {
-    std::string g_AssetRoot = assetRoot;
+    fov = 90.f;
 
     m_BaseModel = std::make_unique<Model>();
 
-    std::string cameraModelPath = g_AssetRoot + "/Engine/Models/Camera/Camera.obj";
+    const std::string cameraModelPath = assetRoot + "/Engine/Models/Camera/Camera.obj";
     if (!m_BaseModel->LoadFromFile(cameraModelPath))
         fprintf(stderr, "[Engine] Failed to load Camera model from %s\n", cameraModelPath.c_str());
 }
 
-Camera::~Camera()
+Camera::~Camera() = default;
+
+glm::mat4 Camera::GetViewMatrix() const
 {
+    return glm::lookAt(GetTransform()->GetPosition(), GetTransform()->GetPosition() + (GetTransform()->GetForward() * -1.f), GetTransform()->GetUp());
 }
