@@ -1,4 +1,4 @@
 {
-    "cmake.sourceDirectory": "${workspaceFolder:LumenX}",
-    "cmake.buildDirectory": "${workspaceFolder:LumenX}/build"
+    "cmake.sourceDirectory": "${workspaceFolder:Zeyrixon}",
+    "cmake.buildDirectory": "${workspaceFolder:Zeyrixon}/build"
 }

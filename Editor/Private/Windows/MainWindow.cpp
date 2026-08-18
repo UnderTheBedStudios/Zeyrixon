@@ -374,6 +374,22 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                 ImGui::Text("Name");
                 if (ImGui::InputText("##WorldName", m_renameWorldBuffer, sizeof(m_renameWorldBuffer)))
                     m_project.ActiveWorldMutable()->name = m_renameWorldBuffer;
+
+                ImGui::Spacing();
+
+                ImGui::Text("Light Direction");
+                if (ImGui::DragFloat3("##LightDir", glm::value_ptr(m_project.ActiveWorldMutable()->lightDir), 0.01f))
+                {
+                    float viewPos[3] = { editorCamera.position.x, editorCamera.position.y, editorCamera.position.z };
+                    Engine_SetLight(glm::value_ptr(m_project.ActiveWorldMutable()->lightDir), glm::value_ptr(m_project.ActiveWorldMutable()->lightColor), viewPos);
+                }
+
+                ImGui::Text("Light Color");
+                if (ImGui::ColorEdit3("##LightColor", glm::value_ptr(m_project.ActiveWorldMutable()->lightColor)))
+                {
+                    float viewPos[3] = { editorCamera.position.x, editorCamera.position.y, editorCamera.position.z };
+                    Engine_SetLight(glm::value_ptr(m_project.ActiveWorldMutable()->lightDir), glm::value_ptr(m_project.ActiveWorldMutable()->lightColor), viewPos);
+                }
             }
             else
             {
