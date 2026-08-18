@@ -1,6 +1,0 @@
-/mnt/GAEMS/Visual Studio Code/Zeyrixon/build/CMakeFiles/glad.dir
-/mnt/GAEMS/Visual Studio Code/Zeyrixon/build/CMakeFiles/imgui_lib.dir
-/mnt/GAEMS/Visual Studio Code/Zeyrixon/build/CMakeFiles/Engine.dir
-/mnt/GAEMS/Visual Studio Code/Zeyrixon/build/CMakeFiles/Editor.dir
-/mnt/GAEMS/Visual Studio Code/Zeyrixon/build/CMakeFiles/edit_cache.dir
-/mnt/GAEMS/Visual Studio Code/Zeyrixon/build/CMakeFiles/rebuild_cache.dir
