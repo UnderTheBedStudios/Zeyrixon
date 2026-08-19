@@ -141,11 +141,14 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             ImGui::DockBuilderSetNodeSize(dockspaceId, ImGui::GetMainViewport()->WorkSize);
 
             ImGuiID dockViewport = dockspaceId;
-            ImGuiID dockInspector = ImGui::DockBuilderSplitNode(dockViewport, ImGuiDir_Right, 0.15f, nullptr, &dockViewport);
-            ImGuiID dockContentBrowser = ImGui::DockBuilderSplitNode(dockViewport, ImGuiDir_Down, 0.25f, nullptr, &dockViewport);
-            ImGuiID dockFileExplorer = ImGui::DockBuilderSplitNode(dockContentBrowser, ImGuiDir_Left, 0.20f, nullptr, &dockContentBrowser);
-            ImGuiID dockProperties = ImGui::DockBuilderSplitNode(dockInspector, ImGuiDir_Down, 0.5f, nullptr, &dockInspector);
-            ImGuiID dockRecentEntities = ImGui::DockBuilderSplitNode(dockViewport, ImGuiDir_Left, 0.15f, nullptr, &dockViewport);
+            ImGuiID dockInspector = ImGui::DockBuilderSplitNode(dockViewport, ImGuiDir_Right, 0.15f,
+                nullptr, &dockViewport);
+            ImGuiID dockContentBrowser = ImGui::DockBuilderSplitNode(dockViewport, ImGuiDir_Down, 0.25f,
+                nullptr, &dockViewport);
+            ImGuiID dockFileExplorer = ImGui::DockBuilderSplitNode(dockContentBrowser, ImGuiDir_Left, 0.20f,
+                nullptr, &dockContentBrowser);
+            ImGuiID dockProperties = ImGui::DockBuilderSplitNode(dockInspector, ImGuiDir_Down, 0.5f,
+                nullptr, &dockInspector);
 
             ImGui::DockBuilderDockWindow("Viewport", dockViewport);
             ImGui::DockBuilderDockWindow("Game View", dockViewport);
@@ -154,7 +157,6 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             ImGui::DockBuilderDockWindow("File Explorer", dockFileExplorer);
             ImGui::DockBuilderDockWindow("Properties", dockProperties);
             ImGui::DockBuilderDockWindow("World Properties", dockProperties);
-            ImGui::DockBuilderDockWindow("Recent Entities", dockRecentEntities);
 
             ImGui::DockBuilderFinish(dockspaceId);
         }
@@ -247,7 +249,8 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             if (ImGui::IsKeyReleased(ImGuiKey_LeftCtrl)) editorCamera.ProcessKeyboard(CameraMovement::NORMAL, io.DeltaTime);
         }
 
-        EnsureViewportTarget(sceneViewportFBO, sceneViewportColorTex, sceneViewportDepthRBO, sceneViewportW, sceneViewportH, (int)contentSize.x, (int)contentSize.y);
+        EnsureViewportTarget(sceneViewportFBO, sceneViewportColorTex, sceneViewportDepthRBO,
+            sceneViewportW, sceneViewportH, (int)contentSize.x, (int)contentSize.y);
 
         if (sceneViewportFBO != 0)
         {
@@ -272,7 +275,8 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
         ImGui::SetWindowSize(ViewportSize, ImGuiCond_FirstUseEver);
         ImGui::SetWindowPos(ImVec2((int)(screenWidth * 0.5) - (int)(ImGui::GetWindowSize().x * 0.5), 0), ImGuiCond_FirstUseEver);
 
-        EnsureViewportTarget(gameViewportFBO, gameViewportColorTex, gameViewportDepthRBO, gameViewportW, gameViewportH, (int)contentSize.x, (int)contentSize.y);
+        EnsureViewportTarget(gameViewportFBO, gameViewportColorTex, gameViewportDepthRBO,
+            gameViewportW, gameViewportH, (int)contentSize.x, (int)contentSize.y);
 
         if (gameViewportFBO != 0)
         {
@@ -502,14 +506,16 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                 if (ImGui::DragFloat3("##LightDir", glm::value_ptr(m_project.ActiveWorldMutable()->lightDir), 0.01f))
                 {
                     float viewPos[3] = { editorCamera.position.x, editorCamera.position.y, editorCamera.position.z };
-                    Engine_SetLight(glm::value_ptr(m_project.ActiveWorldMutable()->lightDir), glm::value_ptr(m_project.ActiveWorldMutable()->lightColor), viewPos);
+                    Engine_SetLight(glm::value_ptr(m_project.ActiveWorldMutable()->lightDir),
+                        glm::value_ptr(m_project.ActiveWorldMutable()->lightColor), viewPos);
                 }
 
                 ImGui::Text("Light Color");
                 if (ImGui::ColorEdit3("##LightColor", glm::value_ptr(m_project.ActiveWorldMutable()->lightColor)))
                 {
                     float viewPos[3] = { editorCamera.position.x, editorCamera.position.y, editorCamera.position.z };
-                    Engine_SetLight(glm::value_ptr(m_project.ActiveWorldMutable()->lightDir), glm::value_ptr(m_project.ActiveWorldMutable()->lightColor), viewPos);
+                    Engine_SetLight(glm::value_ptr(m_project.ActiveWorldMutable()->lightDir),
+                        glm::value_ptr(m_project.ActiveWorldMutable()->lightColor), viewPos);
                 }
 
                 ImGui::Text("Default Camera");
@@ -544,15 +550,6 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             ImGui::TextDisabled("No Project Selected!");
         }
 
-        ImGui::End();
-    }
-
-    {
-        ImGui::Begin("Recent Entities", nullptr, windowFlags);
-        ImGui::SetWindowSize(ImVec2((int)(std::abs(ViewportSize.x - screenWidth) * 0.5f),
-                                    (int)(ViewportSize.y)),
-                                    ImGuiCond_FirstUseEver);
-        ImGui::SetWindowPos(ImVec2(0, 0), ImGuiCond_FirstUseEver);
         ImGui::End();
     }
 
