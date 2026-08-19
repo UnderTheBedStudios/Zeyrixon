@@ -52,7 +52,7 @@ add_library(imgui_lib STATIC
 )
 
 add_library(Engine STATIC
-    Engine/Private/Engine.cpp 
+    Engine/Private/Engine.cpp
     Engine/pch.cpp
     Engine/Private/Base.cpp
     Engine/Private/Components/Common/BaseComponent.cpp
@@ -74,6 +74,7 @@ if(NOT assimp_FOUND)
     set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
     set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
     set(ASSIMP_BUILD_ZLIB ON CACHE BOOL "" FORCE)
+    set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
     FetchContent_Declare(
         assimp
         GIT_REPOSITORY https://github.com/assimp/assimp.git
@@ -83,7 +84,7 @@ if(NOT assimp_FOUND)
     FetchContent_MakeAvailable(assimp)
     add_library(assimp::assimp ALIAS assimp)
 endif()
-target_link_libraries(Engine PRIVATE assimp::assimp)
+target_link_libraries(Engine PUBLIC assimp::assimp)
 
 find_package(pugixml QUIET)
 if(NOT pugixml_FOUND)
@@ -98,10 +99,11 @@ if(NOT pugixml_FOUND)
 endif()
 
 # If you have include folders
-target_include_directories(imgui_lib PUBLIC 
+target_include_directories(imgui_lib PUBLIC
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
 )
+target_link_libraries(imgui_lib PUBLIC glfw)
 
 target_include_directories(Engine PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/Engine/..)
 target_include_directories(Engine PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR})
@@ -121,5 +123,17 @@ add_executable(Editor
 )
 target_include_directories(Editor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Editor/..)
 target_link_libraries(Editor PRIVATE imgui_lib glad glfw OpenGL::GL Engine pugixml)
+if(NOT assimp_FOUND)
+    # assimp splices its own bundled copy of pugixml's source directly into
+    # specific object files (ImporterRegistry.cpp, ColladaParser.cpp) when
+    # built from source, colliding with our separately-built pugixml. Both
+    # are the same pugixml version, so it's safe to let the linker keep
+    # whichever definition it finds first instead of erroring out.
+    target_link_options(Editor PRIVATE -Wl,--allow-multiple-definition)
+endif()
 
 target_link_libraries(Engine PUBLIC glad OpenGL::GL)
+
+if(MINGW)
+    target_link_options(Editor PRIVATE -static -static-libgcc -static-libstdc++)
+endif()

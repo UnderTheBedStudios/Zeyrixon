@@ -78,7 +78,8 @@ int main(int, char**)
 #endif
 
     // Create window with graphics context
-    float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor()); // Valid on GLFW 3.3+ onlys
+    GLFWmonitor* primary_monitor = glfwGetPrimaryMonitor();
+    float main_scale = primary_monitor ? ImGui_ImplGlfw_GetContentScaleForMonitor(primary_monitor) : 1.0f; // Valid on GLFW 3.3+ only
 
     MainWindow mainWin({.title = "Zeyrixon Editor", .width = (int)(1600 * main_scale), .height = (int)(900 * main_scale)});
 
