@@ -164,31 +164,30 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
         if (ImGui::BeginMenuBar())
         {
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, 4.0f));
+
             if (ImGui::Button("File")) { ImGui::OpenPopup("File Dropdown"); }
+            if (ImGui::BeginPopup("File Dropdown"))
+            {
+                if (ImGui::Button("Open Project Browser")) {  }
+                ImGui::EndPopup();
+            }
+
             ImGui::SameLine();
+
             if (ImGui::Button("Edit")) { ImGui::OpenPopup("Edit Dropdown"); }
+            if (ImGui::BeginPopup("Edit Dropdown"))
+            {
+                if (ImGui::Button("Undo: Ctl+Z")) {  }
+                if (ImGui::Button("Redo: Ctl+Y")) {  }
+                if (ImGui::Button("Save: Ctl+S")) {  }
+
+                ImGui::EndPopup();
+            }
+
             ImGui::PopStyleVar();
             ImGui::EndMenuBar();
         }
-
         ImGui::End();
-    }
-
-    {
-        if (ImGui::BeginPopup("File Dropdown"))
-        {
-            if (ImGui::Button("This ")) {  }
-            if (ImGui::Button("Does ")) {  }
-            if (ImGui::Button("Nothing")) {  }
-            if (ImGui::Button("HAHAHAHAHA")) {  }
-            ImGui::EndPopup();
-        }
-
-        if (ImGui::BeginPopup("Edit Dropdown"))
-        {
-            if (ImGui::Button("Damn")) {  }
-            ImGui::EndPopup();
-        }
     }
 
     {
