@@ -19,6 +19,7 @@
 #include <cstring>
 #include <cfloat>
 #include <Engine/Public/Entities/Common/Camera.h>
+#include <Editor/Public/Windows/Gui/FileExplorerRender.h>
 
 MainWindow::MainWindow(const WindowDesc& desc)
     : Window(desc)
@@ -55,8 +56,10 @@ MainWindow::MainWindow(const WindowDesc& desc)
         style.Colors[ImGuiCol_WindowBg].w = 1.0f;
     }
 
-    std::filesystem::path assetRoot = PathUtils::ResolveProjectRoot();
+    assetRoot = PathUtils::ResolveProjectRoot();
     Engine_Init((void*)glfwGetProcAddress, assetRoot.string().c_str()); // asset root is a placeholder for now
+
+    FileExplorerRender::LoadIcons(assetRoot / "Editor" / "Icons");
 
     clear_color = ImVec4(0.2f, 0.2f, 0.2f, 1.00f);
 }
@@ -355,6 +358,10 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                                     (int)(std::abs(ViewportSize.y - screenHeight))),
                                     ImGuiCond_FirstUseEver);
         ImGui::SetWindowPos(ImVec2(0, (int)(ViewportSize.y)), ImGuiCond_FirstUseEver);
+
+        FileExplorerRender(m_project.Directory()).DrawGui();
+        FileExplorerRender(assetRoot / std::filesystem::path("Engine")).DrawGui();
+
         ImGui::End();
     }
 

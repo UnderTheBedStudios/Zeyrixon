@@ -111,15 +111,17 @@ target_include_directories(Engine PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/Engine/ven
 target_include_directories(Engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Engine/vendor/glm)
 
 add_executable(Editor
-    Editor/main.cpp
-    Editor/Private/Common/Window.cpp
-    Editor/Private/Common/EditorCamera.cpp
-    Editor/Private/Utils/PathUtils.cpp
-    Editor/Private/Windows/MainWindow.cpp
-    Editor/Private/Windows/ProjectBrowserDialog.cpp
-    Editor/Private/Utils/FileCreator.cpp
-    Editor/Private/Common/Project.cpp
-    Editor/Private/Utils/FileManagement.cpp
+        Editor/main.cpp
+        Editor/Private/Common/Window.cpp
+        Editor/Private/Common/EditorCamera.cpp
+        Editor/Private/Utils/PathUtils.cpp
+        Editor/Private/Windows/MainWindow.cpp
+        Editor/Private/Windows/ProjectBrowserDialog.cpp
+        Editor/Private/Utils/FileCreator.cpp
+        Editor/Private/Common/Project.cpp
+        Editor/Private/Utils/FileManagement.cpp
+        Editor/Private/Windows/Gui/FileExplorerRender.cpp
+        Editor/Private/Windows/Gui/BaseGui.cpp
 )
 target_include_directories(Editor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Editor/..)
 target_link_libraries(Editor PRIVATE imgui_lib glad glfw OpenGL::GL Engine pugixml)

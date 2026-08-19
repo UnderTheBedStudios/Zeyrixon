@@ -15,8 +15,8 @@ public:
     void DrawFrame(int& screenWidth, int& screenHeight);
 
     void LoadProject(const std::string& zeyrixonPath);
-    bool HasProject() const { return m_hasProject; }
-    const Project& CurrentProject() const { return m_project; }
+    [[nodiscard]] bool HasProject() const { return m_hasProject; }
+    [[nodiscard]] const Project& CurrentProject() const { return m_project; }
 
 private:
     void CreateEntity(const std::string& entityType);
@@ -47,4 +47,6 @@ private:
     char m_modelPathBuffer[256] = {};
     int m_modelPathBufferForEntity = -1;
     std::string m_modelLoadError;
+
+    std::filesystem::path assetRoot;
 };

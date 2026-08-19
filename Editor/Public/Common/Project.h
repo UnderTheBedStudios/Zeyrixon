@@ -22,14 +22,14 @@ public:
     // unchanged) if the file can't be opened or doesn't look like a valid .lumenx file.
     bool LoadFromFile(const std::filesystem::path& lumenxPath);
 
-    const std::string& Name() const { return m_name; }
-    const std::filesystem::path& Directory() const { return m_directory; }
-    const std::filesystem::path& LumenxPath() const { return m_lumenxPath; }
-    const std::vector<ProjectWorld>& Worlds() const { return m_worlds; }
+    [[nodiscard]] const std::string& Name() const { return m_name; }
+    [[nodiscard]] const std::filesystem::path& Directory() const { return m_directory; }
+    [[nodiscard]] const std::filesystem::path& LumenxPath() const { return m_lumenxPath; }
+    [[nodiscard]] const std::vector<ProjectWorld>& Worlds() const { return m_worlds; }
 
     // First World with Active=true, falling back to the first World if none are marked active,
     // or nullptr if there are no Worlds at all.
-    const ProjectWorld* ActiveWorld() const;
+    [[nodiscard]] const ProjectWorld* ActiveWorld() const;
 
     ProjectWorld* ActiveWorldMutable();
 
