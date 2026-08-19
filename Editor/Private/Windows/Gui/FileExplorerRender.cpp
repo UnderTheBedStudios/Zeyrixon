@@ -4,6 +4,8 @@
 #include <vector>
 #include <algorithm>
 
+#include "Editor/Public/Utils/PathUtils.h"
+
 GLuint FileExplorerRender::s_closedFolderIcon = 0;
 GLuint FileExplorerRender::s_openFolderIcon   = 0;
 GLuint FileExplorerRender::s_fileIcon         = 0;
@@ -42,8 +44,8 @@ void FileExplorerRender::LoadIcons(const std::filesystem::path& iconDir)
     s_iconsLoaded = true;
 }
 
-FileExplorerRender::FileExplorerRender(std::filesystem::path pathToRender)
-: m_pathToRender(pathToRender)
+FileExplorerRender::FileExplorerRender(std::filesystem::path pathToRender, SelectCallback onSelect)
+    : m_pathToRender(pathToRender), m_onSelect(std::move(onSelect))
 {
 }
 
@@ -64,7 +66,11 @@ void FileExplorerRender::RenderFileExplorerContents(const std::filesystem::path&
     {
         std::vector<std::filesystem::directory_entry> entries;
         for (const auto& entry : std::filesystem::directory_iterator(path))
+        {
+            if (PathUtils::IsHidden(entry))
+                continue;
             entries.push_back(entry);
+        }
 
         std::sort(entries.begin(), entries.end(),
             [](const std::filesystem::directory_entry& a, const std::filesystem::directory_entry& b)
@@ -130,5 +136,13 @@ void FileExplorerRender::DrawEntry(const std::filesystem::path& path, bool isDir
         ImGui::Indent();
         RenderFileExplorerContents(path);
         ImGui::Unindent();
+    }
+
+    if (clicked)
+    {
+        if (isDirectory)
+            storage->SetBool(stateId, !open);
+        if (m_onSelect)
+            m_onSelect(path);
     }
 }

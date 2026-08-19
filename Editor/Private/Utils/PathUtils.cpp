@@ -101,4 +101,10 @@ fs::path ResolveProjectRoot(const std::string& markerFilename)
     }
 }
 
+bool IsHidden(const std::filesystem::path& path)
+{
+    std::string name = path.filename().string();
+    return !name.empty() && name[0] == '.';
+}
+
 } // namespace PathUtils

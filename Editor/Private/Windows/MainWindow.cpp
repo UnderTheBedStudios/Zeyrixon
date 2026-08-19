@@ -3,6 +3,8 @@
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <cstdio>
+
+#include "Editor/Public/Windows/Gui/ContentBrowserRender.h"
 #define GL_SILENCE_DEPRECATION
 #if defined(IMGUI_IMPL_OPENGL_ES2)
 #include <GLES2/gl2.h>
@@ -60,6 +62,7 @@ MainWindow::MainWindow(const WindowDesc& desc)
     Engine_Init((void*)glfwGetProcAddress, assetRoot.string().c_str()); // asset root is a placeholder for now
 
     FileExplorerRender::LoadIcons(assetRoot / "Editor" / "Icons");
+    ContentBrowserRender::LoadIcons(assetRoot / "Editor" / "Icons");
 
     clear_color = ImVec4(0.2f, 0.2f, 0.2f, 1.00f);
 }
@@ -352,6 +355,9 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
         ImGui::Begin("Content Browser", nullptr, windowFlags);
         ImGui::SetWindowSize(ImVec2((int)(ViewportSize.x), (int)(std::abs(ViewportSize.y - screenHeight))), ImGuiCond_FirstUseEver);
         ImGui::SetWindowPos(ImVec2((int)(screenWidth * 0.5), (int)(ViewportSize.y)), ImGuiCond_FirstUseEver);
+
+        ContentBrowserRender(m_selectedContentFolder).DrawGui();
+
         ImGui::End();
     }
 
@@ -362,8 +368,12 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                                     ImGuiCond_FirstUseEver);
         ImGui::SetWindowPos(ImVec2(0, (int)(ViewportSize.y)), ImGuiCond_FirstUseEver);
 
-        FileExplorerRender(m_project.Directory()).DrawGui();
-        FileExplorerRender(assetRoot / std::filesystem::path("Engine")).DrawGui();
+        FileExplorerRender(m_project.Directory(),
+                           [this](const std::filesystem::path& p) { m_selectedContentFolder = p; }
+        ).DrawGui();
+        FileExplorerRender(assetRoot / std::filesystem::path("Engine"),
+                            [this](const std::filesystem::path& p) { m_selectedContentFolder = p; }
+        ).DrawGui();
 
         ImGui::End();
     }

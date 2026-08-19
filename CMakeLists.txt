@@ -122,6 +122,7 @@ add_executable(Editor
         Editor/Private/Utils/FileManagement.cpp
         Editor/Private/Windows/Gui/FileExplorerRender.cpp
         Editor/Private/Windows/Gui/BaseGui.cpp
+        Editor/Private/Windows/Gui/ContentBrowserRender.cpp
 )
 target_include_directories(Editor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Editor/..)
 target_link_libraries(Editor PRIVATE imgui_lib glad glfw OpenGL::GL Engine pugixml)

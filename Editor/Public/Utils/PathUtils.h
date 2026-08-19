@@ -10,4 +10,6 @@ namespace PathUtils
     std::filesystem::path GetExecutablePath();
 
     std::filesystem::path ResolveProjectRoot(const std::string& markerFilename = "Zeyrixon.code-workspace");
+
+    bool IsHidden(const std::filesystem::path& path);
 }

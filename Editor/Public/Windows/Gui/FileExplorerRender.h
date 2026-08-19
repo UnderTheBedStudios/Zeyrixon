@@ -3,11 +3,14 @@
 #include <Editor/Public/Windows/Gui/BaseGui.h>
 #include <filesystem>
 #include <glad/glad.h>
+#include <functional>
+
+using SelectCallback = std::function<void(const std::filesystem::path&)>;
 
 class FileExplorerRender : public BaseGui
 {
 public:
-    explicit FileExplorerRender(std::filesystem::path path);
+    explicit FileExplorerRender(std::filesystem::path path, SelectCallback onSelect = nullptr);
     ~FileExplorerRender() override;
 
     void DrawGui() override;
@@ -25,4 +28,6 @@ private:
     static GLuint s_openFolderIcon;
     static GLuint s_fileIcon;
     static bool   s_iconsLoaded;
+
+    SelectCallback m_onSelect;
 };

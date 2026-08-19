@@ -49,4 +49,5 @@ private:
     std::string m_modelLoadError;
 
     std::filesystem::path assetRoot;
+    std::filesystem::path m_selectedContentFolder = m_project.Directory();
 };
