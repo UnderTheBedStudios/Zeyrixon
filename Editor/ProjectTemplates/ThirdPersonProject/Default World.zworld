@@ -1,0 +1,38 @@
+<World z:Id="i2">
+	<WorldName>Default World</WorldName>
+	<LightDir xmlns:d2p1="http://schemas.datacontract.org/2004/07/System.Numerics">
+		<d2p1:X>1.0</d2p1:X>
+		<d2p1:Y>1.0</d2p1:Y>
+		<d2p1:Z>1.0</d2p1:Z>
+	</LightDir>
+	<LightColor xmlns:d2p1="http://schemas.datacontract.org/2004/07/System.Numerics">
+		<d2p1:X>1.0</d2p1:X>
+		<d2p1:Y>1.0</d2p1:Y>
+		<d2p1:Z>1.0</d2p1:Z>
+	</LightColor>
+	<DefaultCamera></DefaultCamera>
+	<Entities>
+		<Entity>
+			<Type>Cube</Type>
+			<Name>Cube 0</Name>
+			<Position xmlns:d2p1="http://schemas.datacontract.org/2004/07/System.Numerics">
+				<d2p1:X>0.0</d2p1:X>
+				<d2p1:Y>0.0</d2p1:Y>
+				<d2p1:Z>0.0</d2p1:Z>
+			</Position>
+			<Rotation xmlns:d2p1="http://schemas.datacontract.org/2004/07/System.Numerics">
+				<d2p1:X>0.0</d2p1:X>
+				<d2p1:Y>0.0</d2p1:Y>
+				<d2p1:Z>0.0</d2p1:Z>
+			</Rotation>
+			<Scale xmlns:d2p1="http://schemas.datacontract.org/2004/07/System.Numerics">
+				<d2p1:X>1.0</d2p1:X>
+				<d2p1:Y>1.0</d2p1:Y>
+				<d2p1:Z>1.0</d2p1:Z>
+			</Scale>
+			<HasModel>true</HasModel>
+			<ModelPath>/Engine/Models/Cube/cube.obj</ModelPath>
+		</Entity>
+	</Entities>
+	<_project z:Ref="i1"/>
+s</World>

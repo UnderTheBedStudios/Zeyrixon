@@ -4,9 +4,9 @@
     <ProjectName>{0}</ProjectName>
     <ProjectPath>{1}</ProjectPath>
     <Worlds>
-        <World>
-            <WorldFile>Default World.zworld</WorldFile>
-            <Active>true</Active>
+        <World z:Id="i2">
+            <WorldPath>DefaultWorld</WorldPath>
+            <active>true</active>
         </World>
     </Worlds>
 </Game>
