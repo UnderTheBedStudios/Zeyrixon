@@ -7,7 +7,7 @@
 - It should work perfectly fine with Visual Studio Code as the IDE by using the `Zeyrixon.code-workspace` as the workspace for this whole thing instead of just using the folder
 - It should also work perfectly fine with CLion as it's CMake dependant and I have a `CmakeLists.txt` file in there so it should build well
 - For Visual Studio... ehhhhhh... can't test that so you're on your own when it comes to if it builds or not if you're using Visual Studio
-- I am only testing this on Arch Linux, because I don't like Microsoft so I'm not using Windows. If there is an issue, make an issue report in the repo or better yet, make a fork and do it for me, I as of currently don't have anyone to test Windows Builds on.
+- I am only testing this on Arch Linux, because I don't like Microsoft, so I'm not using Windows. If there is an issue, make an issue report in the repo or better yet, make a fork and do it for me, I as of currently don't have anyone to test Windows Builds on.
 - I am thinking about using OpenGL for this project because all GPUs can run this.
 - I'm hoping to make this both 3D and 2D (Kinda like Unity) so that you can make as many games as possible.
 - I want this to be free and useful for everyone, without requiring people to credit my game engine or make any required payments. (Though some donations would be nice and some credit, but it's all optional)
@@ -35,7 +35,7 @@ sequenceDiagram
     Editor->>User: Gives User what they want.
     OpenGL Rendering->>User: Gives User Visual Feedback of the output.
 ```
-As you can see, everything should go back and fourth depending on the inputs you give the Editor. Inputs and outputs
+As you can see, everything should go back and forth depending on the inputs you give the Editor. Inputs and outputs
 
 ## User Instructions 📜 :
 In order to build this project (I can only tell you in Visual Studio Code) you will need to have a few things.
@@ -66,7 +66,7 @@ You may also need to input some commands into the terminal.
 > ```shell
 > > CMake: Build
 > ```
-6. Now you should run it and you can do it in two ways, either you can open it from the build folder, or you can just go into the build folder and open the executable, it doesn't really matter.
+6. Now you should run it, and you can do it in two ways, either you can open it from the build folder, or you can just go into the build folder and open the executable, it doesn't really matter.
 
 ### CLion: 
 
@@ -74,18 +74,18 @@ Since Clion is a CMake reliant IDE, it should be easy
 
 1. Open the folder in CLion
 2. Make it so that it's on Release Mode and trying to use Editor
-3. And just click the hammer button and you should have it inside of a folder called (cmake-build-release) or you could just click the start button
+3. And just click the hammer button, and you should have it inside of a folder called (cmake-build-release) or you could just click the start button
 
 ### Visual Studio:
 
-I haven't tested this IDE so I'm just guessing.
+I haven't tested this IDE, so I'm just guessing.
 
 1. Open the `.sln` file
 2. Set the Editor project as the startup project
 3. Set the build mode to release
 4. Then build it
-5. I'm not sure where it would build to so just press the play button bro idk
+5. I'm not sure where it would build to so just press the play button bro IDK
 
 
 
-# I hope you all enjoy the Engine! Best Reguards!
+# I hope you all enjoy the Engine! Best Regards!
