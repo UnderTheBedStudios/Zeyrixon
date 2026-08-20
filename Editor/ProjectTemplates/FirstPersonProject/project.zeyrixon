@@ -17,6 +17,17 @@
                 <d2p1:Y>1.0</d2p1:Y>
                 <d2p1:Z>1.0</d2p1:Z>
             </LightColor>
+            <Entities>
+                    <Entity>
+                        <Type>Cube</Type>
+                        <Name>Cube 0</Name>
+                        <Position xmlns:d2p1="...">...</Position>
+                        <Rotation xmlns:d2p1="...">...</Rotation>
+                        <Scale xmlns:d2p1="...">...</Scale>
+                        <HasModel>true</HasModel>
+                        <ModelPath>/Engine/Models/Cube/cube.obj</ModelPath>
+                    </Entity>
+                </Entities>
             <_project z:Ref="i1"/>
         </World>
     </Worlds>

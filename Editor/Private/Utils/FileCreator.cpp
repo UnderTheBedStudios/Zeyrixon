@@ -5,42 +5,6 @@
 namespace FileCreator
 {
 
-bool WriteZeyrixonPath(const std::filesystem::path& zeyrixonPath,
-                      const std::string& projectName,
-                      const std::string& projectDirWithSlash)
-{
-    // unchanged from before — see prior version
-    std::ofstream out(zeyrixonPath);
-    if (!out)
-        return false;
-
-    out << "<Game z:Id=\"i1\" xmlns=\"http://schemas.datacontract.org/2004/07/Zeyrixon.GameProject\"\n"
-        "    xmlns:i=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
-        "    xmlns:z=\"http://schemas.microsoft.com/2003/10/Serialization/\">\n"
-        "    <ProjectName>" << projectName << "</ProjectName>\n"
-        "    <ProjectPath>" << projectDirWithSlash << "</ProjectPath>\n"
-        "    <Worlds>\n"
-        "        <World z:Id=\"i2\">\n"
-        "            <Active>true</Active>\n"
-        "            <WorldName>Default World</WorldName>\n"
-        "            <LightDir xmlns:d2p1=\"http://schemas.datacontract.org/2004/07/System.Numerics\">\n"
-        "                <d2p1:X>1.0</d2p1:X>\n"
-        "                <d2p1:Y>1.0</d2p1:Y>\n"
-        "                <d2p1:Z>1.0</d2p1:Z>\n"
-        "            </LightDir>\n"
-        "            <LightColor xmlns:d2p1=\"http://schemas.datacontract.org/2004/07/System.Numerics\">\n"
-        "                <d2p1:X>1.0</d2p1:X>\n"
-        "                <d2p1:Y>1.0</d2p1:Y>\n"
-        "                <d2p1:Z>1.0</d2p1:Z>\n"
-        "            </LightColor>\n"
-        "            <_project z:Ref=\"i1\"/>\n"
-        "        </World>\n"
-        "    </Worlds>\n"
-        "</Game>\n";
-
-    return true;
-}
-
 static std::string ReplaceAll(std::string str, const std::string& from, const std::string& to)
 {
     size_t pos = 0;
@@ -99,6 +63,18 @@ bool InstantiateProjectFromTemplate(const std::filesystem::path& templateDir,
     {
         std::filesystem::copy_file(templateScreenshot, targetDir / ".Zeyrixon" / "Screenshot.png",
             std::filesystem::copy_options::overwrite_existing, ec);
+    }
+
+    // Copy every .zworld file sitting next to project.zeyrixon in the template — these are
+    // referenced by <WorldFile> in the manifest we just wrote out above, so without this the
+    // new project's manifest points at a file that was never actually created.
+    for (const auto& entry : std::filesystem::directory_iterator(templateDir, ec))
+    {
+        if (entry.path().extension() == ".zworld")
+        {
+            std::filesystem::copy_file(entry.path(), targetDir / entry.path().filename(),
+                std::filesystem::copy_options::overwrite_existing, ec);
+        }
     }
 
     return true;

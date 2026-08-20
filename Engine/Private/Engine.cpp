@@ -7,6 +7,7 @@
 #include <Engine/Public/Components/Common/Model.h>
 #include <Engine/Public/Entities/Shapes/Cube.h>
 #include <Engine/Public/Entities/Shapes/Sphere.h>
+#include <Engine/Public/Common/World.h>
 #include <glad/glad.h>
 #include <cstdio>
 #include <unistd.h>
@@ -26,6 +27,13 @@ namespace {
 
 std::vector<std::unique_ptr<BaseEntity>> g_Entities;
 
+// Raw pointer, not an index: erasing earlier elements from g_Entities shifts the
+// unique_ptr *wrappers* around in the vector's storage, but each entity itself is a
+// separate heap allocation the wrapper points to, so this pointer stays valid across
+// unrelated erases. It's only invalidated by deleting this exact entity (handled in
+// Engine_DeleteEntity below).
+Camera* g_DefaultCamera = nullptr;
+
 BaseEntity* GetEntitySafe(int index)
 {
     if (index < 0 || index >= (int)g_Entities.size())
@@ -39,6 +47,8 @@ std::unique_ptr<Shader> g_DepthShader;
 glm::vec3 g_LightDir = glm::normalize(glm::vec3(0.3f, 1.0f, 0.2f));
 glm::vec3 g_LightColor = glm::vec3(1.0f, 1.0f, 1.0f);
 glm::vec3 g_ViewPos    = glm::vec3(0.0f);
+
+std::string g_WorldName;
 
 std::string g_AssetRoot;
 
@@ -116,6 +126,8 @@ void Engine_Shutdown()
     g_MainShader.reset();
     g_DepthShader.reset();
     g_Entities.clear();
+    g_DefaultCamera = nullptr;
+    g_WorldName.clear();
 }
 
 void Engine_Init(void* getProcAddress, const char* assetRoot)
@@ -194,6 +206,8 @@ bool Engine_DeleteEntity(int index)
 {
     if (index < 0 || index >= (int)g_Entities.size())
         return false;
+    if (g_Entities[index].get() == g_DefaultCamera)
+        g_DefaultCamera = nullptr;
     g_Entities.erase(g_Entities.begin() + index);
     return true;
 }
@@ -287,6 +301,105 @@ bool Engine_SetEntityModelPath(int index, const char* path)
     return entity->GetModel()->LoadFromFile(ResolveModelPath(path));
 }
 
+const char* Engine_GetWorldName()
+{
+    return g_WorldName.c_str();
+}
+
+void Engine_SetWorldName(const char* name)
+{
+    g_WorldName = name ? name : "";
+}
+
+Camera* Engine_GetDefaultCamera()
+{
+    return g_DefaultCamera;
+}
+
+bool Engine_SetDefaultCamera(int index)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    if (!entity || !Engine_EntityIs<Camera>(*entity))
+        return false;
+    g_DefaultCamera = dynamic_cast<Camera*>(entity);
+    return true;
+}
+
+void Engine_ClearDefaultCamera()
+{
+    g_DefaultCamera = nullptr;
+}
+
+bool Engine_LoadWorld(const char* path)
+{
+    World world;
+    if (!path || !world.LoadFromFile(path))
+    {
+        // Matches the "state left cleared either way" contract documented in Engine.h —
+        // a half-loaded world is worse than an empty one, since the caller has no way to
+        // tell which entities came from the old world vs. a partially-parsed new one.
+        g_Entities.clear();
+        g_DefaultCamera = nullptr;
+        return false;
+    }
+
+    g_Entities.clear();
+    g_DefaultCamera = nullptr;
+
+    g_WorldName = world.Name();
+    g_LightDir = world.LightDir();
+    g_LightColor = world.LightColor();
+    UpdateLightSpaceMatrix();
+
+    for (const WorldEntity& e : world.Entities())
+    {
+        int index = Engine_CreateEntity(e.type.c_str(), e.name.c_str());
+        if (index < 0)
+            continue;
+
+        Engine_SetEntityPosition(index, glm::value_ptr(e.position));
+        Engine_SetEntityRotation(index, glm::value_ptr(e.rotation));
+        Engine_SetEntityScale(index, glm::value_ptr(e.scale));
+
+        if (e.hasModel && Engine_EntityHasModel(index))
+            Engine_SetEntityModelPath(index, e.modelPath.c_str());
+
+        if (!world.DefaultCameraName().empty() && e.name == world.DefaultCameraName())
+            Engine_SetDefaultCamera(index);
+    }
+
+    return true;
+}
+
+bool Engine_SaveWorld(const char* path)
+{
+    if (!path)
+        return false;
+
+    World world;
+    world.SetName(g_WorldName);
+    world.SetLightDir(g_LightDir);
+    world.SetLightColor(g_LightColor);
+    world.SetDefaultCameraName(g_DefaultCamera ? g_DefaultCamera->Name : std::string());
+
+    std::vector<WorldEntity>& entities = world.Entities();
+    entities.reserve(g_Entities.size());
+    for (const std::unique_ptr<BaseEntity>& entity : g_Entities)
+    {
+        WorldEntity e;
+        e.type = entity->GetTypeName();
+        e.name = entity->Name;
+        e.position = entity->GetTransform()->GetPosition();
+        e.rotation = entity->GetTransform()->GetRotation();
+        e.scale = entity->GetTransform()->GetScale();
+        e.hasModel = entity->GetModel() != nullptr;
+        e.modelPath = e.hasModel ? entity->GetModel()->GetPath() : std::string();
+        entities.push_back(std::move(e));
+    }
+
+    return world.SaveToFile(path);
+}
+
 void Engine_RenderFrame(int fb, int width, int height, const float* viewProj)
 {
     // --- Pass 1: render depth from the light's POV ---
@@ -355,6 +468,18 @@ void Engine_SetLight(const float* lightDir, const float* lightColor, const float
     g_LightColor = glm::vec3(lightColor[0], lightColor[1], lightColor[2]);
     g_ViewPos    = glm::vec3(viewPos[0], viewPos[1], viewPos[2]);
     UpdateLightSpaceMatrix();
+}
+
+void Engine_GetLight(float* outLightDir, float* outLightColor)
+{
+    if (outLightDir)
+    {
+        outLightDir[0] = g_LightDir.x; outLightDir[1] = g_LightDir.y; outLightDir[2] = g_LightDir.z;
+    }
+    if (outLightColor)
+    {
+        outLightColor[0] = g_LightColor.x; outLightColor[1] = g_LightColor.y; outLightColor[2] = g_LightColor.z;
+    }
 }
 
 } // extern "C"

@@ -4,20 +4,9 @@
     <ProjectName>{0}</ProjectName>
     <ProjectPath>{1}</ProjectPath>
     <Worlds>
-        <World z:Id="i2">
+        <World>
+            <WorldFile>Default World.zworld</WorldFile>
             <Active>true</Active>
-            <WorldName>Default World</WorldName>
-            <LightDir xmlns:d2p1="http://schemas.datacontract.org/2004/07/System.Numerics">
-                <d2p1:X>1.0</d2p1:X>
-                <d2p1:Y>1.0</d2p1:Y>
-                <d2p1:Z>1.0</d2p1:Z>
-            </LightDir>
-            <LightColor xmlns:d2p1="http://schemas.datacontract.org/2004/07/System.Numerics">
-                <d2p1:X>1.0</d2p1:X>
-                <d2p1:Y>1.0</d2p1:Y>
-                <d2p1:Z>1.0</d2p1:Z>
-            </LightColor>
-            <_project z:Ref="i1"/>
         </World>
     </Worlds>
 </Game>

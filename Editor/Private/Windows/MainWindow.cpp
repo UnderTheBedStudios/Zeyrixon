@@ -108,6 +108,9 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
 
     BeginFrame(); // MakeCurrent + ImGui_ImplOpenGL3_NewFrame + ImGui_ImplGlfw_NewFrame + ImGui::NewFrame
 
+    if (m_hasProject && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false))
+        SaveProject();
+
     ImVec2 ViewportSize;
     ImGuiWindowFlags windowFlags = 0
         | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar
@@ -182,7 +185,7 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             {
                 if (ImGui::Button("Undo: Ctl+Z")) {  }
                 if (ImGui::Button("Redo: Ctl+Y")) {  }
-                if (ImGui::Button("Save: Ctl+S")) {  }
+                if (ImGui::Button("Save: Ctl+S")) { SaveProject(); }
 
                 ImGui::EndPopup();
             }
@@ -284,13 +287,14 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
         {
             glm::mat4 proj;
             glm::mat4 view;
-            if (m_project.ActiveWorldMutable() != nullptr && m_project.ActiveWorldMutable()->defaultCamera != nullptr)
+            Camera* defaultCamera = Engine_GetDefaultCamera();
+            if (defaultCamera != nullptr)
             {
-                proj = glm::perspective(glm::radians(m_project.ActiveWorldMutable()->defaultCamera->fov / 2.f),
+                proj = glm::perspective(glm::radians(defaultCamera->fov / 2.f),
                     contentSize.x / contentSize.y,
                     0.1f,
                     100.0f);
-                view = m_project.ActiveWorldMutable()->defaultCamera->GetViewMatrix();
+                view = defaultCamera->GetViewMatrix();
             }
             else
             {
@@ -499,39 +503,33 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
 
         if (m_hasProject)
         {
-            if (m_project.ActiveWorldMutable() != nullptr)
+            if (m_project.ActiveWorld() != nullptr)
             {
-                std::string currentName = m_project.ActiveWorldMutable()->name;
-                strncpy(m_renameWorldBuffer, currentName.c_str(), sizeof(m_renameWorldBuffer) - 1);
+                strncpy(m_renameWorldBuffer, Engine_GetWorldName(), sizeof(m_renameWorldBuffer) - 1);
                 m_renameWorldBuffer[sizeof(m_renameWorldBuffer) - 1] = '\0';
 
                 ImGui::Text("Name");
                 if (ImGui::InputText("##WorldName", m_renameWorldBuffer, sizeof(m_renameWorldBuffer)))
-                    m_project.ActiveWorldMutable()->name = m_renameWorldBuffer;
+                    Engine_SetWorldName(m_renameWorldBuffer);
 
                 ImGui::Spacing();
 
+                float lightDir[3], lightColor[3];
+                Engine_GetLight(lightDir, lightColor);
+                float viewPos[3] = { editorCamera.position.x, editorCamera.position.y, editorCamera.position.z };
+
                 ImGui::Text("Light Direction");
-                if (ImGui::DragFloat3("##LightDir", glm::value_ptr(m_project.ActiveWorldMutable()->lightDir), 0.01f))
-                {
-                    float viewPos[3] = { editorCamera.position.x, editorCamera.position.y, editorCamera.position.z };
-                    Engine_SetLight(glm::value_ptr(m_project.ActiveWorldMutable()->lightDir),
-                        glm::value_ptr(m_project.ActiveWorldMutable()->lightColor), viewPos);
-                }
+                if (ImGui::DragFloat3("##LightDir", lightDir, 0.01f))
+                    Engine_SetLight(lightDir, lightColor, viewPos);
 
                 ImGui::Text("Light Color");
-                if (ImGui::ColorEdit3("##LightColor", glm::value_ptr(m_project.ActiveWorldMutable()->lightColor)))
-                {
-                    float viewPos[3] = { editorCamera.position.x, editorCamera.position.y, editorCamera.position.z };
-                    Engine_SetLight(glm::value_ptr(m_project.ActiveWorldMutable()->lightDir),
-                        glm::value_ptr(m_project.ActiveWorldMutable()->lightColor), viewPos);
-                }
+                if (ImGui::ColorEdit3("##LightColor", lightColor))
+                    Engine_SetLight(lightDir, lightColor, viewPos);
 
                 ImGui::Text("Default Camera");
 
-                if (ImGui::BeginCombo("Camera: ", m_project.ActiveWorldMutable()->defaultCamera ?
-                                                                   m_project.ActiveWorldMutable()->defaultCamera->GetName().c_str() :
-                                                                   "No Camera"))
+                Camera* defaultCamera = Engine_GetDefaultCamera();
+                if (ImGui::BeginCombo("Camera: ", defaultCamera ? defaultCamera->GetName().c_str() : "No Camera"))
                 {
                     const auto& entities = Engine_GetAllEntities();
                     for (size_t i = 0; i < entities.size(); ++i)
@@ -542,7 +540,7 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                             if (ImGui::Selectable(entity->Name.c_str(), m_selectedEntity == (int)i))
                             {
                                 m_selectedEntity = (int)i;
-                                m_project.ActiveWorldMutable()->defaultCamera = dynamic_cast<Camera*>(Engine_GetEntity(m_selectedEntity));
+                                Engine_SetDefaultCamera(m_selectedEntity);
                             }
                         }
                     }
@@ -580,6 +578,24 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
     EndFrame(); // ImGui::Render + viewport + ImGui_ImplOpenGL3_RenderDrawData + glfwSwapBuffers
 }
 
+void MainWindow::SaveProject()
+{
+	if (!m_hasProject) return;
+
+	const ProjectWorld* world = m_project.ActiveWorld();
+	if (!world || world->WorldPath.empty())
+	{
+		fprintf(stderr, "[Editor] SaveProject: no active world to save\n");
+		return;
+	}
+
+	std::filesystem::path worldFullPath = m_project.Directory() / world->WorldPath;
+	if (Engine_SaveWorld(worldFullPath.string().c_str()))
+		fprintf(stdout, "[Editor] Saved %s\n", worldFullPath.string().c_str());
+	else
+		fprintf(stderr, "[Editor] Failed to save %s\n", worldFullPath.string().c_str());
+}
+
 void MainWindow::LoadProject(const std::string& zeyrixonPath)
 {
     Project proj;
@@ -595,11 +611,18 @@ void MainWindow::LoadProject(const std::string& zeyrixonPath)
     std::string title = "Zeyrixon Editor - " + m_project.Name();
     glfwSetWindowTitle(Handle(), title.c_str());
 
-    if (const ProjectWorld* world = m_project.ActiveWorld())
+    if (const ProjectWorld* world = m_project.ActiveWorld(); world && !world->WorldPath.empty())
     {
-        float lightDir[3]   = { world->lightDir.x, world->lightDir.y, world->lightDir.z };
-        float lightColor[3] = { world->lightColor.x, world->lightColor.y, world->lightColor.z };
-        float viewPos[3]    = { editorCamera.position.x, editorCamera.position.y, editorCamera.position.z };
+        std::filesystem::path worldFullPath = m_project.Directory() / world->WorldPath;
+        if (!Engine_LoadWorld(worldFullPath.string().c_str()))
+            fprintf(stderr, "[Editor] Failed to load world: %s\n", worldFullPath.string().c_str());
+
+        // Engine_LoadWorld resets g_ViewPos-independent state only — push the editor camera's
+        // current position through separately so shading is correct on the very first frame,
+        // same as every other Engine_SetLight call site does.
+        float lightDir[3], lightColor[3];
+        Engine_GetLight(lightDir, lightColor);
+        float viewPos[3] = { editorCamera.position.x, editorCamera.position.y, editorCamera.position.z };
         Engine_SetLight(lightDir, lightColor, viewPos);
     }
 

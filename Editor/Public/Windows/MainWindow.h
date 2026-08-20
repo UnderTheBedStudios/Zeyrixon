@@ -14,6 +14,8 @@ public:
 
     void DrawFrame(int& screenWidth, int& screenHeight);
 
+	void SaveProject();
+
     void LoadProject(const std::string& zeyrixonPath);
     [[nodiscard]] bool HasProject() const { return m_hasProject; }
     [[nodiscard]] const Project& CurrentProject() const { return m_project; }

@@ -1,38 +1,28 @@
 #include <Editor/Public/Common/Project.h>
 #include <pugixml.hpp>
-#include <stdio.h>
+#include <cstdio>
 
-static glm::vec3 ParseVec3(const pugi::xml_node& node)
-{
-    glm::vec3 v(0.0f);
-    if (!node) return v;
-    v.x = node.child("d2p1:X").text().as_float();
-    v.y = node.child("d2p1:Y").text().as_float();
-    v.z = node.child("d2p1:Z").text().as_float();
-    return v;
-}
-
-bool Project::LoadFromFile(const std::filesystem::path& lumenxPath)
+bool Project::LoadFromFile(const std::filesystem::path& zeyrixonPath)
 {
     pugi::xml_document doc;
-    pugi::xml_parse_result result = doc.load_file(lumenxPath.c_str());
+    pugi::xml_parse_result result = doc.load_file(zeyrixonPath.c_str());
     if (!result)
     {
-        fprintf(stderr, "[Project] Failed to parse %s: %s\n", lumenxPath.string().c_str(), result.description());
+        fprintf(stderr, "[Project] Failed to parse %s: %s\n", zeyrixonPath.string().c_str(), result.description());
         return false;
     }
 
     pugi::xml_node gameNode = doc.child("Game");
     if (!gameNode)
     {
-        fprintf(stderr, "[Project] %s has no <Game> root element\n", lumenxPath.string().c_str());
+        fprintf(stderr, "[Project] %s has no <Game> root element\n", zeyrixonPath.string().c_str());
         return false;
     }
 
     // The stored <ProjectPath> can go stale if the folder was moved — the actual folder the
     // .lumenx was opened from always wins. We just log a heads-up when they disagree.
     std::string storedProjectPath = gameNode.child("ProjectPath").text().as_string();
-    std::filesystem::path actualDirectory = lumenxPath.parent_path();
+    std::filesystem::path actualDirectory = zeyrixonPath.parent_path();
 
     if (!storedProjectPath.empty())
     {
@@ -53,16 +43,14 @@ bool Project::LoadFromFile(const std::filesystem::path& lumenxPath)
     for (pugi::xml_node worldNode : worldsNode.children("World"))
     {
         ProjectWorld w;
-        w.name = worldNode.child("WorldName").text().as_string();
+        w.WorldPath = worldNode.child("WorldFile").text().as_string();
         w.active = worldNode.child("Active").text().as_bool();
-        w.lightDir = ParseVec3(worldNode.child("LightDir"));
-        w.lightColor = ParseVec3(worldNode.child("LightColor"));
         worlds.push_back(std::move(w));
     }
 
     m_name = gameNode.child("ProjectName").text().as_string();
     m_directory = actualDirectory;
-    m_lumenxPath = lumenxPath;
+    m_lumenxPath = zeyrixonPath;
     m_worlds = std::move(worlds);
 
     return true;

@@ -64,6 +64,7 @@ add_library(Engine STATIC
     Engine/Private/Entities/Shapes/PrimativeShape.cpp
     Engine/Private/Entities/Shapes/Cube.cpp
     Engine/Private/Entities/Shapes/Sphere.cpp
+        Engine/Private/Common/World.cpp
 )
 
 # Assimp stuff: use system package if present, otherwise fetch and build from source
@@ -125,7 +126,7 @@ add_executable(Editor
         Editor/Private/Windows/Gui/ContentBrowserRender.cpp
 )
 target_include_directories(Editor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/Editor/..)
-target_link_libraries(Editor PRIVATE imgui_lib glad glfw OpenGL::GL Engine pugixml)
+target_link_libraries(Editor PRIVATE imgui_lib glad glfw OpenGL::GL Engine)
 if(NOT assimp_FOUND)
     # assimp splices its own bundled copy of pugixml's source directly into
     # specific object files (ImporterRegistry.cpp, ColladaParser.cpp) when
@@ -135,7 +136,7 @@ if(NOT assimp_FOUND)
     target_link_options(Editor PRIVATE -Wl,--allow-multiple-definition)
 endif()
 
-target_link_libraries(Engine PUBLIC glad OpenGL::GL)
+target_link_libraries(Engine PUBLIC glad OpenGL::GL pugixml)
 
 if(MINGW)
     target_link_options(Editor PRIVATE -static -static-libgcc -static-libstdc++)

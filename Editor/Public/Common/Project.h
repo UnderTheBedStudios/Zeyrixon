@@ -3,24 +3,19 @@
 #include <filesystem>
 #include <string>
 #include <vector>
-#include <glm.hpp>
-#include <Engine/Public/Entities/Common/Camera.h>
 
 struct ProjectWorld
 {
-    std::string name;
+	std::filesystem::path WorldPath;
     bool active = false;
-    glm::vec3 lightDir = glm::vec3(1.0f);
-    glm::vec3 lightColor = glm::vec3(1.0f);
-    Camera* defaultCamera = nullptr;
 };
 
 class Project
 {
 public:
-    // Parses lumenxPath and populates this object. Returns false (leaving this object
+    // Parses zeyrixonPath and populates this object. Returns false (leaving this object
     // unchanged) if the file can't be opened or doesn't look like a valid .lumenx file.
-    bool LoadFromFile(const std::filesystem::path& lumenxPath);
+    bool LoadFromFile(const std::filesystem::path& zeyrixonPath);
 
     [[nodiscard]] const std::string& Name() const { return m_name; }
     [[nodiscard]] const std::filesystem::path& Directory() const { return m_directory; }
