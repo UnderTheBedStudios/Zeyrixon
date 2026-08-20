@@ -5,19 +5,21 @@
 - If you want to have it with macOS, then you'll need to make a fork of the repo.
 - I will be checking forks, and if someone gets macOS working, I will implement it. (With credit, of course)
 - It should work perfectly fine with Visual Studio Code as the IDE by using the `Zeyrixon.code-workspace` as the workspace for this whole thing instead of just using the folder
+- It should also work perfectly fine with CLion as it's CMake dependant and I have a `CmakeLists.txt` file in there so it should build well
+- For Visual Studio... ehhhhhh... can't test that so you're on your own when it comes to if it builds or not if you're using Visual Studio
 - I am only testing this on Arch Linux, because I don't like Microsoft so I'm not using Windows. If there is an issue, make an issue report in the repo or better yet, make a fork and do it for me, I as of currently don't have anyone to test Windows Builds on.
 - I am thinking about using OpenGL for this project because all GPUs can run this.
 - I'm hoping to make this both 3D and 2D (Kinda like Unity) so that you can make as many games as possible.
 - I want this to be free and useful for everyone, without requiring people to credit my game engine or make any required payments. (Though some donations would be nice and some credit, but it's all optional)
 
 ## Programming Languages, Pros & Cons & Where it's used 🧐:
-| Programming Language Used | Where it's used | Positives | Negatives |
-| --- | --- | --- | --- |
-| C/C++ | Engine | Speedy Engine | Hard to read/use |
-| C/C++ | Editor | Complex UI Customization | Limited to just Engine Editor UI |
-| HTML | User Created UI (Intended User's game) | It's good for UI Creation (Shown with Websites) | Hard for beginners |
-| CSS | User Created Style Sheets for UI (Intended for User's game) | It's pretty darn flexible if you use it correctly | Hard for beginners |
-| C/C++ | User's Code | Speedy code | Complicated |
+| Programming Language Used | Where it's used                                             | Positives                                         | Negatives                        |
+|---------------------------|-------------------------------------------------------------|---------------------------------------------------|----------------------------------|
+| C/C++                     | Engine                                                      | Speedy Engine                                     | Hard to read/use                 |
+| C/C++                     | Editor                                                      | Complex UI Customization                          | Limited to just Engine Editor UI |
+| HTML                      | User Created UI (Intended User's game)                      | It's good for UI Creation (Shown with Websites)   | Hard for beginners               |
+| CSS                       | User Created Style Sheets for UI (Intended for User's game) | It's pretty darn flexible if you use it correctly | Hard for beginners               |
+| C/C++                     | User's Code                                                 | Speedy code                                       | Complicated                      |
 
 ## How it's meant to work 🖥️ :
 ``` mermaid
@@ -43,7 +45,12 @@ In order to build this project (I can only tell you in Visual Studio Code) you w
 4. assimp
 5. OpenGL
 6. pugixml
-7. Visual Studio Code
+7. Visual Studio Code, Clion, or (maybe) Visual Studio (Haven't tested that one since I'm on Linux)
+
+
+## Building 🛠️ : 
+
+### Visual Studio Code:
 
 Now lets get to seeing some extensions Visual Studio Code will use... nvm, I just realized you should just download whatever the workspace recommends you to. In order to open and get access to the workspace you just need Visual Studio Code, then click File->Open Workspace From File, then select `Zeyrixon.code-workspace` in the file explorer Visual Studio Code will open.
 
@@ -60,6 +67,25 @@ You may also need to input some commands into the terminal.
 > > CMake: Build
 > ```
 6. Now you should run it and you can do it in two ways, either you can open it from the build folder, or you can just go into the build folder and open the executable, it doesn't really matter.
+
+### CLion: 
+
+Since Clion is a CMake reliant IDE, it should be easy
+
+1. Open the folder in CLion
+2. Make it so that it's on Release Mode and trying to use Editor
+3. And just click the hammer button and you should have it inside of a folder called (cmake-build-release) or you could just click the start button
+
+### Visual Studio:
+
+I haven't tested this IDE so I'm just guessing.
+
+1. Open the `.sln` file
+2. Set the Editor project as the startup project
+3. Set the build mode to release
+4. Then build it
+5. I'm not sure where it would build to so just press the play button bro idk
+
 
 
 # I hope you all enjoy the Engine! Best Reguards!
