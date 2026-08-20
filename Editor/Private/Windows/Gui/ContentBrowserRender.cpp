@@ -56,7 +56,7 @@ void ContentBrowserRender::DrawGui()
     }
     catch (const std::filesystem::filesystem_error& e)
     {
-        ImGui::Text("%s", e.what());
+        ImGui::Text("Please select a directory in the File Explorer to the left.");
         return;
     }
 
