@@ -16,7 +16,6 @@ struct WorldEntity
     glm::vec3 scale = glm::vec3(1.0f);
     bool hasModel = false;
     std::string modelPath;
-	int index = 0;
 };
 
 // Loads/saves a single .zworld file. Owns no engine state — pure data container,
@@ -41,6 +40,7 @@ public:
     void SetLightDir(const glm::vec3& v) { m_lightDir = v; }
     void SetLightColor(const glm::vec3& v) { m_lightColor = v; }
 	void SetActive(const bool active) { m_active = active; }
+	void SetFilePath(const std::filesystem::path& filepath) { m_zworldPath = filepath; }
 
     // Name of the entity that should become defaultCamera on load. Empty = none set.
     [[nodiscard]] const std::string& DefaultCameraName() const { return m_defaultCameraName; }

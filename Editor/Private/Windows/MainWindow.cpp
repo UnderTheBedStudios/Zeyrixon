@@ -598,6 +598,8 @@ void MainWindow::SaveProject()
 
 void MainWindow::LoadProject(const std::string& zeyrixonPath)
 {
+	MakeCurrent();
+
     Project proj;
     if (!proj.LoadFromFile(zeyrixonPath))
     {

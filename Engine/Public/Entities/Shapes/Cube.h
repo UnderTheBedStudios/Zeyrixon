@@ -7,4 +7,5 @@ class Cube : public PrimativeShape
 public:
     Cube(std::string assetRoot);
     ~Cube();
+	const char* GetTypeName() const override { return "Cube"; }
 };

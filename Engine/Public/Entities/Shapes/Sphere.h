@@ -7,4 +7,5 @@ class Sphere : public PrimativeShape
 public:
     Sphere(std::string assetRoot);
     ~Sphere();
+	const char* GetTypeName() const override { return "Sphere"; }
 };

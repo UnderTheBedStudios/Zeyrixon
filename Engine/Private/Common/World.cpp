@@ -27,7 +27,7 @@ static void WriteVec3(pugi::xml_node& parent, const char* tagName, const glm::ve
 
 bool World::LoadFromFile(const std::filesystem::path& zworldPath)
 {
-    pugi::xml_document doc;
+	pugi::xml_document doc;
     pugi::xml_parse_result result = doc.load_file(zworldPath.c_str());
     if (!result)
     {
@@ -60,15 +60,15 @@ bool World::LoadFromFile(const std::filesystem::path& zworldPath)
         e.scale = ParseVec3(entityNode.child("Scale"));
         e.hasModel = entityNode.child("HasModel").text().as_bool();
         e.modelPath = entityNode.child("ModelPath").text().as_string();
-    	e.index = entityNode.child("Index").text().as_int();
+
+    	int id = Engine_CreateEntity(e.type.c_str(), e.name.c_str());
+
+    	if (id < 0)
+    		fprintf(stderr, "[Editor] Failed to create entity of type \"%s\"\n", e.type.c_str());
+
     	if (e.hasModel)
-    	{
-    		fprintf(stdout, "True: %s\n", e.name.c_str());
-    		if (Engine_SetEntityModelPath(e.index, e.modelPath.c_str()))
-    			fprintf(stdout, "Works.\n");
-    		else
-    			fprintf(stderr, "NEIN!: %s\n", Engine_SetEntityModelPath(e.index, e.modelPath.c_str()));
-    	}
+    		Engine_SetEntityModelPath(id, e.modelPath.c_str());
+
         entities.push_back(std::move(e));
     }
 
