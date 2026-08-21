@@ -240,18 +240,22 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
 
         if (editorCamera.IsFlying())
         {
-            if (ImGui::IsKeyDown(ImGuiKey_W)) editorCamera.ProcessKeyboard(CameraMovement::FORWARD,  io.DeltaTime);
-            if (ImGui::IsKeyDown(ImGuiKey_S)) editorCamera.ProcessKeyboard(CameraMovement::BACKWARD, io.DeltaTime);
-            if (ImGui::IsKeyDown(ImGuiKey_A)) editorCamera.ProcessKeyboard(CameraMovement::LEFT,     io.DeltaTime);
-            if (ImGui::IsKeyDown(ImGuiKey_D)) editorCamera.ProcessKeyboard(CameraMovement::RIGHT,    io.DeltaTime);
-            if (ImGui::IsKeyDown(ImGuiKey_E)) editorCamera.ProcessKeyboard(CameraMovement::UP,       io.DeltaTime);
-            if (ImGui::IsKeyDown(ImGuiKey_Q)) editorCamera.ProcessKeyboard(CameraMovement::DOWN,     io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_W) || ImGui::IsGamepadKey(ImGuiKey_GamepadLStickUp))    editorCamera.ProcessKeyboard(CameraMovement::FORWARD,  io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_S) || ImGui::IsGamepadKey(ImGuiKey_GamepadLStickDown))  editorCamera.ProcessKeyboard(CameraMovement::BACKWARD, io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_A) || ImGui::IsGamepadKey(ImGuiKey_GamepadLStickLeft))  editorCamera.ProcessKeyboard(CameraMovement::LEFT,     io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_D) || ImGui::IsGamepadKey(ImGuiKey_GamepadLStickRight)) editorCamera.ProcessKeyboard(CameraMovement::RIGHT,    io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_E) || ImGui::IsGamepadKey(ImGuiKey_GamepadR2))          editorCamera.ProcessKeyboard(CameraMovement::UP,       io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_Q) || ImGui::IsGamepadKey(ImGuiKey_GamepadL2))          editorCamera.ProcessKeyboard(CameraMovement::DOWN,     io.DeltaTime);
 
-            if (ImGui::IsKeyPressed(ImGuiKey_LeftShift))  editorCamera.ProcessKeyboard(CameraMovement::FAST, io.DeltaTime);
-            if (ImGui::IsKeyReleased(ImGuiKey_LeftShift)) editorCamera.ProcessKeyboard(CameraMovement::NORMAL, io.DeltaTime);
+            if (ImGui::IsKeyPressed(ImGuiKey_LeftShift)  || ImGui::IsKeyPressed(ImGuiKey_GamepadLStickDown))  editorCamera.ProcessKeyboard(CameraMovement::FAST,
+            	io.DeltaTime);
+            if (ImGui::IsKeyReleased(ImGuiKey_LeftShift) || ImGui::IsKeyReleased(ImGuiKey_GamepadLStickUp))   editorCamera.ProcessKeyboard(CameraMovement::NORMAL,
+            	io.DeltaTime);
 
-            if (ImGui::IsKeyPressed(ImGuiKey_LeftCtrl))  editorCamera.ProcessKeyboard(CameraMovement::SLOW, io.DeltaTime);
-            if (ImGui::IsKeyReleased(ImGuiKey_LeftCtrl)) editorCamera.ProcessKeyboard(CameraMovement::NORMAL, io.DeltaTime);
+            if (ImGui::IsKeyPressed(ImGuiKey_LeftCtrl)  || ImGui::IsKeyPressed(ImGuiKey_GamepadRStickDown))  editorCamera.ProcessKeyboard(CameraMovement::SLOW,
+            	io.DeltaTime);
+            if (ImGui::IsKeyReleased(ImGuiKey_LeftCtrl) || ImGui::IsKeyReleased(ImGuiKey_GamepadR1))         editorCamera.ProcessKeyboard(CameraMovement::NORMAL,
+            	io.DeltaTime);
         }
 
         EnsureViewportTarget(sceneViewportFBO, sceneViewportColorTex, sceneViewportDepthRBO,
