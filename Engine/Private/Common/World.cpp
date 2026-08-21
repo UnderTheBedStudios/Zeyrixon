@@ -2,6 +2,8 @@
 #include <pugixml.hpp>
 #include <cstdio>
 
+#include "Engine/Public/Engine.h"
+
 static const char* kNumericsNs = "http://schemas.datacontract.org/2004/07/System.Numerics";
 
 static glm::vec3 ParseVec3(const pugi::xml_node& node)
@@ -29,8 +31,8 @@ bool World::LoadFromFile(const std::filesystem::path& zworldPath)
     pugi::xml_parse_result result = doc.load_file(zworldPath.c_str());
     if (!result)
     {
-        fprintf(stderr, "[World] Failed to parse %s: %s\n",
-                zworldPath.string().c_str(), result.description());
+    	fprintf(stderr, "[World] tried to get location from \"%s\" but failed\n",
+    			zworldPath.string().c_str());
         return false;
     }
 
@@ -58,6 +60,15 @@ bool World::LoadFromFile(const std::filesystem::path& zworldPath)
         e.scale = ParseVec3(entityNode.child("Scale"));
         e.hasModel = entityNode.child("HasModel").text().as_bool();
         e.modelPath = entityNode.child("ModelPath").text().as_string();
+    	e.index = entityNode.child("Index").text().as_int();
+    	if (e.hasModel)
+    	{
+    		fprintf(stdout, "True: %s\n", e.name.c_str());
+    		if (Engine_SetEntityModelPath(e.index, e.modelPath.c_str()))
+    			fprintf(stdout, "Works.\n");
+    		else
+    			fprintf(stderr, "NEIN!: %s\n", Engine_SetEntityModelPath(e.index, e.modelPath.c_str()));
+    	}
         entities.push_back(std::move(e));
     }
 

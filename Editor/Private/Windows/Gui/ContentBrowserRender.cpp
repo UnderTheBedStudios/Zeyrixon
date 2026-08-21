@@ -96,6 +96,10 @@ void ContentBrowserRender::DrawGui()
         }
         if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0) && entry.is_directory())
             m_pathToRender = entry.path(); // navigate into it directly via double-click
+    	else if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0) && !entry.is_directory() && entry.path().extension() == ".zworld")
+    	{
+
+    	}
         ImGui::TextWrapped("%s", entry.path().filename().string().c_str());
         ImGui::PopID();
         ImGui::NextColumn();

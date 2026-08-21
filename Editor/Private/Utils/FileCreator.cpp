@@ -72,7 +72,7 @@ bool InstantiateProjectFromTemplate(const std::filesystem::path& templateDir,
     {
         if (entry.path().extension() == ".zworld")
         {
-            std::filesystem::copy_file(entry.path(), targetDir / "Content" / "Worlds" /  entry.path().filename(),
+            std::filesystem::copy_file(entry.path(), targetDir / entry.path().filename(),
                 std::filesystem::copy_options::overwrite_existing, ec);
         }
     }

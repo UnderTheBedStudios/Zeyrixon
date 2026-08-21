@@ -3,12 +3,7 @@
 #include <filesystem>
 #include <string>
 #include <vector>
-
-struct ProjectWorld
-{
-	std::filesystem::path WorldPath;
-    bool active = false;
-};
+#include <Engine/Public/Common/World.h>
 
 class Project
 {
@@ -20,13 +15,13 @@ public:
     [[nodiscard]] const std::string& Name() const { return m_name; }
     [[nodiscard]] const std::filesystem::path& Directory() const { return m_directory; }
     [[nodiscard]] const std::filesystem::path& LumenxPath() const { return m_lumenxPath; }
-    [[nodiscard]] const std::vector<ProjectWorld>& Worlds() const { return m_worlds; }
+    [[nodiscard]] const std::vector<World>& Worlds() const { return m_worlds; }
 
     // First World with Active=true, falling back to the first World if none are marked active,
     // or nullptr if there are no Worlds at all.
-    [[nodiscard]] const ProjectWorld* ActiveWorld() const;
+    [[nodiscard]] const World* ActiveWorld() const;
 
-    ProjectWorld* ActiveWorldMutable();
+    World* ActiveWorldMutable();
 
 private:
     std::string m_name;
@@ -34,5 +29,5 @@ private:
                                          // over whatever <ProjectPath> says inside the file, since
                                          // that field goes stale if the project folder is moved.
     std::filesystem::path m_lumenxPath;
-    std::vector<ProjectWorld> m_worlds;
+    std::vector<World> m_worlds;
 };

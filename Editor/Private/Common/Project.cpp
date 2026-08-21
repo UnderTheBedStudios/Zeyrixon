@@ -20,7 +20,7 @@ bool Project::LoadFromFile(const std::filesystem::path& zeyrixonPath)
     }
 
     // The stored <ProjectPath> can go stale if the folder was moved — the actual folder the
-    // .lumenx was opened from always wins. We just log a heads-up when they disagree.
+    // .zeyrixon was opened from always wins. We just log a heads-up when they disagree.
     std::string storedProjectPath = gameNode.child("ProjectPath").text().as_string();
     std::filesystem::path actualDirectory = zeyrixonPath.parent_path();
 
@@ -32,19 +32,18 @@ bool Project::LoadFromFile(const std::filesystem::path& zeyrixonPath)
         if (storedCanon != actualCanon)
         {
             fprintf(stdout,
-                "[Project] Stored ProjectPath (%s) doesn't match where this .lumenx was actually "
+                "[Project] Stored ProjectPath (%s) doesn't match where this .zeyrixon was actually "
                 "opened from (%s). Using the actual folder.\n",
                 storedProjectPath.c_str(), actualDirectory.string().c_str());
         }
     }
 
-    std::vector<ProjectWorld> worlds;
+    std::vector<World> worlds;
     pugi::xml_node worldsNode = gameNode.child("Worlds");
     for (pugi::xml_node worldNode : worldsNode.children("World"))
     {
-        ProjectWorld w;
-        w.WorldPath = worldNode.child("WorldFile").text().as_string();
-        w.active = worldNode.child("Active").text().as_bool();
+        World w;
+    	w.LoadFromFile(zeyrixonPath.parent_path() / std::filesystem::path(worldNode.child("WorldPath").text().as_string()));
         worlds.push_back(std::move(w));
     }
 
@@ -56,15 +55,15 @@ bool Project::LoadFromFile(const std::filesystem::path& zeyrixonPath)
     return true;
 }
 
-const ProjectWorld* Project::ActiveWorld() const
+const World* Project::ActiveWorld() const
 {
     for (auto& w : m_worlds)
-        if (w.active)
+        if (w.IsActive())
             return &w;
     return m_worlds.empty() ? nullptr : &m_worlds.front();
 }
 
-ProjectWorld* Project::ActiveWorldMutable()
+World* Project::ActiveWorldMutable()
 {
-    return const_cast<ProjectWorld*>(static_cast<const Project*>(this)->ActiveWorld());
+    return const_cast<World*>(static_cast<const Project*>(this)->ActiveWorld());
 }

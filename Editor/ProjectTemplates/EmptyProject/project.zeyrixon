@@ -5,7 +5,7 @@
     <ProjectPath>{1}</ProjectPath>
     <Worlds>
         <World z:Id="i2">
-            <WorldPath>DefaultWorld</WorldPath>
+            <WorldPath>Default World.zworld</WorldPath>
             <active>true</active>
         </World>
     </Worlds>

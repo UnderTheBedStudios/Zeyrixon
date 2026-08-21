@@ -32,6 +32,7 @@
 			</Scale>
 			<HasModel>true</HasModel>
 			<ModelPath>/Engine/Models/Cube/cube.obj</ModelPath>
+			<Index>0</Index>
 		</Entity>
 	</Entities>
 	<_project z:Ref="i1"/>

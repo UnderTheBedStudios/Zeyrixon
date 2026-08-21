@@ -240,22 +240,18 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
 
         if (editorCamera.IsFlying())
         {
-            if (ImGui::IsKeyDown(ImGuiKey_W) || ImGui::IsGamepadKey(ImGuiKey_GamepadLStickUp))    editorCamera.ProcessKeyboard(CameraMovement::FORWARD,  io.DeltaTime);
-            if (ImGui::IsKeyDown(ImGuiKey_S) || ImGui::IsGamepadKey(ImGuiKey_GamepadLStickDown))  editorCamera.ProcessKeyboard(CameraMovement::BACKWARD, io.DeltaTime);
-            if (ImGui::IsKeyDown(ImGuiKey_A) || ImGui::IsGamepadKey(ImGuiKey_GamepadLStickLeft))  editorCamera.ProcessKeyboard(CameraMovement::LEFT,     io.DeltaTime);
-            if (ImGui::IsKeyDown(ImGuiKey_D) || ImGui::IsGamepadKey(ImGuiKey_GamepadLStickRight)) editorCamera.ProcessKeyboard(CameraMovement::RIGHT,    io.DeltaTime);
-            if (ImGui::IsKeyDown(ImGuiKey_E) || ImGui::IsGamepadKey(ImGuiKey_GamepadR2))          editorCamera.ProcessKeyboard(CameraMovement::UP,       io.DeltaTime);
-            if (ImGui::IsKeyDown(ImGuiKey_Q) || ImGui::IsGamepadKey(ImGuiKey_GamepadL2))          editorCamera.ProcessKeyboard(CameraMovement::DOWN,     io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_W)) editorCamera.ProcessKeyboard(CameraMovement::FORWARD,  io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_S)) editorCamera.ProcessKeyboard(CameraMovement::BACKWARD, io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_A)) editorCamera.ProcessKeyboard(CameraMovement::LEFT,     io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_D)) editorCamera.ProcessKeyboard(CameraMovement::RIGHT,    io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_E)) editorCamera.ProcessKeyboard(CameraMovement::UP,       io.DeltaTime);
+            if (ImGui::IsKeyDown(ImGuiKey_Q)) editorCamera.ProcessKeyboard(CameraMovement::DOWN,     io.DeltaTime);
 
-            if (ImGui::IsKeyPressed(ImGuiKey_LeftShift)  || ImGui::IsKeyPressed(ImGuiKey_GamepadLStickDown))  editorCamera.ProcessKeyboard(CameraMovement::FAST,
-            	io.DeltaTime);
-            if (ImGui::IsKeyReleased(ImGuiKey_LeftShift) || ImGui::IsKeyReleased(ImGuiKey_GamepadLStickUp))   editorCamera.ProcessKeyboard(CameraMovement::NORMAL,
-            	io.DeltaTime);
+            if (ImGui::IsKeyPressed(ImGuiKey_LeftShift))  editorCamera.ProcessKeyboard(CameraMovement::FAST,   io.DeltaTime);
+            if (ImGui::IsKeyReleased(ImGuiKey_LeftShift)) editorCamera.ProcessKeyboard(CameraMovement::NORMAL, io.DeltaTime);
 
-            if (ImGui::IsKeyPressed(ImGuiKey_LeftCtrl)  || ImGui::IsKeyPressed(ImGuiKey_GamepadRStickDown))  editorCamera.ProcessKeyboard(CameraMovement::SLOW,
-            	io.DeltaTime);
-            if (ImGui::IsKeyReleased(ImGuiKey_LeftCtrl) || ImGui::IsKeyReleased(ImGuiKey_GamepadR1))         editorCamera.ProcessKeyboard(CameraMovement::NORMAL,
-            	io.DeltaTime);
+            if (ImGui::IsKeyPressed(ImGuiKey_LeftCtrl))  editorCamera.ProcessKeyboard(CameraMovement::SLOW,   io.DeltaTime);
+            if (ImGui::IsKeyReleased(ImGuiKey_LeftCtrl)) editorCamera.ProcessKeyboard(CameraMovement::NORMAL, io.DeltaTime);
         }
 
         EnsureViewportTarget(sceneViewportFBO, sceneViewportColorTex, sceneViewportDepthRBO,
@@ -507,7 +503,7 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
 
         if (m_hasProject)
         {
-            if (m_project.ActiveWorld() != nullptr)
+            if (m_project.ActiveWorld()->FilePath() != std::filesystem::path(""))
             {
                 strncpy(m_renameWorldBuffer, Engine_GetWorldName(), sizeof(m_renameWorldBuffer) - 1);
                 m_renameWorldBuffer[sizeof(m_renameWorldBuffer) - 1] = '\0';
@@ -586,14 +582,14 @@ void MainWindow::SaveProject()
 {
 	if (!m_hasProject) return;
 
-	const ProjectWorld* world = m_project.ActiveWorld();
-	if (!world || world->WorldPath.empty())
+	const World* world = m_project.ActiveWorld();
+	if (!world || world->FilePath().empty())
 	{
 		fprintf(stderr, "[Editor] SaveProject: no active world to save\n");
 		return;
 	}
 
-	std::filesystem::path worldFullPath = m_project.Directory() / world->WorldPath;
+	std::filesystem::path worldFullPath = m_project.Directory() / world->FilePath();
 	if (Engine_SaveWorld(worldFullPath.string().c_str()))
 		fprintf(stdout, "[Editor] Saved %s\n", worldFullPath.string().c_str());
 	else
@@ -615,9 +611,9 @@ void MainWindow::LoadProject(const std::string& zeyrixonPath)
     std::string title = "Zeyrixon Editor - " + m_project.Name();
     glfwSetWindowTitle(Handle(), title.c_str());
 
-    if (const ProjectWorld* world = m_project.ActiveWorld(); world && !world->WorldPath.empty())
+    if (const World* world = m_project.ActiveWorld(); world && !world->FilePath().empty())
     {
-        std::filesystem::path worldFullPath = m_project.Directory() / world->WorldPath;
+        std::filesystem::path worldFullPath = m_project.Directory() / world->FilePath();
         if (!Engine_LoadWorld(worldFullPath.string().c_str()))
             fprintf(stderr, "[Editor] Failed to load world: %s\n", worldFullPath.string().c_str());
 
