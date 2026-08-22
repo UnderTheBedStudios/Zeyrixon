@@ -8,6 +8,9 @@ class BaseEntity;
 class Camera;
 
 extern "C" {
+	void Engine_InitPhysics(const float* gravity);
+	void Engine_StepPhysics(float deltaTime);
+
     void Engine_Init(void* getProcAddress, const char* assetRoot);
     void Engine_RenderFrame(int fb, int width, int height, const float* viewProj);
     void Engine_SetLight(const float* lightDir, const float* lightColor, const float* viewPos);

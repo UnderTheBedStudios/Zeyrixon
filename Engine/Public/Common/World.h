@@ -16,6 +16,12 @@ struct WorldEntity
     glm::vec3 scale = glm::vec3(1.0f);
     bool hasModel = false;
     std::string modelPath;
+
+	bool hasPhysics = false;
+	int shapeType = 0;
+	float mass = 0.0f;
+	glm::vec3 shapeDims = glm::vec3(1.0f);
+	bool isKinematic = false;
 };
 
 // Loads/saves a single .zworld file. Owns no engine state — pure data container,
