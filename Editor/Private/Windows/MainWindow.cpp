@@ -111,7 +111,6 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
     // Step physics once per frame, unconditional of which panels are visible — this must not
     // live inside the Viewport ImGui::Begin block below since that only runs while that
     // window is drawn; physics should keep advancing regardless of UI layout.
-    Engine_StepPhysics(ImGui::GetIO().DeltaTime);
 
     if (m_hasProject && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false))
         SaveProject();
@@ -418,98 +417,6 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
 
             ImGui::Spacing();
             ImGui::Separator();
-
-            // --- Transform component ---
-            if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
-            {
-                float position[3], rotation[3], scale[3];
-                Engine_GetEntityPosition(m_selectedEntity, position);
-                Engine_GetEntityRotation(m_selectedEntity, rotation);
-                Engine_GetEntityScale(m_selectedEntity, scale);
-
-                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
-
-                ImGui::Text("Position");
-                if (ImGui::DragFloat3("##Position", position, 0.05f))
-                    Engine_SetEntityPosition(m_selectedEntity, position);
-
-                ImGui::Text("Rotation");
-                if (ImGui::DragFloat3("##Rotation", rotation, 0.5f))
-                    Engine_SetEntityRotation(m_selectedEntity, rotation);
-
-                ImGui::Text("Scale");
-                if (ImGui::DragFloat3("##Scale", scale, 0.05f, 0.0001f, FLT_MAX))
-                    Engine_SetEntityScale(m_selectedEntity, scale);
-
-                ImGui::PopItemWidth();
-            }
-
-            // --- Model component ---
-            if (Engine_EntityHasModel(m_selectedEntity))
-            {
-                ImGui::Spacing();
-                if (ImGui::CollapsingHeader("Model", ImGuiTreeNodeFlags_DefaultOpen))
-                {
-                    if (m_modelPathBufferForEntity != m_selectedEntity)
-                    {
-                        std::string currentPath = Engine_GetEntityModelPath(m_selectedEntity);
-                        strncpy(m_modelPathBuffer, currentPath.c_str(), sizeof(m_modelPathBuffer) - 1);
-                        m_modelPathBuffer[sizeof(m_modelPathBuffer) - 1] = '\0';
-                        m_modelPathBufferForEntity = m_selectedEntity;
-                        m_modelLoadError.clear();
-                    }
-
-                    ImGui::Text("Model Path");
-                    ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
-                    ImGui::InputText("##ModelPath", m_modelPathBuffer, sizeof(m_modelPathBuffer));
-                    ImGui::PopItemWidth();
-
-                    ImGui::TextWrapped("Absolute, or relative to the asset root (e.g. /Engine/Models/Cube/cube.obj).");
-
-                    if (ImGui::Button("Load Model"))
-                    {
-                        if (Engine_SetEntityModelPath(m_selectedEntity, m_modelPathBuffer))
-                            m_modelLoadError.clear();
-                        else
-                            m_modelLoadError = "Failed to load model — check the path and console output.";
-                    }
-
-                    if (!m_modelLoadError.empty())
-                        ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.3f, 1.0f), "%s", m_modelLoadError.c_str());
-                }
-            }
-
-            // --- Physics component ---
-            // A generic, optional slot any entity type can carry — unlike Model, which only
-            // shape subclasses expose. Shown as either an "Add Component" entry point or a
-            // live editing section, never both, mirroring how Model only appears when present.
-            if (Engine_EntityHasPhysics(m_selectedEntity))
-            {
-                ImGui::Spacing();
-                if (ImGui::CollapsingHeader("Physics", ImGuiTreeNodeFlags_DefaultOpen))
-                {
-                    float mass = 0.0f;
-                    Engine_GetBodyMass(m_selectedEntity, &mass);
-
-                    ImGui::Text("Mass (0 = static/immovable)");
-                    ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
-                    if (ImGui::DragFloat("##Mass", &mass, 0.1f, 0.0f, FLT_MAX))
-                        Engine_SetBodyMass(m_selectedEntity, mass);
-                    ImGui::PopItemWidth();
-
-                    if (ImGui::Button("Remove Physics"))
-                        Engine_RemovePhysicsComponent(m_selectedEntity);
-                }
-            }
-
-            if (Engine_EntityIs<Camera>(m_selectedEntity))
-            {
-                ImGui::Text("FOV");
-                ImGui::DragFloat("##FOV", &dynamic_cast<Camera*>(Engine_GetEntity(m_selectedEntity))->fov);
-            }
-
-            ImGui::Spacing();
-            ImGui::Separator();
             if (ImGui::Button("Delete Entity"))
             {
                 Engine_DeleteEntity(m_selectedEntity);
@@ -534,24 +441,6 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
             		// dimension this popup doesn't collect, and ConvexHall currently falls back
             		// to a plain box in the Engine (see PhysicsComponent.cpp's TODO), so listing
             		// it here would promise something that isn't implemented yet.
-            		if (ImGui::Selectable("Physics: Box"))
-            		{
-            			float dims[3] = { 0.5f, 0.5f, 0.5f }; // half-extents
-            			Engine_AddPhysicsComponent(m_selectedEntity, 0, 1.0f, dims);
-            			ImGui::CloseCurrentPopup();
-            		}
-            		if (ImGui::Selectable("Physics: Sphere"))
-            		{
-            			float dims[3] = { 0.5f, 0.0f, 0.0f }; // radius in .x
-            			Engine_AddPhysicsComponent(m_selectedEntity, 1, 1.0f, dims);
-            			ImGui::CloseCurrentPopup();
-            		}
-            		if (ImGui::Selectable("Physics: Static Plane (floor)"))
-            		{
-            			float dims[3] = { 0.0f, 1.0f, 0.0f }; // plane normal — e.g. a flat floor
-            			Engine_AddPhysicsComponent(m_selectedEntity, 4, 0.0f, dims); // mass 0 = static
-            			ImGui::CloseCurrentPopup();
-            		}
 
             		ImGui::EndPopup();
             	}

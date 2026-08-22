@@ -1,8 +1,9 @@
 #pragma once
 
 #include <Engine/Public/Entities/Common/BaseEntity.h>
-#include <Engine/Public/Components/Common/Model.h>
 #include <memory>
+
+#include "Engine/Public/Components/Common/TransformComponent.h"
 
 class Camera : public BaseEntity
 {
@@ -13,10 +14,8 @@ public:
     glm::mat4 GetViewMatrix() const;
 
     [[nodiscard]] const char* GetTypeName() const override { return "Camera"; }
-    Model* GetModel() override { return m_BaseModel.get(); }
 
     float fov;
-
 private:
-    std::unique_ptr<Model> m_BaseModel;
+	TransformComponent* m_transform;
 };

@@ -14,8 +14,8 @@ public:
     ~PrimativeShape();
 
     const char* GetTypeName() const override { return "Primative Shape"; }
-    Model* GetModel() override { return m_BaseModel.get(); }
+    Model* GetModel() { return m_BaseModel; }
 
 private:
-    std::unique_ptr<Model> m_BaseModel;
+    Model* m_BaseModel;
 };

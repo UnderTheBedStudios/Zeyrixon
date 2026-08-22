@@ -66,9 +66,6 @@ bool World::LoadFromFile(const std::filesystem::path& zworldPath)
     	if (id < 0)
     		fprintf(stderr, "[Editor] Failed to create entity of type \"%s\"\n", e.type.c_str());
 
-    	if (e.hasModel)
-    		Engine_SetEntityModelPath(id, e.modelPath.c_str());
-
         entities.push_back(std::move(e));
     }
 

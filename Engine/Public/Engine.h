@@ -37,35 +37,9 @@ extern "C" {
     bool Engine_SetEntityName(int index, const char* newName);
     bool Engine_DeleteEntity(int index);
 
-    // --- Transform component ---
-    // outXYZ/xyz are always 3 floats. Rotation is Euler degrees (matches
-    // TransformComponent::SetRotation/GetRotation, which store the quaternion internally).
-    // All return false (leaving outXYZ untouched) if index is out of range.
-    bool Engine_GetEntityPosition(int index, float* outXYZ);
-    bool Engine_SetEntityPosition(int index, const float* xyz);
-    bool Engine_GetEntityRotation(int index, float* outXYZ);
-    bool Engine_SetEntityRotation(int index, const float* xyz);
-    bool Engine_GetEntityScale(int index, float* outXYZ);
-    bool Engine_SetEntityScale(int index, const float* xyz);
-
     BaseEntity* Engine_GetEntity(int index);
 
     const std::vector<std::unique_ptr<BaseEntity>>& Engine_GetAllEntities();
-
-
-    // --- Model component ---
-    // false for entities with no model slot (e.g. a plain "Empty Entity") — GetModel()
-    // returns nullptr for those, and this API does not add one.
-    bool Engine_EntityHasModel(int index);
-
-    // Path last successfully loaded, or "" if none has loaded yet. Same lifetime contract
-    // as Engine_GetEntityName: owned by the Engine, valid as long as the entity exists.
-    const char* Engine_GetEntityModelPath(int index);
-
-    // path may be absolute, or relative to the asset root (e.g. "/Engine/Models/Cube/cube.obj").
-    // Reloads the entity's existing Model in place; fails (returns false) if the entity has
-    // no model slot or the file can't be loaded, leaving the previous model intact.
-    bool Engine_SetEntityModelPath(int index, const char* path);
 
     // --- Default camera ---
     // The entity Engine_RenderFrame's caller should treat as the "game" camera (as opposed to
@@ -97,36 +71,6 @@ extern "C" {
     // at the end of Engine_Init, so you normally don't need to call this yourself — it's
     // exposed separately in case you want to reset gravity after init.
     void Engine_InitPhysics(const float* gravity);
-
-    // Advances the physics simulation by deltaTime seconds, then syncs every entity with a
-    // physics component back into its TransformComponent so rendering sees the new pose.
-    // Call exactly once per frame, before Engine_RenderFrame. No-op if Engine_InitPhysics
-    // hasn't run yet.
-    void Engine_StepPhysics(float deltaTime);
-
-    // --- Physics component ---
-    // shapeType matches PhysicsComponent::ShapeType by ordinal: 0=Box, 1=Sphere, 2=Capsule,
-    // 3=ConvexHall, 4=StaticPlane. dims is always 3 floats, interpreted per-shape (see
-    // PhysicsComponent.cpp's MakeShape for the exact meaning of each). mass == 0 creates a
-    // static/immovable body (required for StaticPlane). Snapshots the entity's *current*
-    // transform into the new body rather than starting at the origin. Replaces any existing
-    // physics component on this entity — the old body is removed from the world first, not
-    // leaked. Returns false for an out-of-range index or if Engine_InitPhysics hasn't run.
-    bool Engine_AddPhysicsComponent(int index, int shapeType, float mass, const float* dims);
-
-    // Removes the rigid body from entity `index`, if any — safe to call on an entity with
-    // none. Returns false only for an out-of-range index.
-    bool Engine_RemovePhysicsComponent(int index);
-
-    bool Engine_EntityHasPhysics(int index);
-
-    // false if the entity has no physics component (outMass left untouched either way).
-    bool Engine_GetBodyMass(int index, float* outMass);
-
-    // Recomputes local inertia for the new mass and pushes it into the live body — a bare
-    // mass overwrite wouldn't be enough for Bullet to behave correctly. false if the entity
-    // has no physics component.
-    bool Engine_SetBodyMass(int index, float mass);
 }
 
 template <typename T, typename ObjType>

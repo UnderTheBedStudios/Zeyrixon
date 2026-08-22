@@ -64,40 +64,6 @@ std::unique_ptr<btCollisionDispatcher> g_Dispatcher;
 std::unique_ptr<btBroadphaseInterface> g_Broadphase;
 std::unique_ptr<btSequentialImpulseConstraintSolver> g_Solver;
 std::unique_ptr<btDiscreteDynamicsWorld> g_PhysicsWorld;
-
-// Removes every entity's rigid body from g_PhysicsWorld without touching g_Entities itself.
-// Must run before any g_Entities.clear()/erase() that destroys entities still holding a
-// PhysicsComponent — otherwise btDiscreteDynamicsWorld is left holding pointers into freed
-// btRigidBody objects, which crashes the next stepSimulation rather than at the point of the
-// actual bug. This was a real gap in the step-2 debug-box version: it never had more than one
-// body, so a whole-world reload (Engine_LoadWorld, Engine_Shutdown) never exercised this path.
-void RemoveAllPhysicsBodiesFromWorld()
-{
-    if (!g_PhysicsWorld)
-        return;
-    for (std::unique_ptr<BaseEntity>& entity : g_Entities)
-    {
-        if (PhysicsComponent* physics = entity->GetPhysics())
-            g_PhysicsWorld->removeRigidBody(physics->GetRigidBody());
-    }
-}
-
-// Pushes an entity's current TransformComponent into its physics body, if it has one — used
-// whenever something external (Inspector drag, Engine_AddPhysicsComponent's initial pose)
-// changes the transform out from under Bullet.
-void SyncPhysicsFromEntityTransform(BaseEntity* entity)
-{
-    PhysicsComponent* physics = entity->GetPhysics();
-    if (!physics)
-        return;
-
-    Transform t;
-    t.Position = entity->GetTransform()->GetPosition();
-    t.Rotation = entity->GetTransform()->GetQuaternion();
-    t.Scale = entity->GetTransform()->GetScale();
-    physics->SyncTransformToPhysics(t);
-}
-
 // path may be an absolute filesystem path, or relative to the asset root. Existing callers
 // (Camera/PrimativeShape ctors) always pass assetRoot + "/Engine/..." themselves, so this only
 // needs to handle what the editor UI hands in.
@@ -174,7 +140,6 @@ void Engine_Shutdown()
 
     // Must happen before g_Entities.clear(): otherwise any entity holding a PhysicsComponent
     // destroys its btRigidBody while g_PhysicsWorld still has an internal pointer to it.
-    RemoveAllPhysicsBodiesFromWorld();
     g_Entities.clear();
     g_DefaultCamera = nullptr;
     g_WorldName.clear();
@@ -268,73 +233,8 @@ bool Engine_DeleteEntity(int index)
         return false;
     if (g_Entities[index].get() == g_DefaultCamera)
         g_DefaultCamera = nullptr;
-    // Same reasoning as RemoveAllPhysicsBodiesFromWorld: the entity (and its PhysicsComponent)
-    // is about to be destroyed by the erase below, so its body must leave g_PhysicsWorld first.
-    if (PhysicsComponent* physics = g_Entities[index]->GetPhysics())
-    {
-        if (g_PhysicsWorld)
-            g_PhysicsWorld->removeRigidBody(physics->GetRigidBody());
-    }
+
     g_Entities.erase(g_Entities.begin() + index);
-    return true;
-}
-
-bool Engine_GetEntityPosition(int index, float* outXYZ)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    if (!entity || !outXYZ)
-        return false;
-    glm::vec3 p = entity->GetTransform()->GetPosition();
-    outXYZ[0] = p.x; outXYZ[1] = p.y; outXYZ[2] = p.z;
-    return true;
-}
-
-bool Engine_SetEntityPosition(int index, const float* xyz)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    if (!entity || !xyz)
-        return false;
-    entity->GetTransform()->SetPosition(glm::vec3(xyz[0], xyz[1], xyz[2]));
-    SyncPhysicsFromEntityTransform(entity);
-    return true;
-}
-
-bool Engine_GetEntityRotation(int index, float* outXYZ)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    if (!entity || !outXYZ)
-        return false;
-    glm::vec3 r = entity->GetTransform()->GetRotation();
-    outXYZ[0] = r.x; outXYZ[1] = r.y; outXYZ[2] = r.z;
-    return true;
-}
-
-bool Engine_SetEntityRotation(int index, const float* xyz)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    if (!entity || !xyz)
-        return false;
-    entity->GetTransform()->SetRotation(glm::vec3(xyz[0], xyz[1], xyz[2]));
-    SyncPhysicsFromEntityTransform(entity);
-    return true;
-}
-
-bool Engine_GetEntityScale(int index, float* outXYZ)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    if (!entity || !outXYZ)
-        return false;
-    glm::vec3 s = entity->GetTransform()->GetScale();
-    outXYZ[0] = s.x; outXYZ[1] = s.y; outXYZ[2] = s.z;
-    return true;
-}
-
-bool Engine_SetEntityScale(int index, const float* xyz)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    if (!entity || !xyz)
-        return false;
-    entity->GetTransform()->SetScale(glm::vec3(xyz[0], xyz[1], xyz[2]));
     return true;
 }
 
@@ -345,29 +245,7 @@ BaseEntity* Engine_GetEntity(int index)
 
 const std::vector<std::unique_ptr<BaseEntity>>& Engine_GetAllEntities()
 {
-    return g_Entities;
-}
-
-bool Engine_EntityHasModel(int index)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    return entity && entity->GetModel() != nullptr;
-}
-
-const char* Engine_GetEntityModelPath(int index)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    if (!entity || !entity->GetModel())
-        return "";
-    return entity->GetModel()->GetPath().c_str();
-}
-
-bool Engine_SetEntityModelPath(int index, const char* path)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    if (!entity || !entity->GetModel() || !path)
-        return false;
-    return entity->GetModel()->LoadFromFile(ResolveModelPath(path));
+	return g_Entities;
 }
 
 const char* Engine_GetWorldName()
@@ -407,13 +285,11 @@ bool Engine_LoadWorld(const char* path)
         // Matches the "state left cleared either way" contract documented in Engine.h —
         // a half-loaded world is worse than an empty one, since the caller has no way to
         // tell which entities came from the old world vs. a partially-parsed new one.
-        RemoveAllPhysicsBodiesFromWorld(); // must run before clear() — see its own comment
         g_Entities.clear();
         g_DefaultCamera = nullptr;
         return false;
     }
 
-    RemoveAllPhysicsBodiesFromWorld();
     g_Entities.clear();
     g_DefaultCamera = nullptr;
 
@@ -427,13 +303,6 @@ bool Engine_LoadWorld(const char* path)
         int index = Engine_CreateEntity(e.type.c_str(), e.name.c_str());
         if (index < 0)
             continue;
-
-        Engine_SetEntityPosition(index, glm::value_ptr(e.position));
-        Engine_SetEntityRotation(index, glm::value_ptr(e.rotation));
-        Engine_SetEntityScale(index, glm::value_ptr(e.scale));
-
-        if (e.hasModel && Engine_EntityHasModel(index))
-            Engine_SetEntityModelPath(index, e.modelPath.c_str());
 
         if (!world.DefaultCameraName().empty() && e.name == world.DefaultCameraName())
             Engine_SetDefaultCamera(index);
@@ -460,11 +329,6 @@ bool Engine_SaveWorld(const char* path)
         WorldEntity e;
         e.type = entity->GetTypeName();
         e.name = entity->Name;
-        e.position = entity->GetTransform()->GetPosition();
-        e.rotation = entity->GetTransform()->GetRotation();
-        e.scale = entity->GetTransform()->GetScale();
-        e.hasModel = entity->GetModel() != nullptr;
-        e.modelPath = e.hasModel ? entity->GetModel()->GetPath() : std::string();
         entities.push_back(std::move(e));
     }
 
@@ -486,84 +350,6 @@ void Engine_InitPhysics(const float* gravity)
     fprintf(stderr, "[Engine] Physics world initialized (gravity = %.2f, %.2f, %.2f)\n", g.x, g.y, g.z);
 }
 
-void Engine_StepPhysics(float deltaTime)
-{
-    if (!g_PhysicsWorld)
-        return;
-
-    g_PhysicsWorld->stepSimulation(deltaTime, 10);
-
-    for (std::unique_ptr<BaseEntity>& entity : g_Entities)
-    {
-        if (PhysicsComponent* physics = entity->GetPhysics())
-            physics->SyncPhysicsToTransform(entity->GetTransform());
-    }
-}
-
-bool Engine_AddPhysicsComponent(int index, int shapeType, float mass, const float* dims)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    if (!entity || !dims || !g_PhysicsWorld)
-        return false;
-
-    // Replacing an existing component: pull its body out of the world first. Just letting
-    // SetPhysics() overwrite the unique_ptr would destroy the old btRigidBody while it's
-    // still registered in g_PhysicsWorld — same class of dangling-pointer bug fixed above.
-    if (PhysicsComponent* existing = entity->GetPhysics())
-        g_PhysicsWorld->removeRigidBody(existing->GetRigidBody());
-
-    auto physics = std::make_unique<PhysicsComponent>();
-    physics->Init(static_cast<PhysicsComponent::ShapeType>(shapeType), mass,
-                  glm::vec3(dims[0], dims[1], dims[2]));
-
-    g_PhysicsWorld->addRigidBody(physics->GetRigidBody());
-    entity->SetPhysics(std::move(physics));
-
-    // Init() starts the body at the identity transform — snap it to where the entity
-    // actually is right now instead of teleporting the visual mesh to match it next frame.
-    SyncPhysicsFromEntityTransform(entity);
-    return true;
-}
-
-bool Engine_RemovePhysicsComponent(int index)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    if (!entity)
-        return false;
-
-    if (PhysicsComponent* existing = entity->GetPhysics())
-    {
-        if (g_PhysicsWorld)
-            g_PhysicsWorld->removeRigidBody(existing->GetRigidBody());
-        entity->ClearPhysics();
-    }
-    return true;
-}
-
-bool Engine_EntityHasPhysics(int index)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    return entity && entity->GetPhysics() != nullptr;
-}
-
-bool Engine_GetBodyMass(int index, float* outMass)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    if (!entity || !entity->GetPhysics() || !outMass)
-        return false;
-    *outMass = entity->GetPhysics()->GetMass();
-    return true;
-}
-
-bool Engine_SetBodyMass(int index, float mass)
-{
-    BaseEntity* entity = GetEntitySafe(index);
-    if (!entity || !entity->GetPhysics())
-        return false;
-    entity->GetPhysics()->SetMass(mass);
-    return true;
-}
-
 void Engine_RenderFrame(int fb, int width, int height, const float* viewProj)
 {
     // --- Pass 1: render depth from the light's POV ---
@@ -576,17 +362,6 @@ void Engine_RenderFrame(int fb, int width, int height, const float* viewProj)
 
     g_DepthShader->use();
     g_DepthShader->setMat4("uLightSpaceMatrix", g_LightSpaceMatrix);
-
-    for (auto& entity : g_Entities)
-    {
-        Model* model = entity->GetModel();
-        TransformComponent* transform = entity->GetTransform();
-        if (!model || !transform)
-            continue;
-
-        g_DepthShader->setMat4("uModel", transform->GetModelMatrix());
-        model->Draw();
-    }
 
     glDisable(GL_CULL_FACE);
 
@@ -613,17 +388,6 @@ void Engine_RenderFrame(int fb, int width, int height, const float* viewProj)
     g_MainShader->setInt("uShadowMap", 1);
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-    for (auto& entity : g_Entities)
-    {
-        Model* model = entity->GetModel();
-        TransformComponent* transform = entity->GetTransform();
-        if (!model || !transform)
-            continue;
-
-        g_MainShader->setMat4("uModel", transform->GetModelMatrix());
-        model->Draw();
-    }
 }
 
 void Engine_SetLight(const float* lightDir, const float* lightColor, const float* viewPos)

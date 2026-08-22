@@ -1,6 +1,7 @@
 #include <Engine/Public/Components/Common/Model.h>
 #include <glad/glad.h>
 #include <cstdio>
+#include <assimp/postprocess.h>
 
 #include <stb_image.h>
 

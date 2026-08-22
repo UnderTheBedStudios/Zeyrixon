@@ -1,27 +1,25 @@
-#include "Engine/Public/Entities/Common/BaseEntity.h"
-#include "Engine/Public/Components/Common/PhysicsComponent.h"
+#include <Engine/Public/Entities/Common/BaseEntity.h>
+#include <Engine/Public/Components/Common/TransformComponent.h>
+#include <Engine/Public/Components/Common/PhysicsComponent.h>
 
 BaseEntity::BaseEntity()
 {
-	m_Transform = new TransformComponent();
-
-	m_Transform->SetPosition(glm::vec3(0.f, 0.f, 0.f));
-	m_Transform->SetRotation(glm::vec3(0.f, 0.f, 0.f));
-	m_Transform->SetScale(glm::vec3(1.f, 1.f, 1.f));
-}
-BaseEntity::~BaseEntity()
-{
-	delete m_Transform;
-	// m_Physics (unique_ptr<PhysicsComponent>) cleans itself up here — PhysicsComponent.h is
-	// included above specifically so this destructor has the complete type it needs.
+	AddComponent<TransformComponent>();
+	AddComponent<PhysicsComponent>();
 }
 
-void BaseEntity::SetPhysics(std::unique_ptr<PhysicsComponent> physics)
+BaseComponent* BaseEntity::GetComponent(std::string name, std::string type)
 {
-	m_Physics = std::move(physics);
-}
+	BaseComponent* g_component = nullptr;
 
-void BaseEntity::ClearPhysics()
-{
-	m_Physics.reset();
+	for (BaseComponent* component : m_Components)
+	{
+		if (component->GetName() == name && component->GetType() == type)
+		{
+			g_component = component;
+			return g_component;
+		}
+	}
+
+	return nullptr;
 }
