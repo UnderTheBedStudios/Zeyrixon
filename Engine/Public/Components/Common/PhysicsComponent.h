@@ -11,6 +11,8 @@
 class PhysicsComponent : public BaseComponent
 {
 public:
+	REFLECTABLE(PhysicsComponent, "Physics")
+
 	enum class ShapeType { Box, Sphere, Capsule, ConvexHall, StaticPlane };
 
 	void Init(ShapeType shape, float mass, glm::vec3 halfExtentsOrRadius);

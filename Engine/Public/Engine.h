@@ -6,6 +6,7 @@
 
 class BaseEntity;
 class Camera;
+class PhysicsComponent;
 
 extern "C" {
     void Engine_Init(void* getProcAddress, const char* assetRoot);
@@ -71,6 +72,23 @@ extern "C" {
     // at the end of Engine_Init, so you normally don't need to call this yourself — it's
     // exposed separately in case you want to reset gravity after init.
     void Engine_InitPhysics(const float* gravity);
+
+    // Advances the physics simulation by deltaTime seconds, then syncs every entity's
+    // PhysicsComponent(s) back into their TransformComponent so rendering sees the new pose.
+    // Call exactly once per frame, before Engine_RenderFrame. No-op if Engine_InitPhysics
+    // hasn't run yet.
+    void Engine_StepPhysics(float deltaTime);
+
+    // --- Physics component wiring ---
+    // Construct and Init() a PhysicsComponent directly (e.g. via
+    // entity->AddComponent<PhysicsComponent>() on a real BaseEntity* from Engine_GetEntity),
+    // then call this to hook its rigid body into the live simulation — a PhysicsComponent
+    // that exists but was never registered here is never simulated.
+    void Engine_RegisterPhysicsBody(PhysicsComponent* physics);
+
+    // Call before destroying/removing a PhysicsComponent (e.g. via BaseEntity::RemoveComponent),
+    // or the physics world is left holding a pointer into memory about to be freed.
+    void Engine_UnregisterPhysicsBody(PhysicsComponent* physics);
 }
 
 template <typename T, typename ObjType>

@@ -11,6 +11,9 @@
 #endif
 #include <GLFW/glfw3.h>
 #include <Engine/Public/Engine.h>
+#include <Engine/Public/Entities/Common/BaseEntity.h>
+#include <Engine/Public/Components/Common/PhysicsComponent.h>
+#include <Engine/Public/Common/Reflection.h>
 #include <glm.hpp>
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
@@ -111,6 +114,7 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
     // Step physics once per frame, unconditional of which panels are visible — this must not
     // live inside the Viewport ImGui::Begin block below since that only runs while that
     // window is drawn; physics should keep advancing regardless of UI layout.
+    Engine_StepPhysics(ImGui::GetIO().DeltaTime);
 
     if (m_hasProject && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false))
         SaveProject();
@@ -425,25 +429,118 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                 m_modelPathBufferForEntity = -1;
             }
 
+            // --- Generic component properties ---
+            // Walks every component on the entity and, for any that registered fields via
+            // REFLECTABLE()/REFLECT_FLOAT()/REFLECT_VEC3() (see Reflection.h), draws them
+            // automatically — no per-component-type ImGui code needed here. Components with
+            // no reflected fields (e.g. Model, which isn't meaningfully editable field-by-
+            // field yet) are simply skipped.
+            if (BaseEntity* entity = Engine_GetEntity(m_selectedEntity))
             {
-            	ImGui::Spacing();
-            	if (ImGui::Button("Add Component"))
-            		ImGui::OpenPopup("AddComponentPopup");
+                for (const std::unique_ptr<BaseComponent>& component : entity->GetComponents())
+                {
+                    const std::vector<FieldInfo>* fields = component->GetReflectedFields();
+                    if (!fields)
+                        continue;
 
-            	if (ImGui::BeginPopup("AddComponentPopup"))
-            	{
-            		ImGui::TextDisabled("Add Component");
-            		ImGui::Separator();
+                    ImGui::Spacing();
+                    bool isPhysics = dynamic_cast<PhysicsComponent*>(component.get()) != nullptr;
+                    ImGui::PushID(component.get());
+                    if (ImGui::CollapsingHeader(component->GetComponentTypeName(), ImGuiTreeNodeFlags_DefaultOpen))
+                    {
+                        for (const FieldInfo& field : *fields)
+                        {
+                            switch (field.Type)
+                            {
+                                case FieldType::Float:
+                                {
+                                    float value = field.GetFloat(component.get());
+                                    if (ImGui::DragFloat(field.Name.c_str(), &value, 0.1f))
+                                        field.SetFloat(component.get(), value);
+                                    break;
+                                }
+                                case FieldType::Vec3:
+                                {
+                                    glm::vec3 value = field.GetVec3(component.get());
+                                    if (ImGui::DragFloat3(field.Name.c_str(), &value.x, 0.1f))
+                                        field.SetVec3(component.get(), value);
+                                    break;
+                                }
+                                case FieldType::Bool:
+                                {
+                                    bool value = field.GetBool(component.get());
+                                    if (ImGui::Checkbox(field.Name.c_str(), &value))
+                                        field.SetBool(component.get(), value);
+                                    break;
+                                }
+                            }
+                        }
 
-            		// shapeType ordinals below must match PhysicsComponent::ShapeType exactly:
-            		// Box=0, Sphere=1, Capsule=2, ConvexHall=3, StaticPlane=4. Capsule and
-            		// ConvexHall are left off this menu for now — Capsule needs a second
-            		// dimension this popup doesn't collect, and ConvexHall currently falls back
-            		// to a plain box in the Engine (see PhysicsComponent.cpp's TODO), so listing
-            		// it here would promise something that isn't implemented yet.
+                        // Physics is the one component type that's currently removable from
+                        // the Inspector — Transform is mandatory (every entity has exactly
+                        // one, added by BaseEntity's constructor), and Model removal isn't
+                        // wired up yet since nothing currently handles an entity losing its
+                        // only mesh mid-edit.
+                        if (isPhysics)
+                        {
+                            if (ImGui::Button("Remove Physics"))
+                            {
+                                auto* physics = static_cast<PhysicsComponent*>(component.get());
+                                Engine_UnregisterPhysicsBody(physics);
+                                entity->RemoveComponent(physics);
+                                ImGui::PopID();
+                                break; // component vector was just mutated — stop iterating it
+                            }
+                        }
+                    }
+                    ImGui::PopID();
+                }
 
-            		ImGui::EndPopup();
-            	}
+                bool hasPhysics = entity->GetComponent<PhysicsComponent>() != nullptr;
+                if (!hasPhysics)
+                {
+                    ImGui::Spacing();
+                    if (ImGui::Button("Add Component"))
+                        ImGui::OpenPopup("AddComponentPopup");
+
+                    if (ImGui::BeginPopup("AddComponentPopup"))
+                    {
+                        ImGui::TextDisabled("Add Component");
+                        ImGui::Separator();
+
+                        // shapeType ordinals below must match PhysicsComponent::ShapeType
+                        // exactly: Box=0, Sphere=1, Capsule=2, ConvexHall=3, StaticPlane=4.
+                        // Capsule and ConvexHall are left off this menu for now — Capsule
+                        // needs a second dimension this popup doesn't collect, and ConvexHall
+                        // currently falls back to a plain box in the Engine (see
+                        // PhysicsComponent.cpp's TODO), so listing it here would promise
+                        // something that isn't implemented yet.
+                        auto addPhysics = [&](PhysicsComponent::ShapeType shape, float mass, glm::vec3 dims)
+                        {
+                            PhysicsComponent* physics = entity->AddComponent<PhysicsComponent>();
+                            physics->Init(shape, mass, dims);
+                            Engine_RegisterPhysicsBody(physics);
+                        };
+
+                        if (ImGui::Selectable("Physics: Box"))
+                        {
+                            addPhysics(PhysicsComponent::ShapeType::Box, 1.0f, glm::vec3(0.5f, 0.5f, 0.5f));
+                            ImGui::CloseCurrentPopup();
+                        }
+                        if (ImGui::Selectable("Physics: Sphere"))
+                        {
+                            addPhysics(PhysicsComponent::ShapeType::Sphere, 1.0f, glm::vec3(0.5f, 0.0f, 0.0f));
+                            ImGui::CloseCurrentPopup();
+                        }
+                        if (ImGui::Selectable("Physics: Static Plane (floor)"))
+                        {
+                            addPhysics(PhysicsComponent::ShapeType::StaticPlane, 0.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+                            ImGui::CloseCurrentPopup();
+                        }
+
+                        ImGui::EndPopup();
+                    }
+                }
             }
         }
 

@@ -1,25 +1,22 @@
 #include <Engine/Public/Entities/Common/BaseEntity.h>
-#include <Engine/Public/Components/Common/TransformComponent.h>
-#include <Engine/Public/Components/Common/PhysicsComponent.h>
 
 BaseEntity::BaseEntity()
 {
-	AddComponent<TransformComponent>();
-	AddComponent<PhysicsComponent>();
+	// Transform only — Physics, Model, etc. are opt-in via AddComponent<T>(), driven by the
+	// Editor's Add Component flow, not baked into every entity regardless of whether it
+	// makes sense there (a plain empty entity doesn't need a rigid body by default).
+	m_Transform = AddComponent<TransformComponent>();
 }
 
-BaseComponent* BaseEntity::GetComponent(std::string name, std::string type)
+bool BaseEntity::RemoveComponent(BaseComponent* component)
 {
-	BaseComponent* g_component = nullptr;
-
-	for (BaseComponent* component : m_Components)
+	for (auto it = m_Components.begin(); it != m_Components.end(); ++it)
 	{
-		if (component->GetName() == name && component->GetType() == type)
+		if (it->get() == component)
 		{
-			g_component = component;
-			return g_component;
+			m_Components.erase(it);
+			return true;
 		}
 	}
-
-	return nullptr;
+	return false;
 }

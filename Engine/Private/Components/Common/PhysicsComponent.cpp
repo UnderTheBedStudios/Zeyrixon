@@ -1,4 +1,7 @@
 #include "Engine/Public/Components/Common/PhysicsComponent.h"
+#include <Engine/Public/Common/Reflection.h>
+
+REFLECT_FLOAT(PhysicsComponent, "Mass", GetMass, SetMass)
 
 namespace
 {

@@ -64,6 +64,22 @@ std::unique_ptr<btCollisionDispatcher> g_Dispatcher;
 std::unique_ptr<btBroadphaseInterface> g_Broadphase;
 std::unique_ptr<btSequentialImpulseConstraintSolver> g_Solver;
 std::unique_ptr<btDiscreteDynamicsWorld> g_PhysicsWorld;
+
+// Removes every entity's rigid bodies from g_PhysicsWorld without touching g_Entities itself.
+// Must run before any g_Entities.clear()/erase() that destroys entities still holding a
+// PhysicsComponent, or btDiscreteDynamicsWorld is left holding a pointer into a freed
+// btRigidBody — a crash on the next stepSimulation, not at the point of the actual bug.
+// Walks GetComponents() + dynamic_cast rather than a dedicated "get all physics" accessor,
+// since the component array now allows more than one PhysicsComponent per entity.
+void RemoveAllPhysicsBodiesFromWorld()
+{
+    if (!g_PhysicsWorld)
+        return;
+    for (std::unique_ptr<BaseEntity>& entity : g_Entities)
+        for (const std::unique_ptr<BaseComponent>& c : entity->GetComponents())
+            if (PhysicsComponent* physics = dynamic_cast<PhysicsComponent*>(c.get()))
+                g_PhysicsWorld->removeRigidBody(physics->GetRigidBody());
+}
 // path may be an absolute filesystem path, or relative to the asset root. Existing callers
 // (Camera/PrimativeShape ctors) always pass assetRoot + "/Engine/..." themselves, so this only
 // needs to handle what the editor UI hands in.
@@ -140,6 +156,7 @@ void Engine_Shutdown()
 
     // Must happen before g_Entities.clear(): otherwise any entity holding a PhysicsComponent
     // destroys its btRigidBody while g_PhysicsWorld still has an internal pointer to it.
+    RemoveAllPhysicsBodiesFromWorld();
     g_Entities.clear();
     g_DefaultCamera = nullptr;
     g_WorldName.clear();
@@ -234,6 +251,14 @@ bool Engine_DeleteEntity(int index)
     if (g_Entities[index].get() == g_DefaultCamera)
         g_DefaultCamera = nullptr;
 
+    // Same reasoning as RemoveAllPhysicsBodiesFromWorld: the entity (and any PhysicsComponent
+    // it holds) is about to be destroyed by the erase below, so its body must leave
+    // g_PhysicsWorld first.
+    if (g_PhysicsWorld)
+        for (const std::unique_ptr<BaseComponent>& c : g_Entities[index]->GetComponents())
+            if (PhysicsComponent* physics = dynamic_cast<PhysicsComponent*>(c.get()))
+                g_PhysicsWorld->removeRigidBody(physics->GetRigidBody());
+
     g_Entities.erase(g_Entities.begin() + index);
     return true;
 }
@@ -285,11 +310,13 @@ bool Engine_LoadWorld(const char* path)
         // Matches the "state left cleared either way" contract documented in Engine.h —
         // a half-loaded world is worse than an empty one, since the caller has no way to
         // tell which entities came from the old world vs. a partially-parsed new one.
+        RemoveAllPhysicsBodiesFromWorld(); // must run before clear() — see its own comment
         g_Entities.clear();
         g_DefaultCamera = nullptr;
         return false;
     }
 
+    RemoveAllPhysicsBodiesFromWorld();
     g_Entities.clear();
     g_DefaultCamera = nullptr;
 
@@ -348,6 +375,38 @@ void Engine_InitPhysics(const float* gravity)
     g_PhysicsWorld->setGravity(btVector3(g.x, g.y, g.z));
 
     fprintf(stderr, "[Engine] Physics world initialized (gravity = %.2f, %.2f, %.2f)\n", g.x, g.y, g.z);
+}
+
+void Engine_StepPhysics(float deltaTime)
+{
+    if (!g_PhysicsWorld)
+        return;
+
+    g_PhysicsWorld->stepSimulation(deltaTime, 10);
+
+    for (std::unique_ptr<BaseEntity>& entity : g_Entities)
+        for (const std::unique_ptr<BaseComponent>& c : entity->GetComponents())
+            if (PhysicsComponent* physics = dynamic_cast<PhysicsComponent*>(c.get()))
+                physics->SyncPhysicsToTransform(entity->GetTransform());
+}
+
+void Engine_RegisterPhysicsBody(PhysicsComponent* physics)
+{
+    // The Editor constructs and Init()s the PhysicsComponent itself (it has direct access to
+    // real BaseEntity*/PhysicsComponent* pointers via Engine_GetEntity), but g_PhysicsWorld
+    // is private to this translation unit, so hooking the resulting body into the live
+    // simulation still has to happen here.
+    if (g_PhysicsWorld && physics && physics->GetRigidBody())
+        g_PhysicsWorld->addRigidBody(physics->GetRigidBody());
+}
+
+void Engine_UnregisterPhysicsBody(PhysicsComponent* physics)
+{
+    // Call this before destroying/removing a PhysicsComponent (e.g. via
+    // BaseEntity::RemoveComponent) — otherwise g_PhysicsWorld is left holding a pointer into
+    // memory that's about to be freed, the same dangling-body bug fixed elsewhere in this file.
+    if (g_PhysicsWorld && physics && physics->GetRigidBody())
+        g_PhysicsWorld->removeRigidBody(physics->GetRigidBody());
 }
 
 void Engine_RenderFrame(int fb, int width, int height, const float* viewProj)

@@ -1,5 +1,14 @@
 #include "Engine/Public/Components/Common/TransformComponent.h"
+#include <Engine/Public/Common/Reflection.h>
 #include <cmath>
+
+// Position/Scale are reflected directly. Rotation is stored as a quaternion internally but
+// already exposed as Euler degrees at this API surface (GetRotation/SetRotation do the
+// conversion) per your convention, so reflecting those two gives a plain Euler drag control
+// "for free" without teaching Reflection.h anything about quaternions.
+REFLECT_VEC3(TransformComponent, "Position", GetPosition, SetPosition)
+REFLECT_VEC3(TransformComponent, "Rotation", GetRotation, SetRotation)
+REFLECT_VEC3(TransformComponent, "Scale", GetScale, SetScale)
 
 TransformComponent::TransformComponent()
 {
