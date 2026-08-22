@@ -108,6 +108,11 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
 
     BeginFrame(); // MakeCurrent + ImGui_ImplOpenGL3_NewFrame + ImGui_ImplGlfw_NewFrame + ImGui::NewFrame
 
+    // Step physics once per frame, unconditional of which panels are visible — this must not
+    // live inside the Viewport ImGui::Begin block below since that only runs while that
+    // window is drawn; physics should keep advancing regardless of UI layout.
+    Engine_StepPhysics(ImGui::GetIO().DeltaTime);
+
     if (m_hasProject && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false))
         SaveProject();
 

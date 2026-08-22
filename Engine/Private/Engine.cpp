@@ -17,6 +17,7 @@
 #include <gtc/matrix_transform.hpp>
 #include <gtc/type_ptr.hpp>
 #include <memory>
+#include <btBulletDynamicsCommon.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -51,6 +52,26 @@ glm::vec3 g_ViewPos    = glm::vec3(0.0f);
 std::string g_WorldName;
 
 std::string g_AssetRoot;
+
+// --- Physics globals ---
+// Declaration order matters: these are destroyed in reverse declaration order when the
+// program exits, and btDiscreteDynamicsWorld must be torn down before the dispatcher/config
+// it was built from. Engine_Shutdown() also does this explicitly and in the same order, so
+// don't rely on static destruction order alone — that only covers the process-exit case.
+std::unique_ptr<btDefaultCollisionConfiguration> g_CollisionConfig;
+std::unique_ptr<btCollisionDispatcher> g_Dispatcher;
+std::unique_ptr<btBroadphaseInterface> g_Broadphase;
+std::unique_ptr<btSequentialImpulseConstraintSolver> g_Solver;
+std::unique_ptr<btDiscreteDynamicsWorld> g_PhysicsWorld;
+
+// --- TEMPORARY: step-2 wiring proof only ---
+// A single hardcoded falling box with no connection to BaseEntity/PhysicsComponent. Its only
+// job is to prove Engine_StepPhysics is actually being called from the Editor's frame loop
+// with a sane deltaTime, before PhysicsComponent (step 3) wires up real entities. Delete this
+// block (and its two usages below) once that lands.
+std::unique_ptr<btCollisionShape> g_DebugBoxShape;
+std::unique_ptr<btMotionState> g_DebugBoxMotionState;
+std::unique_ptr<btRigidBody> g_DebugBox;
 
 // path may be an absolute filesystem path, or relative to the asset root. Existing callers
 // (Camera/PrimativeShape ctors) always pass assetRoot + "/Engine/..." themselves, so this only
@@ -128,6 +149,20 @@ void Engine_Shutdown()
     g_Entities.clear();
     g_DefaultCamera = nullptr;
     g_WorldName.clear();
+
+    // Physics teardown, in dependency order (world depends on dispatcher+config+broadphase+
+    // solver, so it must go first). The debug box must be removed from the world before the
+    // world itself is destroyed, same as the smoke test's cleanup order.
+    if (g_PhysicsWorld && g_DebugBox)
+        g_PhysicsWorld->removeRigidBody(g_DebugBox.get());
+    g_DebugBox.reset();
+    g_DebugBoxMotionState.reset();
+    g_DebugBoxShape.reset();
+    g_PhysicsWorld.reset();
+    g_Solver.reset();
+    g_Broadphase.reset();
+    g_Dispatcher.reset();
+    g_CollisionConfig.reset();
 }
 
 void Engine_Init(void* getProcAddress, const char* assetRoot)
@@ -153,6 +188,8 @@ void Engine_Init(void* getProcAddress, const char* assetRoot)
 
     InitShadowMap();
     UpdateLightSpaceMatrix();
+
+    Engine_InitPhysics(nullptr);
 }
 
 int Engine_CreateEntity(const char* type, const char* name)
@@ -398,6 +435,63 @@ bool Engine_SaveWorld(const char* path)
     }
 
     return world.SaveToFile(path);
+}
+
+void Engine_InitPhysics(const float* gravity)
+{
+    g_CollisionConfig = std::make_unique<btDefaultCollisionConfiguration>();
+    g_Dispatcher = std::make_unique<btCollisionDispatcher>(g_CollisionConfig.get());
+    g_Broadphase = std::make_unique<btDbvtBroadphase>();
+    g_Solver = std::make_unique<btSequentialImpulseConstraintSolver>();
+    g_PhysicsWorld = std::make_unique<btDiscreteDynamicsWorld>(
+        g_Dispatcher.get(), g_Broadphase.get(), g_Solver.get(), g_CollisionConfig.get());
+
+    glm::vec3 g = gravity ? glm::vec3(gravity[0], gravity[1], gravity[2]) : glm::vec3(0.0f, -9.81f, 0.0f);
+    g_PhysicsWorld->setGravity(btVector3(g.x, g.y, g.z));
+
+    fprintf(stderr, "[Engine] Physics world initialized (gravity = %.2f, %.2f, %.2f)\n", g.x, g.y, g.z);
+
+    // --- TEMPORARY: step-2 wiring proof only, see g_DebugBox* declarations above ---
+    g_DebugBoxShape = std::make_unique<btBoxShape>(btVector3(0.5f, 0.5f, 0.5f));
+
+    btTransform startTransform;
+    startTransform.setIdentity();
+    startTransform.setOrigin(btVector3(0.0f, 10.0f, 0.0f));
+    g_DebugBoxMotionState = std::make_unique<btDefaultMotionState>(startTransform);
+
+    btVector3 inertia(0.0f, 0.0f, 0.0f);
+    g_DebugBoxShape->calculateLocalInertia(1.0f, inertia);
+
+    btRigidBody::btRigidBodyConstructionInfo info(1.0f, g_DebugBoxMotionState.get(), g_DebugBoxShape.get(), inertia);
+    g_DebugBox = std::make_unique<btRigidBody>(info);
+    g_PhysicsWorld->addRigidBody(g_DebugBox.get());
+
+    fprintf(stderr, "[Engine] Debug box added at y=10 — should fall under gravity with no floor to stop it "
+                    "(this is a step-2 wiring check, remove once PhysicsComponent lands)\n");
+}
+
+void Engine_StepPhysics(float deltaTime)
+{
+    if (!g_PhysicsWorld)
+        return;
+
+    g_PhysicsWorld->stepSimulation(deltaTime, 10);
+
+    // --- TEMPORARY: step-2 wiring proof only ---
+    // Logs every ~60 frames so you can confirm in stderr that this is actually being driven
+    // by the Editor's frame loop with a sane per-frame deltaTime, and that Bullet is actually
+    // integrating (the y value should just keep decreasing — there's no floor in this test).
+    if (g_DebugBox)
+    {
+        static int frameCount = 0;
+        if (++frameCount % 60 == 0)
+        {
+            btTransform t;
+            g_DebugBox->getMotionState()->getWorldTransform(t);
+            fprintf(stderr, "[Engine] physics wiring check: debug box y = %.3f (dt = %.4f)\n",
+                    t.getOrigin().getY(), deltaTime);
+        }
+    }
 }
 
 void Engine_RenderFrame(int fb, int width, int height, const float* viewProj)

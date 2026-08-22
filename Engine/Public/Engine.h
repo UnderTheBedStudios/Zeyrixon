@@ -8,9 +8,6 @@ class BaseEntity;
 class Camera;
 
 extern "C" {
-	void Engine_InitPhysics(const float* gravity);
-	void Engine_StepPhysics(float deltaTime);
-
     void Engine_Init(void* getProcAddress, const char* assetRoot);
     void Engine_RenderFrame(int fb, int width, int height, const float* viewProj);
     void Engine_SetLight(const float* lightDir, const float* lightColor, const float* viewPos);
@@ -93,6 +90,18 @@ extern "C" {
 
     // Snapshots all current entities, light, and the default camera to a .zworld file at path.
     bool Engine_SaveWorld(const char* path);
+
+    // --- Physics ---
+    // Creates the physics world (broadphase/dispatcher/solver/btDiscreteDynamicsWorld).
+    // gravity is 3 floats; pass nullptr to use the default (0, -9.81, 0). Called automatically
+    // at the end of Engine_Init, so you normally don't need to call this yourself — it's
+    // exposed separately in case you want to reset gravity after init.
+    void Engine_InitPhysics(const float* gravity);
+
+    // Advances the physics simulation by deltaTime seconds. Call exactly once per frame,
+    // before Engine_RenderFrame, so rendered transforms reflect the current physics step.
+    // No-op if Engine_InitPhysics hasn't run yet.
+    void Engine_StepPhysics(float deltaTime);
 }
 
 template <typename T, typename ObjType>
