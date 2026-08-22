@@ -18,6 +18,13 @@ public:
 	void SyncPhysicsToTransform(TransformComponent* transform);
 	btRigidBody* GetRigidBody() { return m_Body.get(); }
 
+	// mass == 0 is Bullet's convention for a static/immovable body. Changing mass on an
+	// existing body requires recomputing local inertia and pushing it back into Bullet —
+	// just writing a new value isn't enough, hence real methods here rather than a setter
+	// that only touches a stored float.
+	[[nodiscard]] float GetMass() const;
+	void SetMass(float mass);
+
 private:
 	std::unique_ptr<btCollisionShape> m_Shape;
 	std::unique_ptr<btMotionState> m_MotionState;

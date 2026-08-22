@@ -98,10 +98,35 @@ extern "C" {
     // exposed separately in case you want to reset gravity after init.
     void Engine_InitPhysics(const float* gravity);
 
-    // Advances the physics simulation by deltaTime seconds. Call exactly once per frame,
-    // before Engine_RenderFrame, so rendered transforms reflect the current physics step.
-    // No-op if Engine_InitPhysics hasn't run yet.
+    // Advances the physics simulation by deltaTime seconds, then syncs every entity with a
+    // physics component back into its TransformComponent so rendering sees the new pose.
+    // Call exactly once per frame, before Engine_RenderFrame. No-op if Engine_InitPhysics
+    // hasn't run yet.
     void Engine_StepPhysics(float deltaTime);
+
+    // --- Physics component ---
+    // shapeType matches PhysicsComponent::ShapeType by ordinal: 0=Box, 1=Sphere, 2=Capsule,
+    // 3=ConvexHall, 4=StaticPlane. dims is always 3 floats, interpreted per-shape (see
+    // PhysicsComponent.cpp's MakeShape for the exact meaning of each). mass == 0 creates a
+    // static/immovable body (required for StaticPlane). Snapshots the entity's *current*
+    // transform into the new body rather than starting at the origin. Replaces any existing
+    // physics component on this entity — the old body is removed from the world first, not
+    // leaked. Returns false for an out-of-range index or if Engine_InitPhysics hasn't run.
+    bool Engine_AddPhysicsComponent(int index, int shapeType, float mass, const float* dims);
+
+    // Removes the rigid body from entity `index`, if any — safe to call on an entity with
+    // none. Returns false only for an out-of-range index.
+    bool Engine_RemovePhysicsComponent(int index);
+
+    bool Engine_EntityHasPhysics(int index);
+
+    // false if the entity has no physics component (outMass left untouched either way).
+    bool Engine_GetBodyMass(int index, float* outMass);
+
+    // Recomputes local inertia for the new mass and pushes it into the live body — a bare
+    // mass overwrite wouldn't be enough for Bullet to behave correctly. false if the entity
+    // has no physics component.
+    bool Engine_SetBodyMass(int index, float mass);
 }
 
 template <typename T, typename ObjType>

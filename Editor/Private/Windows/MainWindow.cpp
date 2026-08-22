@@ -479,6 +479,29 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                 }
             }
 
+            // --- Physics component ---
+            // A generic, optional slot any entity type can carry — unlike Model, which only
+            // shape subclasses expose. Shown as either an "Add Component" entry point or a
+            // live editing section, never both, mirroring how Model only appears when present.
+            if (Engine_EntityHasPhysics(m_selectedEntity))
+            {
+                ImGui::Spacing();
+                if (ImGui::CollapsingHeader("Physics", ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    float mass = 0.0f;
+                    Engine_GetBodyMass(m_selectedEntity, &mass);
+
+                    ImGui::Text("Mass (0 = static/immovable)");
+                    ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x);
+                    if (ImGui::DragFloat("##Mass", &mass, 0.1f, 0.0f, FLT_MAX))
+                        Engine_SetBodyMass(m_selectedEntity, mass);
+                    ImGui::PopItemWidth();
+
+                    if (ImGui::Button("Remove Physics"))
+                        Engine_RemovePhysicsComponent(m_selectedEntity);
+                }
+            }
+
             if (Engine_EntityIs<Camera>(m_selectedEntity))
             {
                 ImGui::Text("FOV");
@@ -493,6 +516,45 @@ void MainWindow::DrawFrame(int& screenWidth, int& screenHeight)
                 m_selectedEntity = -1;
                 m_renameBufferForEntity = -1;
                 m_modelPathBufferForEntity = -1;
+            }
+
+            {
+            	ImGui::Spacing();
+            	if (ImGui::Button("Add Component"))
+            		ImGui::OpenPopup("AddComponentPopup");
+
+            	if (ImGui::BeginPopup("AddComponentPopup"))
+            	{
+            		ImGui::TextDisabled("Add Component");
+            		ImGui::Separator();
+
+            		// shapeType ordinals below must match PhysicsComponent::ShapeType exactly:
+            		// Box=0, Sphere=1, Capsule=2, ConvexHall=3, StaticPlane=4. Capsule and
+            		// ConvexHall are left off this menu for now — Capsule needs a second
+            		// dimension this popup doesn't collect, and ConvexHall currently falls back
+            		// to a plain box in the Engine (see PhysicsComponent.cpp's TODO), so listing
+            		// it here would promise something that isn't implemented yet.
+            		if (ImGui::Selectable("Physics: Box"))
+            		{
+            			float dims[3] = { 0.5f, 0.5f, 0.5f }; // half-extents
+            			Engine_AddPhysicsComponent(m_selectedEntity, 0, 1.0f, dims);
+            			ImGui::CloseCurrentPopup();
+            		}
+            		if (ImGui::Selectable("Physics: Sphere"))
+            		{
+            			float dims[3] = { 0.5f, 0.0f, 0.0f }; // radius in .x
+            			Engine_AddPhysicsComponent(m_selectedEntity, 1, 1.0f, dims);
+            			ImGui::CloseCurrentPopup();
+            		}
+            		if (ImGui::Selectable("Physics: Static Plane (floor)"))
+            		{
+            			float dims[3] = { 0.0f, 1.0f, 0.0f }; // plane normal — e.g. a flat floor
+            			Engine_AddPhysicsComponent(m_selectedEntity, 4, 0.0f, dims); // mass 0 = static
+            			ImGui::CloseCurrentPopup();
+            		}
+
+            		ImGui::EndPopup();
+            	}
             }
         }
 

@@ -8,6 +8,7 @@
 #include <Engine/Public/Entities/Shapes/Cube.h>
 #include <Engine/Public/Entities/Shapes/Sphere.h>
 #include <Engine/Public/Common/World.h>
+#include <Engine/Public/Components/Common/PhysicsComponent.h>
 #include <glad/glad.h>
 #include <cstdio>
 #include <unistd.h>
@@ -64,14 +65,38 @@ std::unique_ptr<btBroadphaseInterface> g_Broadphase;
 std::unique_ptr<btSequentialImpulseConstraintSolver> g_Solver;
 std::unique_ptr<btDiscreteDynamicsWorld> g_PhysicsWorld;
 
-// --- TEMPORARY: step-2 wiring proof only ---
-// A single hardcoded falling box with no connection to BaseEntity/PhysicsComponent. Its only
-// job is to prove Engine_StepPhysics is actually being called from the Editor's frame loop
-// with a sane deltaTime, before PhysicsComponent (step 3) wires up real entities. Delete this
-// block (and its two usages below) once that lands.
-std::unique_ptr<btCollisionShape> g_DebugBoxShape;
-std::unique_ptr<btMotionState> g_DebugBoxMotionState;
-std::unique_ptr<btRigidBody> g_DebugBox;
+// Removes every entity's rigid body from g_PhysicsWorld without touching g_Entities itself.
+// Must run before any g_Entities.clear()/erase() that destroys entities still holding a
+// PhysicsComponent — otherwise btDiscreteDynamicsWorld is left holding pointers into freed
+// btRigidBody objects, which crashes the next stepSimulation rather than at the point of the
+// actual bug. This was a real gap in the step-2 debug-box version: it never had more than one
+// body, so a whole-world reload (Engine_LoadWorld, Engine_Shutdown) never exercised this path.
+void RemoveAllPhysicsBodiesFromWorld()
+{
+    if (!g_PhysicsWorld)
+        return;
+    for (std::unique_ptr<BaseEntity>& entity : g_Entities)
+    {
+        if (PhysicsComponent* physics = entity->GetPhysics())
+            g_PhysicsWorld->removeRigidBody(physics->GetRigidBody());
+    }
+}
+
+// Pushes an entity's current TransformComponent into its physics body, if it has one — used
+// whenever something external (Inspector drag, Engine_AddPhysicsComponent's initial pose)
+// changes the transform out from under Bullet.
+void SyncPhysicsFromEntityTransform(BaseEntity* entity)
+{
+    PhysicsComponent* physics = entity->GetPhysics();
+    if (!physics)
+        return;
+
+    Transform t;
+    t.Position = entity->GetTransform()->GetPosition();
+    t.Rotation = entity->GetTransform()->GetQuaternion();
+    t.Scale = entity->GetTransform()->GetScale();
+    physics->SyncTransformToPhysics(t);
+}
 
 // path may be an absolute filesystem path, or relative to the asset root. Existing callers
 // (Camera/PrimativeShape ctors) always pass assetRoot + "/Engine/..." themselves, so this only
@@ -146,18 +171,16 @@ void Engine_Shutdown()
 
     g_MainShader.reset();
     g_DepthShader.reset();
+
+    // Must happen before g_Entities.clear(): otherwise any entity holding a PhysicsComponent
+    // destroys its btRigidBody while g_PhysicsWorld still has an internal pointer to it.
+    RemoveAllPhysicsBodiesFromWorld();
     g_Entities.clear();
     g_DefaultCamera = nullptr;
     g_WorldName.clear();
 
-    // Physics teardown, in dependency order (world depends on dispatcher+config+broadphase+
-    // solver, so it must go first). The debug box must be removed from the world before the
-    // world itself is destroyed, same as the smoke test's cleanup order.
-    if (g_PhysicsWorld && g_DebugBox)
-        g_PhysicsWorld->removeRigidBody(g_DebugBox.get());
-    g_DebugBox.reset();
-    g_DebugBoxMotionState.reset();
-    g_DebugBoxShape.reset();
+    // Physics teardown, in dependency order — world depends on dispatcher+config+broadphase+
+    // solver, so it must go first.
     g_PhysicsWorld.reset();
     g_Solver.reset();
     g_Broadphase.reset();
@@ -245,6 +268,13 @@ bool Engine_DeleteEntity(int index)
         return false;
     if (g_Entities[index].get() == g_DefaultCamera)
         g_DefaultCamera = nullptr;
+    // Same reasoning as RemoveAllPhysicsBodiesFromWorld: the entity (and its PhysicsComponent)
+    // is about to be destroyed by the erase below, so its body must leave g_PhysicsWorld first.
+    if (PhysicsComponent* physics = g_Entities[index]->GetPhysics())
+    {
+        if (g_PhysicsWorld)
+            g_PhysicsWorld->removeRigidBody(physics->GetRigidBody());
+    }
     g_Entities.erase(g_Entities.begin() + index);
     return true;
 }
@@ -265,6 +295,7 @@ bool Engine_SetEntityPosition(int index, const float* xyz)
     if (!entity || !xyz)
         return false;
     entity->GetTransform()->SetPosition(glm::vec3(xyz[0], xyz[1], xyz[2]));
+    SyncPhysicsFromEntityTransform(entity);
     return true;
 }
 
@@ -284,6 +315,7 @@ bool Engine_SetEntityRotation(int index, const float* xyz)
     if (!entity || !xyz)
         return false;
     entity->GetTransform()->SetRotation(glm::vec3(xyz[0], xyz[1], xyz[2]));
+    SyncPhysicsFromEntityTransform(entity);
     return true;
 }
 
@@ -375,11 +407,13 @@ bool Engine_LoadWorld(const char* path)
         // Matches the "state left cleared either way" contract documented in Engine.h —
         // a half-loaded world is worse than an empty one, since the caller has no way to
         // tell which entities came from the old world vs. a partially-parsed new one.
+        RemoveAllPhysicsBodiesFromWorld(); // must run before clear() — see its own comment
         g_Entities.clear();
         g_DefaultCamera = nullptr;
         return false;
     }
 
+    RemoveAllPhysicsBodiesFromWorld();
     g_Entities.clear();
     g_DefaultCamera = nullptr;
 
@@ -450,24 +484,6 @@ void Engine_InitPhysics(const float* gravity)
     g_PhysicsWorld->setGravity(btVector3(g.x, g.y, g.z));
 
     fprintf(stderr, "[Engine] Physics world initialized (gravity = %.2f, %.2f, %.2f)\n", g.x, g.y, g.z);
-
-    // --- TEMPORARY: step-2 wiring proof only, see g_DebugBox* declarations above ---
-    g_DebugBoxShape = std::make_unique<btBoxShape>(btVector3(0.5f, 0.5f, 0.5f));
-
-    btTransform startTransform;
-    startTransform.setIdentity();
-    startTransform.setOrigin(btVector3(0.0f, 10.0f, 0.0f));
-    g_DebugBoxMotionState = std::make_unique<btDefaultMotionState>(startTransform);
-
-    btVector3 inertia(0.0f, 0.0f, 0.0f);
-    g_DebugBoxShape->calculateLocalInertia(1.0f, inertia);
-
-    btRigidBody::btRigidBodyConstructionInfo info(1.0f, g_DebugBoxMotionState.get(), g_DebugBoxShape.get(), inertia);
-    g_DebugBox = std::make_unique<btRigidBody>(info);
-    g_PhysicsWorld->addRigidBody(g_DebugBox.get());
-
-    fprintf(stderr, "[Engine] Debug box added at y=10 — should fall under gravity with no floor to stop it "
-                    "(this is a step-2 wiring check, remove once PhysicsComponent lands)\n");
 }
 
 void Engine_StepPhysics(float deltaTime)
@@ -477,21 +493,75 @@ void Engine_StepPhysics(float deltaTime)
 
     g_PhysicsWorld->stepSimulation(deltaTime, 10);
 
-    // --- TEMPORARY: step-2 wiring proof only ---
-    // Logs every ~60 frames so you can confirm in stderr that this is actually being driven
-    // by the Editor's frame loop with a sane per-frame deltaTime, and that Bullet is actually
-    // integrating (the y value should just keep decreasing — there's no floor in this test).
-    if (g_DebugBox)
+    for (std::unique_ptr<BaseEntity>& entity : g_Entities)
     {
-        static int frameCount = 0;
-        if (++frameCount % 60 == 0)
-        {
-            btTransform t;
-            g_DebugBox->getMotionState()->getWorldTransform(t);
-            fprintf(stderr, "[Engine] physics wiring check: debug box y = %.3f (dt = %.4f)\n",
-                    t.getOrigin().getY(), deltaTime);
-        }
+        if (PhysicsComponent* physics = entity->GetPhysics())
+            physics->SyncPhysicsToTransform(entity->GetTransform());
     }
+}
+
+bool Engine_AddPhysicsComponent(int index, int shapeType, float mass, const float* dims)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    if (!entity || !dims || !g_PhysicsWorld)
+        return false;
+
+    // Replacing an existing component: pull its body out of the world first. Just letting
+    // SetPhysics() overwrite the unique_ptr would destroy the old btRigidBody while it's
+    // still registered in g_PhysicsWorld — same class of dangling-pointer bug fixed above.
+    if (PhysicsComponent* existing = entity->GetPhysics())
+        g_PhysicsWorld->removeRigidBody(existing->GetRigidBody());
+
+    auto physics = std::make_unique<PhysicsComponent>();
+    physics->Init(static_cast<PhysicsComponent::ShapeType>(shapeType), mass,
+                  glm::vec3(dims[0], dims[1], dims[2]));
+
+    g_PhysicsWorld->addRigidBody(physics->GetRigidBody());
+    entity->SetPhysics(std::move(physics));
+
+    // Init() starts the body at the identity transform — snap it to where the entity
+    // actually is right now instead of teleporting the visual mesh to match it next frame.
+    SyncPhysicsFromEntityTransform(entity);
+    return true;
+}
+
+bool Engine_RemovePhysicsComponent(int index)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    if (!entity)
+        return false;
+
+    if (PhysicsComponent* existing = entity->GetPhysics())
+    {
+        if (g_PhysicsWorld)
+            g_PhysicsWorld->removeRigidBody(existing->GetRigidBody());
+        entity->ClearPhysics();
+    }
+    return true;
+}
+
+bool Engine_EntityHasPhysics(int index)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    return entity && entity->GetPhysics() != nullptr;
+}
+
+bool Engine_GetBodyMass(int index, float* outMass)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    if (!entity || !entity->GetPhysics() || !outMass)
+        return false;
+    *outMass = entity->GetPhysics()->GetMass();
+    return true;
+}
+
+bool Engine_SetBodyMass(int index, float mass)
+{
+    BaseEntity* entity = GetEntitySafe(index);
+    if (!entity || !entity->GetPhysics())
+        return false;
+    entity->GetPhysics()->SetMass(mass);
+    return true;
 }
 
 void Engine_RenderFrame(int fb, int width, int height, const float* viewProj)

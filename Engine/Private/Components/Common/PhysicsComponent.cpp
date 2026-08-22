@@ -1,4 +1,4 @@
-#include <Engine/Public/Components/Common/PhysicsComponent.h>
+#include "Engine/Public/Components/Common/PhysicsComponent.h"
 
 namespace
 {
@@ -79,4 +79,30 @@ void PhysicsComponent::SyncPhysicsToTransform(TransformComponent* transform)
 
     transform->SetPosition(glm::vec3(origin.getX(), origin.getY(), origin.getZ()));
     transform->SetQuaternion(glm::quat(rot.getW(), rot.getX(), rot.getY(), rot.getZ()));
+}
+
+float PhysicsComponent::GetMass() const
+{
+    if (!m_Body)
+        return 0.0f;
+    // Bullet only stores inverse mass internally; 0 inverse mass IS the "static body" case,
+    // so this correctly returns 0 for statics rather than dividing by zero.
+    float invMass = m_Body->getInvMass();
+    return invMass > 0.0f ? 1.0f / invMass : 0.0f;
+}
+
+void PhysicsComponent::SetMass(float mass)
+{
+    if (!m_Body || !m_Shape)
+        return;
+
+    btVector3 inertia(0.0f, 0.0f, 0.0f);
+    if (mass > 0.0f)
+        m_Shape->calculateLocalInertia(mass, inertia);
+
+    m_Body->setMassProps(mass, inertia);
+    m_Body->updateInertiaTensor();
+    // Otherwise a body that was resting (and thus asleep) silently ignores the new mass
+    // until something else disturbs it — same class of bug as the transform-drag case.
+    m_Body->activate(true);
 }
