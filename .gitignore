@@ -1,0 +1,10 @@
+bin/
+int/
+
+Makefile
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.ninja
+
+build/

@@ -1,0 +1,30 @@
+{
+    "folders": [
+        {
+            "name": "Zeyrixon",
+            "path": "."
+        },
+        {
+            "name": "Zeyrixon Engine",
+            "path": "Zeyrixon"
+        },
+        {
+            "name": "Zeyrixon Editor",
+            "path": "ZeyrixonEditor"
+        },
+        {
+            "name": "Test Project",
+            "path": "TestProj"
+        }
+    ],
+    "settings": {
+        "typescript.tsc.autoDetect": "off"
+    },
+    "extensions": {
+        "recommendations": [
+            "ms-vscode.cpptools-extension-pack",
+            "eamodio.gitlens",
+            "ms-vscode.makefile-tools"
+        ]
+    }
+}
