@@ -1,8 +1,25 @@
-#include <cstdio>
+#include <Zeyrixon.h>
 
-int main()
+namespace
 {
-    fprintf(stdout, "Hello World!");
+    /* This is for editor applications */
+    class ZeyrixonEditor : public Zeyrixon::Application
+    {
+    public:
+        ZeyrixonEditor()
+        {
+        }
 
-    return 0;
+        ~ZeyrixonEditor()
+        {
+
+        }
+    };
+}
+
+/* This just makes it so that the Editor app exists :) */
+Zeyrixon::Application* Zeyrixon::CreateApplication()
+{
+    Z_CORE_TRACE("Editor");
+    return new ZeyrixonEditor();
 }

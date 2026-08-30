@@ -2,6 +2,7 @@
 
 namespace
 {
+    /* It inherits from the Application so that it can have the same functions and yah */
     class TestProject : public Zeyrixon::Application
     {
     public:
@@ -16,6 +17,7 @@ namespace
     };
 }
 
+/* This just makes it so that your app exists :) */
 Zeyrixon::Application* Zeyrixon::CreateApplication()
 {
     return new TestProject();

@@ -10,6 +10,7 @@ namespace Zeyrixon
         Application();
         virtual ~Application();
 
+        /* This is meant to make the app go vroom vroom :) */
         void Run();
     private:
         bool m_Running = true;
