@@ -61,15 +61,15 @@ project("Zeyrixon")
 	})
 
 	filter("configurations:Debug")
-		defines("HZ_DEBUG")
+		defines("Z_DEBUG")
 		symbols("On")
 
 	filter("configurations:Release")
-		defines("HZ_RELEASE")
+		defines("Z_RELEASE")
 		optimize("On")
 
 	filter("configurations:Dist")
-		defines("HZ_DIST")
+		defines("Z_DIST")
 		optimize("On")
 
 	filter({ "system:windows", "configurations:Debug" })
@@ -118,15 +118,15 @@ project("TestProj")
 	})
 
 	filter("configurations:Debug")
-		defines("HZ_DEBUG")
+		defines("Z_DEBUG")
 		symbols("On")
 
 	filter("configurations:Release")
-		defines("HZ_RELEASE")
+		defines("Z_RELEASE")
 		optimize("On")
 
 	filter("configurations:Dist")
-		defines("HZ_DIST")
+		defines("Z_DIST")
 		optimize("On")
 
 	filter({ "system:windows", "configurations:Debug" })
@@ -176,15 +176,15 @@ project("ZeyrixonEditor")
 	})
 
 	filter("configurations:Debug")
-		defines("HZ_DEBUG")
+		defines("Z_DEBUG")
 		symbols("On")
 
 	filter("configurations:Release")
-		defines("HZ_RELEASE")
+		defines("Z_RELEASE")
 		optimize("On")
 
 	filter("configurations:Dist")
-		defines("HZ_DIST")
+		defines("Z_DIST")
 		optimize("On")
 
 	filter({ "system:windows", "configurations:Debug" })
