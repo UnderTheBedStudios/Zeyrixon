@@ -4,6 +4,9 @@ workspace("Zeyrixon")
 
 outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
+package.path = package.path .. ";./?.lua"
+require "export-compile-commands"
+
 -- Include directories relative to root folder (solution directory)
 IncludeDir = {}
 IncludeDir["GLFW"] = "Zeyrixon/vendor/GLFW/include"

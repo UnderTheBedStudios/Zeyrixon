@@ -8,3 +8,8 @@ Makefile
 *.ninja
 
 build/
+
+compile_commands/
+compile_commands.json
+
+.vscode/
