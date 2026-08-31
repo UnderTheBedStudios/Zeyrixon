@@ -30,16 +30,21 @@ CXX_PATH="$(command -v g++ || echo /usr/bin/g++)"
 echo "Writing .vscode/c_cpp_properties.json for each project..."
 for proj in Zeyrixon ZeyrixonEditor TestProj; do
     mkdir -p "$PROJECT_DIR/$proj/.vscode"
-    cat > "$PROJECT_DIR/$proj/.vscode/c_cpp_properties.json" <<EOF
+    cat > "$PROJECT_DIR/$proj/.vscode/c_cpp_properties.json" <<'EOF'
 {
     "configurations": [
         {
             "name": "Linux",
-            "compilerPath": "$CXX_PATH",
+            "includePath": [
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/vendor/spdlog/include",
+                "${workspaceFolder}/vendor/GLFW/include"
+            ],
+            "compilerPath": "/usr/bin/g++",
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "linux-gcc-x64",
-            "compileCommands": "\${workspaceFolder}/compile_commands.json"
+            "compileCommands": "${workspaceFolder}/compile_commands.json"
         }
     ],
     "version": 4

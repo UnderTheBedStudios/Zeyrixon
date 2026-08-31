@@ -36,7 +36,7 @@ namespace Zeyrixon
 //------------------------------ Core Log Macros ------------------------------
 
 /* Logs an error for the Engine */
-#define Z_CORE_ERROR(...)       ::Zeyrixon::Log::GetCoreLogger()->error(__VA__ARGS__)
+#define Z_CORE_ERROR(...)       ::Zeyrixon::Log::GetCoreLogger()->error(__VA_ARGS__)
 /* Logs a warnning for the Engine */
 #define Z_CORE_WARN(...)        ::Zeyrixon::Log::GetCoreLogger()->warn(__VA_ARGS__)
 /* Logs information for the Engine */
@@ -49,7 +49,7 @@ namespace Zeyrixon
 //------------------------------ Client Log Macros ------------------------------
 
 /* Logs an error for the Client */
-#define Z_ERROR(...)     ::Zeyrixon::Log::GetClientLogger()->error(__VA__ARGS__)
+#define Z_ERROR(...)     ::Zeyrixon::Log::GetClientLogger()->error(__VA_ARGS__)
 /* Logs a warnning for the Client */
 #define Z_WARN(...)      ::Zeyrixon::Log::GetClientLogger()->warn(__VA_ARGS__)
 /* Logs information for the Client */

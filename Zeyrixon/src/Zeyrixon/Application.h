@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Zeyrixon/Core.h>
+#include <Zeyrixon/Window.h>
 
 namespace Zeyrixon
 {
@@ -13,6 +14,7 @@ namespace Zeyrixon
         /* This is meant to make the app go vroom vroom :) */
         void Run();
     private:
+        std::unique_ptr<Window> m_Window;
         bool m_Running = true;
     };
 
