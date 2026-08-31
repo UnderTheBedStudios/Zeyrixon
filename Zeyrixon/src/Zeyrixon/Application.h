@@ -13,8 +13,13 @@ namespace Zeyrixon
 
         /* This is meant to make the app go vroom vroom :) */
         void Run();
+
+        //--------------- Window Stuff ---------------
+
+        std::shared_ptr<Window> GetWindow() { return m_Window; }
+        void ChangeWindowImage(const char* path);
     private:
-        std::unique_ptr<Window> m_Window;
+        std::shared_ptr<Window> m_Window;
         bool m_Running = true;
     };
 

@@ -2,6 +2,11 @@ workspace("Zeyrixon")
 	architecture("x64")
 	configurations({ "Debug", "Release", "Dist" })
 
+	local project_root = path.getabsolute(".")
+
+	project_root = project_root:gsub("\\", "/")
+	project_root = project_root:gsub(" ", "\\ ")
+
 outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
 package.path = package.path .. ";./?.lua"
@@ -10,6 +15,7 @@ require "export-compile-commands"
 -- Include directories relative to root folder (solution directory)
 IncludeDir = {}
 IncludeDir["GLFW"] = "Zeyrixon/vendor/GLFW/include"
+IncludeDir["stb"] = "Zeyrixon/vendor/stb"
 
 include("Zeyrixon/vendor/GLFW")
 
@@ -33,11 +39,14 @@ project("Zeyrixon")
 		"Zeyrixon/src",
 		"Zeyrixon/vendor/spdlog/include",
 		"%{IncludeDir.GLFW}",
+		"%{IncludeDir.stb}",
 	})
 
 	links({
 		"GLFW",
 	})
+
+	defines { 'Z_PROJECT_ROOT="' .. project_root .. '/"' }
 
 	filter("system:windows")
 		links({ "opengl32" })

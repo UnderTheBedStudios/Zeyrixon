@@ -21,5 +21,9 @@ namespace
 Zeyrixon::Application* Zeyrixon::CreateApplication()
 {
     Z_CORE_TRACE("Editor");
-    return new ZeyrixonEditor();
+    ZeyrixonEditor* editor = new ZeyrixonEditor();
+
+    editor->ChangeWindowImage("Icon.png");
+
+    return editor;
 }

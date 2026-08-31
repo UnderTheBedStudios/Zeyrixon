@@ -2,8 +2,6 @@
 
 #include <Zeyrixon/Window.h>
 
-#include <GLFW/glfw3.h>
-
 namespace Zeyrixon 
 {
     class WindowsWindow : public Window
@@ -16,6 +14,8 @@ namespace Zeyrixon
 
         inline unsigned int GetWidth() const override { return m_Data.Width; }
         inline unsigned int GetHeight() const override { return m_Data.Height; }
+
+        GLFWwindow* GetWindow() override { return m_Window; }
 
     private:
         virtual void Init(const WindowProps& props);

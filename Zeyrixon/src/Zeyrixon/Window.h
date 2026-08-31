@@ -3,6 +3,7 @@
 #include <pch.h>
 
 #include <Zeyrixon/Core.h>
+#include <GLFW/glfw3.h>
 
 namespace Zeyrixon
 {
@@ -30,6 +31,8 @@ namespace Zeyrixon
 
         virtual unsigned int GetWidth() const = 0;
         virtual unsigned int GetHeight() const = 0;
+
+        virtual GLFWwindow* GetWindow() = 0;
 
         static Window* Create(const WindowProps& props = WindowProps());
     };
