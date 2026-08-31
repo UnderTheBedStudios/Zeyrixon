@@ -4,6 +4,6 @@
 [submodule "Zeyrixon/vendor/GLFW"]
 	path = Zeyrixon/vendor/GLFW
 	url = https://github.com/TheCherno/glfw.git
-[submodule "Zeyrixon/vendor/tracy"]
+[submodule "vendor/tracy"]
 	path = vendor/tracy
 	url = https://github.com/wolfpld/tracy.git
