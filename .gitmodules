@@ -7,3 +7,6 @@
 [submodule "vendor/tracy"]
 	path = vendor/tracy
 	url = https://github.com/wolfpld/tracy.git
+[submodule "Zeyrixon/vendor/stb"]
+	path = Zeyrixon/vendor/stb
+	url = https://github.com/nothings/stb.git
