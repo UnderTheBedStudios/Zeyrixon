@@ -63,4 +63,9 @@ namespace Zeyrixon
 
         stbi_image_free(images[0].pixels);
     }
+
+    void Application::ChangeWindowTitle(const char* name)
+    {
+        glfwSetWindowTitle(GetWindow()->GetWindow(), name);
+    }
 }

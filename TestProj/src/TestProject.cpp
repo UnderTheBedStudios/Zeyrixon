@@ -22,5 +22,6 @@ Zeyrixon::Application* Zeyrixon::CreateApplication()
 {
     TestProject* project = new TestProject();
     project->ChangeWindowImage("Icon.png");
+    project->ChangeWindowTitle("Test Project");
     return project;
 }

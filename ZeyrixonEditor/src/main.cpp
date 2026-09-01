@@ -24,6 +24,7 @@ Zeyrixon::Application* Zeyrixon::CreateApplication()
     ZeyrixonEditor* editor = new ZeyrixonEditor();
 
     editor->ChangeWindowImage("Icon.png");
+    editor->ChangeWindowTitle("Zeyrixon Editor");
 
     return editor;
 }

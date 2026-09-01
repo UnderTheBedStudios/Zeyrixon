@@ -22,6 +22,8 @@ namespace Zeyrixon
 
         std::shared_ptr<Window> GetWindow() { return m_Window; }
         void ChangeWindowImage(const char* path);
+
+        void ChangeWindowTitle(const char* name);
     private:
         bool OnWindowClose(WindowCloseEvent& e);
 
