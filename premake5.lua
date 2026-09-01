@@ -15,9 +15,11 @@ require "export-compile-commands"
 -- Include directories relative to root folder (solution directory)
 IncludeDir = {}
 IncludeDir["GLFW"] = "Zeyrixon/vendor/GLFW/include"
+IncludeDir["Glad"] = "Zeyrixon/vendor/GLAD/include"
 IncludeDir["stb"] = "Zeyrixon/vendor/stb"
 
 include("Zeyrixon/vendor/GLFW")
+include("Zeyrixon/vendor/GLAD")
 
 project("Zeyrixon")
 	location("Zeyrixon")
@@ -39,22 +41,27 @@ project("Zeyrixon")
 		"Zeyrixon/src",
 		"Zeyrixon/vendor/spdlog/include",
 		"%{IncludeDir.GLFW}",
+		"%{IncludeDir.Glad}",
 		"%{IncludeDir.stb}",
 	})
 
 	links({
 		"GLFW",
+		"Glad",
 	})
 
 	defines { 'Z_PROJECT_ROOT="' .. project_root .. '/"' }
 
 	filter("system:windows")
 		links({ "opengl32" })
+		defines("Z_PLATFORM_WINDOWS")
 
 	filter("system:linux")
 		links({ "GL" })
+		defines("Z_PLATFORM_LINUX")
 
 	filter("system:macosx")
+		defines("Z_PLATFORM_MAC")
 		links({ "OpenGL.framework" })
 
 	filter({})
@@ -64,12 +71,16 @@ project("Zeyrixon")
 		staticruntime("On")
 		systemversion("latest")
 
+	filter({})
+
 	defines({
 		"BUILD_DLL",
+		"GLFW_INCLUDE_NONE"
 	})
 
 	postbuildcommands({
-		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/Sandbox" },
+		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/TestProj" },
+		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/ZeyrixonEditor" },
 	})
 
 	filter("configurations:Debug")
@@ -128,6 +139,7 @@ project("TestProj")
 
 	postbuildcommands({
 		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/TestProj" },
+		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/ZeyrixonEditor" },
 	})
 
 	filter("configurations:Debug")
@@ -185,7 +197,8 @@ project("ZeyrixonEditor")
 	})
 
 	postbuildcommands({
-		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/Sandbox" },
+		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/TestProj" },
+		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/ZeyrixonEditor" },
 	})
 
 	filter("configurations:Debug")

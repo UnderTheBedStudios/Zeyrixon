@@ -3,6 +3,7 @@
 #include <Zeyrixon/Log.h>
 #include <string>
 
+#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -37,7 +38,7 @@ namespace Zeyrixon
     {
         while (m_Running)
         {
-            glClearColor(1, 0, 1, 1);
+            glClearColor(1, 1, 1, 1);
             glClear(GL_COLOR_BUFFER_BIT);
 
             for (Layer* layer : m_LayerStack)
