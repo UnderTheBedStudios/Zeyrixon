@@ -20,5 +20,7 @@ namespace
 /* This just makes it so that your app exists :) */
 Zeyrixon::Application* Zeyrixon::CreateApplication()
 {
-    return new TestProject();
+    TestProject* project = new TestProject();
+    project->ChangeWindowImage("Icon.png");
+    return project;
 }

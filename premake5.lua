@@ -110,6 +110,7 @@ project("TestProj")
 		"TestProj/src",
 		"Zeyrixon/src",
 		"Zeyrixon/vendor/spdlog/include",
+		"%{IncludeDir.GLFW}",
 	})
 
 	links({
