@@ -10,3 +10,7 @@
 [submodule "Zeyrixon/vendor/stb"]
 	path = Zeyrixon/vendor/stb
 	url = https://github.com/nothings/stb.git
+[submodule "ZeyrixonEditor/vendor/imgui"]
+	path = ZeyrixonEditor/vendor/imgui
+	url = https://github.com/UnderTheBedStudios/imgui_premake.git
+	branch = docking
