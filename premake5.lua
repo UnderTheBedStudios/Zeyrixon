@@ -16,10 +16,12 @@ require "export-compile-commands"
 IncludeDir = {}
 IncludeDir["GLFW"] = "Zeyrixon/vendor/GLFW/include"
 IncludeDir["Glad"] = "Zeyrixon/vendor/GLAD/include"
+IncludeDir["ImGui"] = "ZeyrixonEditor/vendor/imgui"
 IncludeDir["stb"] = "Zeyrixon/vendor/stb"
 
 include("Zeyrixon/vendor/GLFW")
 include("Zeyrixon/vendor/GLAD")
+include("ZeyrixonEditor/vendor/imgui")
 
 project("Zeyrixon")
 	location("Zeyrixon")
@@ -42,12 +44,14 @@ project("Zeyrixon")
 		"Zeyrixon/vendor/spdlog/include",
 		"%{IncludeDir.GLFW}",
 		"%{IncludeDir.Glad}",
+		"${IncludeDir.ImGui}",
 		"%{IncludeDir.stb}",
 	})
 
 	links({
 		"GLFW",
 		"Glad",
+		"ImGui"
 	})
 
 	defines { 'Z_PROJECT_ROOT="' .. project_root .. '/"' }
@@ -120,12 +124,14 @@ project("TestProj")
 	includedirs({
 		"TestProj/src",
 		"Zeyrixon/src",
-		"Zeyrixon/vendor/spdlog/include",
 		"%{IncludeDir.GLFW}",
+		"${IncludeDir.ImGui}",
+		"%{IncludeDir.stb}",
 	})
 
 	links({
 		"Zeyrixon",
+		"ImGui"
 	})
 
 	filter("system:windows")
@@ -180,11 +186,15 @@ project("ZeyrixonEditor")
 	includedirs({
 		"ZeyrixonEditor/src",
 		"Zeyrixon/src",
-		"Zeyrixon/vendor/spdlog/include",
+		"${IncludeDir.ImGui}",
+    	"${IncludeDir.GLFW}",
+		"%{IncludeDir.stb}",
 	})
 
 	links({
 		"Zeyrixon",
+		"ImGui",
+		"fmt"
 	})
 
 	filter("system:windows")
@@ -194,6 +204,8 @@ project("ZeyrixonEditor")
 
 	defines({
 		"BUILD_DLL",
+		"GLFW_INCLUDE_NONE",
+		"FMT_HEADER_ONLY"
 	})
 
 	postbuildcommands({

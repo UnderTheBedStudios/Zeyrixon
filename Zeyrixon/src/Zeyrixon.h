@@ -6,6 +6,7 @@
 #include <Zeyrixon/Application.h>
 #include <Zeyrixon/Window.h>
 #include <Platform/Windows/WindowsWindow.h>
+#include <Zeyrixon/Layer.h>
 #include <Zeyrixon/Log.h>
 
 //----- Entry Point -----
