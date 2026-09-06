@@ -14,4 +14,8 @@ compile_commands.json
 
 .vscode/
 
-.d
+*.d
+
+*.ninja
+
+Makefile
