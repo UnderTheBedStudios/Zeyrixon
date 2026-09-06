@@ -2,7 +2,7 @@
 
 #include <pch.h>
 
-#include <Zeyrixon/Core.h>
+#include <Zeyrixon/Core/Core.h>
 #include <Zeyrixon/Events/Event.h>
 
 #include <GLFW/glfw3.h>

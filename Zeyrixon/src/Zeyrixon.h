@@ -1,14 +1,13 @@
 #pragma once
 
-// For use by Zeyrixon applications
-
 #include <cstdio>
-#include <Zeyrixon/Application.h>
-#include <Zeyrixon/Window.h>
+#include <Zeyrixon/Core/Application.h>
+#include <Zeyrixon/Core/Window.h>
 #include <Platform/Windows/WindowsWindow.h>
-#include <Zeyrixon/Layer.h>
-#include <Zeyrixon/Log.h>
+#include <Zeyrixon/Core/Layer.h>
+#include <Zeyrixon/Core/Log.h>
+#include <Zeyrixon/ImGui/ImGuiLayer.h>
 
 //----- Entry Point -----
-#include <Zeyrixon/EntryPoint.h>
+#include <Zeyrixon/Core/EntryPoint.h>
 //-----------------------

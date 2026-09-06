@@ -3,9 +3,7 @@ workspace("Zeyrixon")
 	configurations({ "Debug", "Release", "Dist" })
 
 	local project_root = path.getabsolute(".")
-
 	project_root = project_root:gsub("\\", "/")
-	project_root = project_root:gsub(" ", "\\ ")
 
 outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
@@ -44,7 +42,7 @@ project("Zeyrixon")
 		"Zeyrixon/vendor/spdlog/include",
 		"%{IncludeDir.GLFW}",
 		"%{IncludeDir.Glad}",
-		"${IncludeDir.ImGui}",
+		"%{IncludeDir.ImGui}",
 		"%{IncludeDir.stb}",
 	})
 
@@ -83,7 +81,9 @@ project("Zeyrixon")
 	})
 
 	postbuildcommands({
+		{ "{MKDIR} ../bin/" .. outputdir .. "/TestProj" },
 		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/TestProj" },
+		{ "{MKDIR} ../bin/" .. outputdir .. "/ZeyrixonEditor" },
 		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/ZeyrixonEditor" },
 	})
 
@@ -121,13 +121,15 @@ project("TestProj")
 		"%{prj.name}/src/**.cpp",
 	})
 
-	includedirs({
+	includedirs
+	{
 		"TestProj/src",
 		"Zeyrixon/src",
+		"Zeyrixon/vendor/spdlog/include",
 		"%{IncludeDir.GLFW}",
-		"${IncludeDir.ImGui}",
+		"%{IncludeDir.ImGui}",
 		"%{IncludeDir.stb}",
-	})
+	}
 
 	links({
 		"Zeyrixon",
@@ -183,13 +185,16 @@ project("ZeyrixonEditor")
 		"%{prj.name}/src/**.cpp",
 	})
 
-	includedirs({
-		"ZeyrixonEditor/src",
+	includedirs
+	{
+		"TestProj/src",
 		"Zeyrixon/src",
-		"${IncludeDir.ImGui}",
-    	"${IncludeDir.GLFW}",
+		"ZeyrixonEditor/src",
+		"Zeyrixon/vendor/spdlog/include",
+		"%{IncludeDir.GLFW}",
+		"%{IncludeDir.ImGui}",
 		"%{IncludeDir.stb}",
-	})
+	}
 
 	links({
 		"Zeyrixon",

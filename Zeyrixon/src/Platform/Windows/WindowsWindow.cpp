@@ -1,6 +1,6 @@
 #include <pch.h>
 #include <Platform/Windows/WindowsWindow.h>
-#include <Zeyrixon/Log.h>
+#include <Zeyrixon/Core/Log.h>
 
 #include <Zeyrixon/Events/KeyEvent.h>
 #include <Zeyrixon/Events/MouseEvent.h>

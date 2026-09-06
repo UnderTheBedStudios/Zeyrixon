@@ -27,27 +27,30 @@ done
 
 CXX_PATH="$(command -v g++ || echo /usr/bin/g++)"
 
-echo "Writing .vscode/c_cpp_properties.json for each project..."
-for proj in Zeyrixon ZeyrixonEditor TestProj; do
-    mkdir -p "$PROJECT_DIR/$proj/.vscode"
-    cat > "$PROJECT_DIR/$proj/.vscode/c_cpp_properties.json" <<'EOF'
+echo "Writing root .vscode/c_cpp_properties.json..."
+mkdir -p "$PROJECT_DIR/.vscode"
+cat > "$PROJECT_DIR/.vscode/c_cpp_properties.json" <<'EOF'
 {
     "configurations": [
         {
             "name": "Linux",
             "includePath": [
-                "${workspaceFolder}/src",
-                "${workspaceFolder}/vendor/spdlog/include",
-                "${workspaceFolder}/vendor/GLFW/include"
+                "${workspaceFolder}/Zeyrixon/src",
+                "${workspaceFolder}/Zeyrixon/vendor/spdlog/include",
+                "${workspaceFolder}/Zeyrixon/vendor/GLFW/include",
+                "${workspaceFolder}/Zeyrixon/vendor/GLAD/include",
+                "${workspaceFolder}/Zeyrixon/vendor/stb",
+                "${workspaceFolder}/ZeyrixonEditor/src",
+                "${workspaceFolder}/ZeyrixonEditor/vendor/imgui",
+                "${workspaceFolder}/ZeyrixonEditor/vendor/imgui/backends",
+                "${workspaceFolder}/TestProj/src"
             ],
             "compilerPath": "/usr/bin/g++",
             "cStandard": "c17",
             "cppStandard": "c++17",
-            "intelliSenseMode": "linux-gcc-x64",
-            "compileCommands": "${workspaceFolder}/compile_commands.json"
+            "intelliSenseMode": "linux-gcc-x64"
         }
     ],
     "version": 4
 }
 EOF
-done

@@ -1,5 +1,5 @@
 #include <pch.h>
-#include <Zeyrixon/Log.h>
+#include <Zeyrixon/Core/Log.h>
 
 #include <spdlog/sinks/stdout_color_sinks.h>
 

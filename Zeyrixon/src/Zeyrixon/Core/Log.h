@@ -4,7 +4,7 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/ostr.h>
 
-#include <Zeyrixon/Core.h>
+#include <Zeyrixon/Core/Core.h>
 
 namespace Zeyrixon
 {

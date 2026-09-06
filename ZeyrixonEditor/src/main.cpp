@@ -1,6 +1,7 @@
 #include <Zeyrixon.h>
+#include <ZeyrixonEditor/Core/EditorLayer.h>
 
-namespace
+namespace Editor
 {
     /* This is for editor applications */
     class ZeyrixonEditor : public Zeyrixon::Application
@@ -8,6 +9,7 @@ namespace
     public:
         ZeyrixonEditor()
         {
+            PushLayer(new EditorLayer());
         }
 
         ~ZeyrixonEditor()
@@ -21,7 +23,7 @@ namespace
 Zeyrixon::Application* Zeyrixon::CreateApplication()
 {
     Z_CORE_TRACE("Editor");
-    ZeyrixonEditor* editor = new ZeyrixonEditor();
+    Editor::ZeyrixonEditor* editor = new Editor::ZeyrixonEditor();
 
     editor->ChangeWindowImage("Icon.png");
     editor->ChangeWindowTitle("Zeyrixon Editor");

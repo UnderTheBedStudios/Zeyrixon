@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Zeyrixon/Core.h>
+#include <Zeyrixon/Core/Core.h>
 
 #include <pch.h>
 

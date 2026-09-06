@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Zeyrixon/Window.h>
+#include <Zeyrixon/Core/Window.h>
 
 namespace Zeyrixon 
 {

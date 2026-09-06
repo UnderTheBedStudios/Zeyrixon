@@ -3,18 +3,6 @@
         {
             "name": "Zeyrixon",
             "path": "."
-        },
-        {
-            "name": "Zeyrixon Engine",
-            "path": "Zeyrixon"
-        },
-        {
-            "name": "Zeyrixon Editor",
-            "path": "ZeyrixonEditor"
-        },
-        {
-            "name": "Test Project",
-            "path": "TestProj"
         }
     ],
     "settings": {

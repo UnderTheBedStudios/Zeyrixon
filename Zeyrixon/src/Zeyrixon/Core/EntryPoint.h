@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Zeyrixon/Application.h>
-#include <Zeyrixon/Log.h>
+#include <Zeyrixon/Core/Application.h>
+#include <Zeyrixon/Core/Log.h>
 
 extern Zeyrixon::Application* Zeyrixon::CreateApplication();
 

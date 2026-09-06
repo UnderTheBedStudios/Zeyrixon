@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Zeyrixon/Core.h>
-#include <Zeyrixon/Layer.h>
+#include <Zeyrixon/Core/Core.h>
+#include <Zeyrixon/Core/Layer.h>
 
 #include <vector>
 
@@ -22,6 +22,7 @@ namespace Zeyrixon
         std::vector<Layer*>::iterator end()   { return m_Layers.end(); }
     private:
         std::vector<Layer*> m_Layers;
+        unsigned int m_LayerInsertIndex = 0;
         std::vector<Layer*>::iterator m_LayerInsert;
     };
 }
