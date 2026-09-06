@@ -187,13 +187,13 @@ project("ZeyrixonEditor")
 
 	includedirs
 	{
-		"TestProj/src",
-		"Zeyrixon/src",
 		"ZeyrixonEditor/src",
-		"Zeyrixon/vendor/spdlog/include",
-		"%{IncludeDir.GLFW}",
+		"Zeyrixon/src",
 		"%{IncludeDir.ImGui}",
+		"%{IncludeDir.GLFW}",
+		"%{IncludeDir.Glad}",
 		"%{IncludeDir.stb}",
+		"Zeyrixon/vendor/spdlog/include",
 	}
 
 	links({

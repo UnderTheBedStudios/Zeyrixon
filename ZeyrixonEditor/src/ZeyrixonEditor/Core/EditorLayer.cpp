@@ -1,11 +1,17 @@
 #include <ZeyrixonEditor/Core/EditorLayer.h>
 #include <imgui_internal.h>
 
+#include <glad/glad.h>
+
 namespace Editor
 {
     EditorLayer::EditorLayer()
         : Layer("EditorLayer")
     {
+        Zeyrixon::FramebufferSpecification spec;
+        spec.Width = 1280;
+        spec.Height = 720;
+        m_Framebuffer = std::make_shared<Zeyrixon::OpenGLFramebuffer>(spec);
     }
 
     EditorLayer::~EditorLayer()
@@ -72,7 +78,17 @@ namespace Editor
 
     void EditorLayer::OnAttach() {}
     void EditorLayer::OnDetach() {}
-    void EditorLayer::OnUpdate() {}
+
+    void EditorLayer::OnUpdate()
+    {
+        m_Framebuffer->Bind();
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Rendering goes here later
+
+        m_Framebuffer->Unbind();
+    }
 
     void EditorLayer::OnEvent(Zeyrixon::Event& e)
     {
@@ -116,12 +132,21 @@ namespace Editor
 
     void EditorLayer::DrawViewportPanel()
     {
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         ImGui::Begin("Viewport");
-        ImVec2 avail = ImGui::GetContentRegionAvail();
-        ImVec2 textSize = ImGui::CalcTextSize("Renderer");
-        ImGui::SetCursorPos(ImVec2((avail.x - textSize.x) * 0.5f, (avail.y - textSize.y) * 0.5f));
-        ImGui::TextDisabled("Renderer");
+        
+        ImVec2 viewportPanelSize = ImGui::GetContentRegionAvail();
+        if (m_ViewportSize.x != viewportPanelSize.x || m_ViewportSize.y != viewportPanelSize.y)
+        {
+            m_ViewportSize = viewportPanelSize;
+            m_Framebuffer->Resize((uint32_t)m_ViewportSize.x, (uint32_t)m_ViewportSize.y);
+        }
+
+        uint32_t textureID = m_Framebuffer->GetColorAttachmentRenderID();
+        ImGui::Image((void*)(intptr_t)textureID, m_ViewportSize, ImVec2(0, 1), ImVec2(1, 0));
+
         ImGui::End();
+        ImGui::PopStyleVar();
     }
 
     void EditorLayer::DrawWorldOutlinerPanel()
