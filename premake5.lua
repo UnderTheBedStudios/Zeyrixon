@@ -16,6 +16,7 @@ IncludeDir["GLFW"] = "Zeyrixon/vendor/GLFW/include"
 IncludeDir["Glad"] = "Zeyrixon/vendor/GLAD/include"
 IncludeDir["ImGui"] = "ZeyrixonEditor/vendor/imgui"
 IncludeDir["stb"] = "Zeyrixon/vendor/stb"
+IncludeDir["TinyFileDialogs"] = "ZeyrixonEditor/vendor/tinyfiledialogs"
 
 include("Zeyrixon/vendor/GLFW")
 include("Zeyrixon/vendor/GLAD")
@@ -69,22 +70,16 @@ project("Zeyrixon")
 	filter({})
 
 	filter("system:windows")
-		cppdialect("C++17")
-		staticruntime("On")
-		systemversion("latest")
+    cppdialect("C++17")
+    staticruntime("On")
+    systemversion("latest")
 
 	filter({})
 
 	defines({
 		"BUILD_DLL",
-		"GLFW_INCLUDE_NONE"
-	})
-
-	postbuildcommands({
-		{ "{MKDIR} ../bin/" .. outputdir .. "/TestProj" },
-		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/TestProj" },
-		{ "{MKDIR} ../bin/" .. outputdir .. "/ZeyrixonEditor" },
-		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/ZeyrixonEditor" },
+		"GLFW_INCLUDE_NONE",
+		"FMT_HEADER_ONLY"
 	})
 
 	filter("configurations:Debug")
@@ -141,13 +136,12 @@ project("TestProj")
 		staticruntime("On")
 		systemversion("latest")
 
+	filter({})
+
 	defines({
 		"BUILD_DLL",
-	})
-
-	postbuildcommands({
-		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/TestProj" },
-		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/ZeyrixonEditor" },
+		"GLFW_INCLUDE_NONE",
+		"FMT_HEADER_ONLY"
 	})
 
 	filter("configurations:Debug")
@@ -183,6 +177,8 @@ project("ZeyrixonEditor")
 	files({
 		"%{prj.name}/src/**.h",
 		"%{prj.name}/src/**.cpp",
+		"%{prj.name}/vendor/tinyfiledialogs/tinyfiledialogs.c",
+		"%{prj.name}/vendor/tinyfiledialogs/tinyfiledialogs.h",
 	})
 
 	includedirs
@@ -193,6 +189,7 @@ project("ZeyrixonEditor")
 		"%{IncludeDir.GLFW}",
 		"%{IncludeDir.Glad}",
 		"%{IncludeDir.stb}",
+		"%{IncludeDir.TinyFileDialogs}",
 		"Zeyrixon/vendor/spdlog/include",
 	}
 
@@ -207,16 +204,15 @@ project("ZeyrixonEditor")
 		staticruntime("On")
 		systemversion("latest")
 
+	filter({})
+
 	defines({
 		"BUILD_DLL",
 		"GLFW_INCLUDE_NONE",
 		"FMT_HEADER_ONLY"
 	})
 
-	postbuildcommands({
-		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/TestProj" },
-		{ "{COPY} %{cfg.buildtarget.relpath} ../bin/" .. outputdir .. "/ZeyrixonEditor" },
-	})
+	defines { 'Z_PROJECT_ROOT="' .. project_root .. '/"' }
 
 	filter("configurations:Debug")
 		defines("Z_DEBUG")

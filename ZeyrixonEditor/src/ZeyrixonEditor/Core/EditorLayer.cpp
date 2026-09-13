@@ -1,7 +1,12 @@
 #include <ZeyrixonEditor/Core/EditorLayer.h>
+#include <Zeyrixon/Core/Application.h>
+#include <Zeyrixon/Core/Log.h>
+
 #include <imgui_internal.h>
 
 #include <glad/glad.h>
+
+#include <tinyfiledialogs.h>
 
 namespace Editor
 {
@@ -42,6 +47,12 @@ namespace Editor
 
     void EditorLayer::OnImGuiRender()
     {
+        if (!m_ActiveProject)
+        {
+            DrawProjectLauncher();
+            return;
+        }
+
         static bool dockspaceOpen = true;
 
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -76,6 +87,66 @@ namespace Editor
         DrawAssetsPanel();
     }
 
+    void EditorLayer::DrawProjectLauncher()
+    {
+        const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImVec2 windowSize(420.0f, 160.0f);
+        ImGui::SetNextWindowPos(ImVec2(
+            viewport->WorkPos.x + (viewport->WorkSize.x - windowSize.x) * 0.5f,
+            viewport->WorkPos.y + (viewport->WorkSize.y - windowSize.y) * 0.5f));
+        ImGui::SetNextWindowSize(windowSize);
+
+        ImGui::Begin("Zeyrixon", nullptr,
+            ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove);
+
+        ImGui::TextDisabled("No project loaded.");
+        ImGui::Spacing();
+
+        if (ImGui::Button("New Project", ImVec2(-1, 40)))
+            NewProject();
+
+        ImGui::Spacing();
+
+        if (ImGui::Button("Open Project", ImVec2(-1, 40)))
+            OpenProject();
+
+        ImGui::End();
+    }
+
+    void EditorLayer::NewProject()
+    {
+        const char* parentDir = tinyfd_selectFolderDialog("Choose a location for the new project", nullptr);
+        if (!parentDir)
+            return;
+
+        const char* name = tinyfd_inputBox("New Project", "Project name:", "MyGame");
+        if (!name || name[0] == '\0')
+            return;
+
+        m_ActiveProject = Zeyrixon::Project::New(parentDir, name);
+        if (m_ActiveProject)
+            Zeyrixon::Application::Get().ChangeWindowTitle(("Zeyrixon Editor - " + m_ActiveProject->GetName()).c_str());
+    }
+
+    void EditorLayer::OpenProject()
+    {
+        // Probe which native dialog backend tinyfd will use, without showing a dialog.
+        // "tinyfd_query" as the title makes tinyfd skip rendering anything and just
+        // fill tinyfd_response with the backend name it selected (e.g. "zenity", "kdialog").
+        tinyfd_messageBox("tinyfd_query", "", "info", "info", 1);
+        Z_CORE_INFO("tinyfd selected backend: {0}", tinyfd_response);
+
+        const char* filterPatterns[1] = { "*.zeyrixon" };
+        const char* path = tinyfd_openFileDialog("Open Project", nullptr, 1, filterPatterns, "Zeyrixon Project", 0);
+
+        if (!path)
+            return;
+
+        m_ActiveProject = Zeyrixon::Project::Load(path);
+        if (m_ActiveProject)
+            Zeyrixon::Application::Get().ChangeWindowTitle(("Zeyrixon Editor - " + m_ActiveProject->GetName()).c_str());
+    }
+
     void EditorLayer::OnAttach() {}
     void EditorLayer::OnDetach() {}
 
@@ -102,9 +173,13 @@ namespace Editor
 
         if (ImGui::BeginMenu("File"))
         {
-            ImGui::MenuItem("New Project");
-            ImGui::MenuItem("Open Project");
-            ImGui::MenuItem("Save");
+            if (ImGui::MenuItem("New Project")) NewProject();
+            if (ImGui::MenuItem("Open Project")) OpenProject();
+            if (ImGui::MenuItem("Save", nullptr, false, (bool)m_ActiveProject))
+            {
+                if (m_ActiveProject)
+                    m_ActiveProject->Save();
+            }
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Edit"))

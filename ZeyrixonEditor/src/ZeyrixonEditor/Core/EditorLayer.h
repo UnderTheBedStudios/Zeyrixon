@@ -7,6 +7,8 @@
 #include <Platform/OpenGL/OpenGLFramebuffer.h>
 #include <memory>
 
+#include <Zeyrixon/Core/Project.h>
+
 namespace Editor
 {
     class EditorLayer : public Zeyrixon::Layer
@@ -39,5 +41,11 @@ namespace Editor
 
         bool m_IsPlaying = false;
         bool m_ShowGameView = false;
+
+        void DrawProjectLauncher();
+        void NewProject();
+        void OpenProject();
+
+        std::shared_ptr<Zeyrixon::Project> m_ActiveProject;
     };
 }

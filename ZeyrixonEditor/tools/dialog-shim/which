@@ -1,0 +1,14 @@
+#!/bin/sh
+# Zeyrixon dialog-backend shim.
+# Makes tinyfiledialogs' "is zenity installed?" check report "no" when
+# ZEYRIXON_PREFER_KDIALOG is set, so it falls through to kdialog instead.
+# Never modifies the vendored tinyfiledialogs source.
+
+if [ "$1" = "zenity" ] && [ -n "$ZEYRIXON_PREFER_KDIALOG" ]; then
+    exit 1
+fi
+
+# Delegate to the real "which", skipping our own shim directory so we
+# don't just call ourselves again.
+PATH=$(echo "$PATH" | tr ':' '\n' | grep -vx "$(dirname "$0")" | tr '\n' ':')
+exec which "$@"
