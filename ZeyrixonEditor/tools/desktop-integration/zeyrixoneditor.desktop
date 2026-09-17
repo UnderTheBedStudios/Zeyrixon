@@ -1,0 +1,19 @@
+[Desktop Entry]
+Categories=Development;
+Comment[en_US]=Edit Zeyrixon game projects
+Comment=Edit Zeyrixon game projects
+Exec='/mnt/GAEMS/Visual Studio Code/Zeyrixon/bin/Debug-linux-x86_64/ZeyrixonEditor/ZeyrixonEditor' %f
+GenericName[en_US]=
+GenericName=
+Icon=/mnt/GAEMS/Visual Studio Code/Zeyrixon/Icon.png
+MimeType=application/x-zeyrixon-project;
+Name[en_US]=Zeyrixon Editor
+Name=Zeyrixon Editor
+NoDisplay=false
+Path=
+StartupNotify=true
+Terminal=false
+TerminalOptions=
+Type=Application
+X-KDE-SubstituteUID=false
+X-KDE-Username=

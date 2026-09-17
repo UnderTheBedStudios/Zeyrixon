@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Registers a MIME type for Zeyrixon project manifests (*.zeyrixon) with the
+  freedesktop shared-mime-info database. This is what lets file managers
+  (Nautilus, Dolphin, Thunar, etc.) know the file type exists at all, show an
+  icon for it, and offer "Open With -> Zeyrixon Editor".
+
+  Installed by install-file-association.sh - do not need to edit this by hand.
+-->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+    <mime-type type="application/x-zeyrixon-project">
+        <comment>Zeyrixon Project</comment>
+        <glob pattern="*.zeyrixon"/>
+    </mime-type>
+</mime-info>

@@ -14,7 +14,7 @@ namespace Editor
     class EditorLayer : public Zeyrixon::Layer
     {
     public:
-        EditorLayer();
+        EditorLayer(const std::string& startupProjectPath = std::string());
         ~EditorLayer();
 
         /* Things that will be used */
@@ -45,7 +45,9 @@ namespace Editor
         void DrawProjectLauncher();
         void NewProject();
         void OpenProject();
+        void LoadProjectFromPath(const std::string& manifestPath);
 
         std::shared_ptr<Zeyrixon::Project> m_ActiveProject;
+        std::string m_StartupProjectPath;
     };
 }

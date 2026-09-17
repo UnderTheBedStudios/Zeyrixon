@@ -10,11 +10,24 @@ namespace Zeyrixon
 {
     class ImGuiLayer;
 
+    struct ApplicationCommandLineArgs
+    {
+        int Count = 0;
+        char** Args = nullptr;
+
+        const char* operator[](int index) const
+        {
+            return Args[index];
+        }
+    };
+
     class Z_API Application
     {
     public:
-        Application();
+        Application(const ApplicationCommandLineArgs& args = ApplicationCommandLineArgs());
         virtual ~Application();
+
+        const ApplicationCommandLineArgs& GetCommandLineArgs() const { return m_CommandLineArgs; }
 
         void Run();
         void OnEvent(Event& e);
@@ -38,9 +51,11 @@ namespace Zeyrixon
         bool m_Running = true;
         LayerStack m_LayerStack;
         ImGuiLayer* m_ImGuiLayer;
+        ApplicationCommandLineArgs m_CommandLineArgs;
 
         static Application* s_Instance;
     };
 
-    Application* CreateApplication();
+    // Implemented per-application (e.g. in ZeyrixonEditor/src/main.cpp)
+    Application* CreateApplication(ApplicationCommandLineArgs args);
 }

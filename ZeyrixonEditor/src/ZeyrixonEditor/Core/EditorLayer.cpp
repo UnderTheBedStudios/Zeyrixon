@@ -10,8 +10,8 @@
 
 namespace Editor
 {
-    EditorLayer::EditorLayer()
-        : Layer("EditorLayer")
+    EditorLayer::EditorLayer(const std::string& startupProjectPath)
+        : Layer("EditorLayer"), m_StartupProjectPath(startupProjectPath)
     {
         Zeyrixon::FramebufferSpecification spec;
         spec.Width = 1280;
@@ -142,12 +142,28 @@ namespace Editor
         if (!path)
             return;
 
-        m_ActiveProject = Zeyrixon::Project::Load(path);
-        if (m_ActiveProject)
-            Zeyrixon::Application::Get().ChangeWindowTitle(("Zeyrixon Editor - " + m_ActiveProject->GetName()).c_str());
+        LoadProjectFromPath(path);
     }
 
-    void EditorLayer::OnAttach() {}
+    void EditorLayer::LoadProjectFromPath(const std::string& manifestPath)
+    {
+        m_ActiveProject = Zeyrixon::Project::Load(manifestPath);
+        if (m_ActiveProject)
+            Zeyrixon::Application::Get().ChangeWindowTitle(("Zeyrixon Editor - " + m_ActiveProject->GetName()).c_str());
+        else
+            Z_CORE_ERROR("Failed to open project from: {0}", manifestPath);
+    }
+
+    void EditorLayer::OnAttach()
+    {
+        // Launched via "Open With" / double-click on a .zeyrixon file - the OS
+        // hands us the file path as argv[1], which main.cpp forwards down to here.
+        // The GL context and window already exist by this point (Application's
+        // constructor runs before PushLayer/OnAttach), so it's safe to load here.
+        if (!m_StartupProjectPath.empty())
+            LoadProjectFromPath(m_StartupProjectPath);
+    }
+
     void EditorLayer::OnDetach() {}
 
     void EditorLayer::OnUpdate()

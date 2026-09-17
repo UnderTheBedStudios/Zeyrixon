@@ -16,7 +16,8 @@ namespace Zeyrixon
 
     Application* Application::s_Instance = nullptr;
 
-    Application::Application()
+    Application::Application(const ApplicationCommandLineArgs& args)
+        : m_CommandLineArgs(args)
     {
         s_Instance = this;
 

@@ -3,7 +3,7 @@
 #include <Zeyrixon/Core/Application.h>
 #include <Zeyrixon/Core/Log.h>
 
-extern Zeyrixon::Application* Zeyrixon::CreateApplication();
+extern Zeyrixon::Application* Zeyrixon::CreateApplication(Zeyrixon::ApplicationCommandLineArgs args);
 
 int main(int argc, char** argv)
 {
@@ -11,7 +11,7 @@ int main(int argc, char** argv)
 
     Z_CORE_WARN("Initialized Log!");
 
-    auto app = Zeyrixon::CreateApplication();
+    auto app = Zeyrixon::CreateApplication({ argc, argv });
     app->Run();
     delete app;
 

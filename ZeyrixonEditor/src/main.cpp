@@ -20,9 +20,24 @@ namespace Editor
     class ZeyrixonEditor : public Zeyrixon::Application
     {
     public:
-        ZeyrixonEditor()
+        ZeyrixonEditor(const Zeyrixon::ApplicationCommandLineArgs& args)
+            : Zeyrixon::Application(args)
         {
-            PushLayer(new EditorLayer());
+            // Set the defaults first: PushLayer() below runs EditorLayer::OnAttach()
+            // immediately (see Application::PushLayer), which will load a startup
+            // project and retitle the window - if we set the title after PushLayer
+            // instead, we'd clobber that with the generic one.
+            ChangeWindowImage("Icon.png");
+            ChangeWindowTitle("Zeyrixon Editor");
+
+            // argv[0] is the executable path; argv[1], if present, is the file the
+            // OS asked us to open (e.g. double-clicking a .zeyrixon file, or a
+            // "kdialog"/"xdg-open" style launch that forwards a path as %f).
+            std::string startupProjectPath;
+            if (args.Count > 1)
+                startupProjectPath = args[1];
+
+            PushLayer(new EditorLayer(startupProjectPath));
         }
 
         ~ZeyrixonEditor()
@@ -33,17 +48,14 @@ namespace Editor
 }
 
 /* This just makes it so that the Editor app exists :) */
-Zeyrixon::Application* Zeyrixon::CreateApplication()
+Zeyrixon::Application* Zeyrixon::CreateApplication(Zeyrixon::ApplicationCommandLineArgs args)
 {
 #ifdef __linux__
     setenv("ZEYRIXON_PREFER_KDIALOG", "1", 1);
     PrependDialogShimToPath();
 #endif
     Z_CORE_TRACE("Editor");
-    Editor::ZeyrixonEditor* editor = new Editor::ZeyrixonEditor();
-
-    editor->ChangeWindowImage("Icon.png");
-    editor->ChangeWindowTitle("Zeyrixon Editor");
+    Editor::ZeyrixonEditor* editor = new Editor::ZeyrixonEditor(args);
 
     return editor;
 }
