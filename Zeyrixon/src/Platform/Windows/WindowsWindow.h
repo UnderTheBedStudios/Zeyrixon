@@ -20,7 +20,7 @@ namespace Zeyrixon
         void SetVSync(bool enabled);
         bool IsVSync() const;
 
-        GLFWwindow* GetWindow() override { return m_Window; }
+        inline virtual void* GetNativeWindow() const { return m_Window; }
 
     private:
         virtual void Init(const WindowProps& props);

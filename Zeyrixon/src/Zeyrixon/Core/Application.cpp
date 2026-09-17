@@ -2,6 +2,8 @@
 #include <Zeyrixon/Core/Application.h>
 #include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/ImGui/ImGuiLayer.h>
+#include <Zeyrixon/Core/Input.h>
+
 #include <string>
 
 #include <glad/glad.h>
@@ -91,7 +93,7 @@ namespace Zeyrixon
         images[0].pixels = stbi_load(full_path.c_str(), &images[0].width, &images[0].height, 0, 4);
 
         if (images[0].pixels)
-            glfwSetWindowIcon(GetWindow()->GetWindow(), 1, images);
+            glfwSetWindowIcon(static_cast<GLFWwindow*>(GetWindow()->GetNativeWindow()), 1, images);
         else
             Z_CORE_CRITICAL("Failed to load image for window Image at: {0}", full_path.c_str());
 
@@ -100,6 +102,6 @@ namespace Zeyrixon
 
     void Application::ChangeWindowTitle(const char* name)
     {
-        glfwSetWindowTitle(GetWindow()->GetWindow(), name);
+        glfwSetWindowTitle(static_cast<GLFWwindow*>(GetWindow()->GetNativeWindow()), name);
     }
 }

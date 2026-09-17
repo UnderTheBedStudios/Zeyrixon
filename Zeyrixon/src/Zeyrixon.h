@@ -8,6 +8,7 @@
 #include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/ImGui/ImGuiLayer.h>
 #include <Zeyrixon/Core/Project.h>
+#include <Zeyrixon/Core/Input.h>
 
 //----- Entry Point -----
 #include <Zeyrixon/Core/EntryPoint.h>
