@@ -18,7 +18,7 @@ namespace
 }
 
 /* This just makes it so that your app exists :) */
-Zeyrixon::Application* Zeyrixon::CreateApplication()
+Zeyrixon::Application* Zeyrixon::CreateApplication(Zeyrixon::ApplicationCommandLineArgs args)
 {
     TestProject* project = new TestProject();
     project->ChangeWindowImage("Icon.png");
