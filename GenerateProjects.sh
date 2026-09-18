@@ -13,7 +13,7 @@ if [ -f "$PREMAKE_BIN" ] && [ ! -x "$PREMAKE_BIN" ]; then
 fi
 
 echo "Generating project build files..."
-"$PREMAKE_BIN" gmake2
+"$PREMAKE_BIN" gmake
 "$PREMAKE_BIN" ninja
 "$PREMAKE_BIN" export-compile-commands
 
