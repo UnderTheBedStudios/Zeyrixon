@@ -38,6 +38,8 @@ namespace Editor
                 startupProjectPath = args[1];
 
             PushLayer(new EditorLayer(startupProjectPath));
+
+
         }
 
         ~ZeyrixonEditor()
@@ -54,7 +56,7 @@ Zeyrixon::Application* Zeyrixon::CreateApplication(Zeyrixon::ApplicationCommandL
     setenv("ZEYRIXON_PREFER_KDIALOG", "1", 1);
     PrependDialogShimToPath();
 #endif
-    Z_CORE_TRACE("Editor");
+    Z_EDITOR_TRACE("Editor");
     Editor::ZeyrixonEditor* editor = new Editor::ZeyrixonEditor(args);
 
     return editor;

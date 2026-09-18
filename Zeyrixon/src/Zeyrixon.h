@@ -1,14 +1,14 @@
 #pragma once
 
-#include <cstdio>
 #include <Zeyrixon/Core/Application.h>
-#include <Zeyrixon/Core/Window.h>
-#include <Platform/Windows/WindowsWindow.h>
 #include <Zeyrixon/Core/Layer.h>
 #include <Zeyrixon/Core/Log.h>
-#include <Zeyrixon/ImGui/ImGuiLayer.h>
-#include <Zeyrixon/Core/Project.h>
+
 #include <Zeyrixon/Core/Input.h>
+#include <Zeyrixon/Core/KeyCodes.h>
+#include <Zeyrixon/Core/MouseButtonCodes.h>
+
+#include <Zeyrixon/ImGui/ImGuiLayer.h>
 
 //----- Entry Point -----
 #include <Zeyrixon/Core/EntryPoint.h>

@@ -134,7 +134,7 @@ namespace Editor
         // "tinyfd_query" as the title makes tinyfd skip rendering anything and just
         // fill tinyfd_response with the backend name it selected (e.g. "zenity", "kdialog").
         tinyfd_messageBox("tinyfd_query", "", "info", "info", 1);
-        Z_CORE_INFO("tinyfd selected backend: {0}", tinyfd_response);
+        Z_EDITOR_INFO("tinyfd selected backend: {0}", tinyfd_response);
 
         const char* filterPatterns[1] = { "*.zeyrixon" };
         const char* path = tinyfd_openFileDialog("Open Project", nullptr, 1, filterPatterns, "Zeyrixon Project", 0);
@@ -151,7 +151,7 @@ namespace Editor
         if (m_ActiveProject)
             Zeyrixon::Application::Get().ChangeWindowTitle(("Zeyrixon Editor - " + m_ActiveProject->GetName()).c_str());
         else
-            Z_CORE_ERROR("Failed to open project from: {0}", manifestPath);
+            Z_EDITOR_ERROR("Failed to open project from: {0}", manifestPath);
     }
 
     void EditorLayer::OnAttach()

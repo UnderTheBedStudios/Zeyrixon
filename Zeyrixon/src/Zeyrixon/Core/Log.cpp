@@ -9,6 +9,7 @@ namespace Zeyrixon
 
     std::shared_ptr<spdlog::logger> Log::m_ClientLogger;
     std::shared_ptr<spdlog::logger> Log::m_CoreLogger;
+    std::shared_ptr<spdlog::logger> Log::m_EditorLogger;
 
     void Log::Init()
     {
@@ -19,5 +20,8 @@ namespace Zeyrixon
 
         m_ClientLogger = spdlog::stdout_color_mt("GAME");
         m_ClientLogger->set_level(spdlog::level::trace);
+
+        m_EditorLogger = spdlog::stdout_color_mt("EDITOR");
+        m_EditorLogger->set_level(spdlog::level::trace);
     }
 }
