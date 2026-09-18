@@ -11,3 +11,6 @@
 	path = ZeyrixonEditor/vendor/imgui
 	url = https://github.com/UnderTheBedStudios/imgui_premake.git
 	branch = docking
+[submodule "Zeyrixon/vendor/GLFW"]
+	path = Zeyrixon/vendor/GLFW
+	url = https://github.com/UnderTheBedStudios/GLFW_premake.git
