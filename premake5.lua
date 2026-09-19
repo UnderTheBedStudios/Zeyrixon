@@ -17,10 +17,11 @@ IncludeDir["Glad"] = "Zeyrixon/vendor/GLAD/include"
 IncludeDir["ImGui"] = "ZeyrixonEditor/vendor/imgui"
 IncludeDir["stb"] = "Zeyrixon/vendor/stb"
 IncludeDir["TinyFileDialogs"] = "ZeyrixonEditor/vendor/tinyfiledialogs"
+IncludeDir["glm"] = "Zeyrixon/vendor/glm"
 
-include("Zeyrixon/vendor/GLFW")
-include("Zeyrixon/vendor/GLAD")
-include("ZeyrixonEditor/vendor/imgui")
+include "Zeyrixon/vendor/GLFW"
+include "Zeyrixon/vendor/GLAD"
+include "ZeyrixonEditor/vendor/imgui"
 
 project("Zeyrixon")
 	location("Zeyrixon")
@@ -36,6 +37,8 @@ project("Zeyrixon")
 	files({
 		"%{prj.name}/src/**.h",
 		"%{prj.name}/src/**.cpp",
+		"%{prj.name}/vendor/glm/glm/**.hpp",
+		"%{prj.name}/vendor/glm/glm/**.inl"
 	})
 
 	includedirs({
@@ -45,6 +48,7 @@ project("Zeyrixon")
 		"%{IncludeDir.Glad}",
 		"%{IncludeDir.ImGui}",
 		"%{IncludeDir.stb}",
+		"%{IncludeDir.glm}",
 	})
 
 	links({
@@ -124,6 +128,7 @@ project("TestProj")
 		"%{IncludeDir.GLFW}",
 		"%{IncludeDir.ImGui}",
 		"%{IncludeDir.stb}",
+		"%{IncludeDir.glm}",
 	}
 
 	links({
@@ -191,6 +196,7 @@ project("ZeyrixonEditor")
 		"%{IncludeDir.stb}",
 		"%{IncludeDir.TinyFileDialogs}",
 		"Zeyrixon/vendor/spdlog/include",
+		"%{IncludeDir.glm}",
 	}
 
 	links({
