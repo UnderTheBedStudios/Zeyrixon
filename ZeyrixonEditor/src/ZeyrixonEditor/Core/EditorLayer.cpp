@@ -8,6 +8,10 @@
 
 #include <tinyfiledialogs.h>
 
+#include <filesystem>
+
+namespace fs = std::filesystem;
+
 namespace Editor
 {
     EditorLayer::EditorLayer(const std::string& startupProjectPath)

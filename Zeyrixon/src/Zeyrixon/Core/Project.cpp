@@ -17,7 +17,8 @@ namespace Zeyrixon
 
         fs::create_directories(project->m_ProjectDirectory);
         fs::create_directories(fs::path(project->m_ProjectDirectory) / project->m_AssetRoot);
-        fs::create_directories(fs::path(project->m_ProjectDirectory) / "Worlds");
+        fs::create_directories(fs::path(project->m_ProjectDirectory) / project->m_AssetRoot / "Worlds");
+        fs::create_directories(fs::path(project->m_ProjectDirectory) / project->m_CodeRoot);
 
         if (!project->Save())
         {
@@ -74,6 +75,7 @@ namespace Zeyrixon
 
         out << "Name=" << m_Name << "\n";
         out << "AssetRoot=" << m_AssetRoot << "\n";
+        out << "CodeRoot=" << m_CodeRoot << "\n";
         out << "StartupWorld=" << m_StartupWorld << "\n";
 
         return true;
@@ -82,6 +84,11 @@ namespace Zeyrixon
     std::string Project::GetAssetDirectory() const
     {
         return (fs::path(m_ProjectDirectory) / m_AssetRoot).string();
+    }
+
+    std::string Project::GetCodeDirectory() const
+    {
+        return (fs::path(m_ProjectDirectory) / m_CodeRoot).string();
     }
 
     std::string Project::GetManifestPath() const
