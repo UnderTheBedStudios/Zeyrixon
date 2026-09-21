@@ -19,3 +19,12 @@
 
 /* Just makes bits exist */
 #define BIT(x) (1 << x)
+
+/* This is just because Intellisense is a jerk and doesn't like the Z_PROJECT_ROOT :( */
+#ifdef __INTELLISENSE__
+    #define Z_STR_IMPL(x) #x
+    #define Z_STR(x) Z_STR_IMPL(x)
+    #define Z_ROOT_PATH Z_STR(Z_PROJECT_ROOT)
+#else
+    #define Z_ROOT_PATH Z_PROJECT_ROOT
+#endif

@@ -57,8 +57,6 @@ project("Zeyrixon")
 		"ImGui"
 	})
 
-	defines { 'Z_PROJECT_ROOT="' .. project_root .. '/"' }
-
 	filter("system:windows")
 		links({ "opengl32" })
 		defines("Z_PLATFORM_WINDOWS")
@@ -83,7 +81,8 @@ project("Zeyrixon")
 	defines({
 		"BUILD_DLL",
 		"GLFW_INCLUDE_NONE",
-		"FMT_HEADER_ONLY"
+		"FMT_HEADER_ONLY",
+		'Z_PROJECT_ROOT="' .. project_root .. '/"'
 	})
 
 	filter("configurations:Debug")
@@ -146,7 +145,8 @@ project("TestProj")
 	defines({
 		"BUILD_DLL",
 		"GLFW_INCLUDE_NONE",
-		"FMT_HEADER_ONLY"
+		"FMT_HEADER_ONLY",
+		'Z_PROJECT_ROOT="' .. project_root .. '/"'
 	})
 
 	filter("configurations:Debug")
@@ -215,10 +215,9 @@ project("ZeyrixonEditor")
 	defines({
 		"BUILD_DLL",
 		"GLFW_INCLUDE_NONE",
-		"FMT_HEADER_ONLY"
+		"FMT_HEADER_ONLY",
+		'Z_PROJECT_ROOT="' .. project_root .. '/"'
 	})
-
-	defines { 'Z_PROJECT_ROOT="' .. project_root .. '/"' }
 
 	filter("configurations:Debug")
 		defines("Z_DEBUG")

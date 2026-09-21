@@ -87,7 +87,7 @@ namespace Zeyrixon
     void Application::ChangeWindowImage(const char* path)
     {
         GLFWimage images[1];
-        std::string full_path = Z_PROJECT_ROOT;
+        std::string full_path = Z_ROOT_PATH;
         full_path += path;
 
         images[0].pixels = stbi_load(full_path.c_str(), &images[0].width, &images[0].height, 0, 4);

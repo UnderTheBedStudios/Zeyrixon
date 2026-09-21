@@ -7,7 +7,7 @@
 
 static void PrependDialogShimToPath()
 {
-    std::string shimDir = std::string(Z_PROJECT_ROOT) + "ZeyrixonEditor/tools/dialog-shim";
+    std::string shimDir = std::string(Z_ROOT_PATH) + "ZeyrixonEditor/tools/dialog-shim";
     const char* existingPath = getenv("PATH");
     std::string newPath = shimDir + ":" + (existingPath ? existingPath : "");
     setenv("PATH", newPath.c_str(), 1);

@@ -34,12 +34,14 @@ cat > "$PROJECT_DIR/.vscode/c_cpp_properties.json" <<'EOF'
     "configurations": [
         {
             "name": "Linux",
+            "compileCommands": "${workspaceFolder}/compile_commands/debug.json",
             "includePath": [
                 "${workspaceFolder}/Zeyrixon/src",
                 "${workspaceFolder}/Zeyrixon/vendor/spdlog/include",
                 "${workspaceFolder}/Zeyrixon/vendor/GLFW/include",
                 "${workspaceFolder}/Zeyrixon/vendor/GLAD/include",
                 "${workspaceFolder}/Zeyrixon/vendor/stb",
+                "${workspaceFolder}/Zeyrixon/vendor/glm",
                 "${workspaceFolder}/ZeyrixonEditor/src",
                 "${workspaceFolder}/ZeyrixonEditor/vendor/imgui",
                 "${workspaceFolder}/ZeyrixonEditor/vendor/imgui/backends",
