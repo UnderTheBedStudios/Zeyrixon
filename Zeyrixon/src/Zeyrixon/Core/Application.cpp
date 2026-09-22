@@ -72,6 +72,7 @@ namespace Zeyrixon
     {
         EventDispatcher dispatcher(e);
         dispatcher.Dispatch<WindowCloseEvent>(BIND_EVENT_FN(Application::OnWindowClose));
+        dispatcher.Dispatch<WindowResizeEvent>(BIND_EVENT_FN(Application::OnWindowResize));
 
         for (auto it = m_LayerStack.end(); it != m_LayerStack.begin(); )
         {
@@ -85,6 +86,12 @@ namespace Zeyrixon
     {
         m_Running = false;
         return true;
+    }
+
+    bool Application::OnWindowResize(WindowResizeEvent& e)
+    {
+        OpenGLRender::OnWindowResize(e.GetWidth(), e.GetHeight());
+        return false;
     }
 
     void Application::ChangeWindowImage(const char* path)

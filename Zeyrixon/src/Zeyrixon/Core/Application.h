@@ -46,6 +46,7 @@ namespace Zeyrixon
 
     private:
         bool OnWindowClose(WindowCloseEvent& e);
+        bool OnWindowResize(WindowResizeEvent& e);
 
         std::shared_ptr<Window> m_Window;
         bool m_Running = true;

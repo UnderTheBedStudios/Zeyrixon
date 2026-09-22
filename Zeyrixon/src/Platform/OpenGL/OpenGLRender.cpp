@@ -26,6 +26,11 @@ namespace Zeyrixon
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
 
+    void OpenGLRender::OnWindowResize(uint32_t width, uint32_t height)
+    {
+        glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+    }
+
     void OpenGLRender::DrawIndexed(const std::shared_ptr<OpenGLVertexArray>& vertexArray, uint32_t indexCount)
     {
         vertexArray->Bind();

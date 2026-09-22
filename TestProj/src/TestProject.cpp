@@ -4,6 +4,9 @@
 #include <Platform/OpenGL/OpenGLVertexArray.h>
 #include <Platform/OpenGL/OpenGLBuffer.h>
 #include <Platform/OpenGL/OpenGLShader.h>
+#include <Platform/OpenGL/OpenGLUniformBuffer.h>
+
+#include <glm/gtc/matrix_transform.hpp>
 
 class TestLayer : public Zeyrixon::Layer
 {
@@ -36,9 +39,15 @@ public:
         std::string vertexSrc = R"(
             #version 450 core
             layout(location = 0) in vec3 a_Position;
+
+            layout(std140, binding = 0) uniform CameraData
+            {
+                mat4 u_ViewProjection;
+            };
+            
             void main()
             {
-                gl_Position = vec4(a_Position, 1.0);
+                gl_Position = u_ViewProjection * vec4(a_Position, 1.0);
             }
         )";
 
@@ -52,6 +61,8 @@ public:
         )";
 
         m_Shader = std::make_shared<Zeyrixon::OpenGLShader>("Test", vertexSrc, fragmentSrc);
+
+        m_CameraUniformBuffer = std::make_shared<Zeyrixon::OpenGLUniformBuffer>(sizeof(glm::mat4), 0);
     }
 
     void OnUpdate() override
@@ -62,6 +73,11 @@ public:
         if (Zeyrixon::Input::IsMouseButtonPressed(Z_MOUSE_BUTTON_LEFT))
             Z_INFO("Left Mouse Button was pressed!");
 
+        auto window = Zeyrixon::Application::Get().GetWindow();
+        float aspect = (float)window->GetWidth() / (float)window->GetHeight();
+        glm::mat4 viewProjection = glm::ortho(-aspect, aspect, -1.0f, 1.0f, -1.0f, 1.0f);
+        m_CameraUniformBuffer->SetData(&viewProjection, sizeof(glm::mat4));
+
         m_Shader->Bind();
         Zeyrixon::OpenGLRender::DrawIndexed(m_VertexArray);
     }
@@ -69,6 +85,7 @@ public:
 private:
     std::shared_ptr<Zeyrixon::OpenGLVertexArray> m_VertexArray;
     std::shared_ptr<Zeyrixon::OpenGLShader> m_Shader;
+    std::shared_ptr<Zeyrixon::OpenGLUniformBuffer> m_CameraUniformBuffer;
 };
 
 namespace
