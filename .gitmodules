@@ -17,3 +17,6 @@
 [submodule "Zeyrixon/vendor/glm"]
 	path = Zeyrixon/vendor/glm
 	url = https://github.com/g-truc/glm.git
+[submodule "Zeyrixon/vendor/assimp"]
+	path = Zeyrixon/vendor/assimp
+	url = https://github.com/assimp/assimp.git

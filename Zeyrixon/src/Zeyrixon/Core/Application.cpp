@@ -3,6 +3,7 @@
 #include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/ImGui/ImGuiLayer.h>
 #include <Zeyrixon/Core/Input.h>
+#include <Platform/OpenGL/OpenGLRender.h>
 
 #include <string>
 
@@ -25,6 +26,8 @@ namespace Zeyrixon
 
         m_Window = std::shared_ptr<Window>(Window::Create());
         m_Window->SetEventCallback(BIND_EVENT_FN(Application::OnEvent));
+
+        OpenGLRender::Init();
 
         m_ImGuiLayer = new ImGuiLayer();
         PushOverlay(m_ImGuiLayer);
@@ -50,8 +53,8 @@ namespace Zeyrixon
     {
         while (m_Running)
         {
-            glClearColor(0.19, 0.19, 0.19, 1);
-            glClear(GL_COLOR_BUFFER_BIT);
+            OpenGLRender::SetClearColor(glm::vec4(0.19, 0.19, 0.19, 1));
+            OpenGLRender::Clear();
 
             for (Layer* layer : m_LayerStack)
                 layer->OnUpdate();

@@ -6,8 +6,6 @@
 #include <Zeyrixon/Events/MouseEvent.h>
 #include <Zeyrixon/Events/ApplicationEvent.h>
 
-#include <glad/glad.h>
-
 namespace Zeyrixon
 {
     static bool s_GLFWInitialized = false;
@@ -52,13 +50,9 @@ namespace Zeyrixon
         }
 
         m_Window = glfwCreateWindow((int)props.Width, (int)props.Height, m_Data.Title.c_str(), nullptr, nullptr);
-        glfwMakeContextCurrent(m_Window);
-        int status = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-
-        if (!status)
-            Z_CORE_CRITICAL("Failed to initialize Glad: {0}", status);
-        else
-            Z_CORE_INFO("Glad loaded successfully: {0}", status);
+        
+        m_Context = std::make_unique<OpenGLContext>(m_Window);
+        m_Context->Init();
 
         glfwSetWindowUserPointer(m_Window, &m_Data);
 
@@ -154,7 +148,7 @@ namespace Zeyrixon
     void WindowsWindow::OnUpdate()
     {
         glfwPollEvents();
-        glfwSwapBuffers(m_Window);
+        m_Context->SwapBuffers();
     }
 
     void WindowsWindow::SetVSync(bool enabled)

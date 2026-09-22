@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Zeyrixon/Core/Window.h>
+#include <Platform/OpenGL/OpenGLContext.h>
 
 namespace Zeyrixon 
 {
@@ -27,6 +28,8 @@ namespace Zeyrixon
         virtual void Shutdown();
         
         GLFWwindow* m_Window;
+        std::unique_ptr<OpenGLContext> m_Context;
+        
         struct WindowData
         {
             std::string Title;
