@@ -9,8 +9,35 @@
 #include <tinyfiledialogs.h>
 
 #include <filesystem>
+#include <vector>
+#include <algorithm>
 
 namespace fs = std::filesystem;
+
+namespace
+{
+    // Splits `directory`'s immediate children into sorted dirs/files lists.
+    void ListDirectoryContents(const fs::path& directory,
+        std::vector<fs::directory_entry>& outDirs,
+        std::vector<fs::directory_entry>& outFiles)
+    {
+        std::error_code ec;
+        for (const auto& entry : fs::directory_iterator(directory, fs::directory_options::skip_permission_denied, ec))
+        {
+            if (entry.is_directory())
+                outDirs.push_back(entry);
+            else
+                outFiles.push_back(entry);
+        }
+
+        auto byName = [](const fs::directory_entry& a, const fs::directory_entry& b)
+        {
+            return a.path().filename().string() < b.path().filename().string();
+        };
+        std::sort(outDirs.begin(), outDirs.end(), byName);
+        std::sort(outFiles.begin(), outFiles.end(), byName);
+    }
+}
 
 namespace Editor
 {
@@ -21,6 +48,12 @@ namespace Editor
         spec.Width = 1280;
         spec.Height = 720;
         m_Framebuffer = std::make_shared<Zeyrixon::OpenGLFramebuffer>(spec);
+
+        // Content Browser / Assets panel icons, shipped at the solution root's Icons/ folder.
+        fs::path iconsDir = fs::path(Z_ROOT_PATH) / "Icons";
+        m_FolderClosedIcon = std::make_shared<Zeyrixon::OpenGLTexture2D>((iconsDir / "ClosedFolder.png").string());
+        m_FolderOpenIcon   = std::make_shared<Zeyrixon::OpenGLTexture2D>((iconsDir / "Folder.png").string());
+        m_FileIcon         = std::make_shared<Zeyrixon::OpenGLTexture2D>((iconsDir / "File.png").string());
     }
 
     EditorLayer::~EditorLayer()
@@ -129,7 +162,10 @@ namespace Editor
 
         m_ActiveProject = Zeyrixon::Project::New(parentDir, name);
         if (m_ActiveProject)
+        {
             Zeyrixon::Application::Get().ChangeWindowTitle(("Zeyrixon Editor - " + m_ActiveProject->GetName()).c_str());
+            m_SelectedDirectory.clear();
+        }
     }
 
     void EditorLayer::OpenProject()
@@ -153,7 +189,10 @@ namespace Editor
     {
         m_ActiveProject = Zeyrixon::Project::Load(manifestPath);
         if (m_ActiveProject)
+        {
             Zeyrixon::Application::Get().ChangeWindowTitle(("Zeyrixon Editor - " + m_ActiveProject->GetName()).c_str());
+            m_SelectedDirectory.clear();
+        }
         else
             Z_EDITOR_ERROR("Failed to open project from: {0}", manifestPath);
     }
@@ -262,28 +301,194 @@ namespace Editor
         ImGui::End();
     }
 
+    // Renders `directory`'s children as tree nodes (folders) and leaves (files).
+    // Folders are only expanded, and their own children listed, when the user
+    // opens them - so this stays cheap even for large trees (e.g. Engine).
+    void EditorLayer::DrawDirectoryTree(const fs::path& directory)
+    {
+        std::error_code ec;
+        if (!fs::exists(directory, ec) || !fs::is_directory(directory, ec))
+        {
+            ImGui::TextDisabled("(missing: %s)", directory.string().c_str());
+            return;
+        }
+
+        std::vector<fs::directory_entry> dirs;
+        std::vector<fs::directory_entry> files;
+        ListDirectoryContents(directory, dirs, files);
+
+        for (const auto& entry : dirs)
+            DrawDirectoryNode(entry.path(), entry.path().filename().string());
+
+        for (const auto& entry : files)
+            DrawFileLeaf(entry.path());
+    }
+
+    // One folder row: arrow + icon (open/closed) + label. Clicking the row
+    // (not just the arrow, thanks to SpanAvailWidth) selects it as the
+    // directory the Assets panel shows. `defaultOpen` is only used for the
+    // Content Browser's pseudo-roots (Assets/Your Scripts) so real subfolders
+    // stay collapsed until asked for.
+    void EditorLayer::DrawDirectoryNode(const fs::path& directory, const std::string& label, bool defaultOpen)
+    {
+        ImGui::PushID(directory.string().c_str());
+
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
+        if (defaultOpen)
+            flags |= ImGuiTreeNodeFlags_DefaultOpen;
+        if (m_SelectedDirectory == directory)
+            flags |= ImGuiTreeNodeFlags_Selected;
+
+        bool open = ImGui::TreeNodeEx("##dir", flags);
+        if (ImGui::IsItemClicked())
+            m_SelectedDirectory = directory;
+
+        ImGui::SameLine();
+        const auto& folderIcon = open ? m_FolderOpenIcon : m_FolderClosedIcon;
+        if (folderIcon && folderIcon->IsLoaded())
+            ImGui::Image((void*)(intptr_t)folderIcon->GetRendererID(), ImVec2(16.0f, 16.0f), ImVec2(0, 1), ImVec2(1, 0));
+        ImGui::SameLine();
+        ImGui::TextUnformatted(label.c_str());
+
+        if (open)
+        {
+            DrawDirectoryTree(directory);
+            ImGui::TreePop();
+        }
+
+        ImGui::PopID();
+    }
+
+    // One file row: icon + name, no expand arrow. Mirrors DrawDirectoryNode's
+    // call order (hidden TreeNodeEx first, then icon/text via SameLine) so the
+    // icon reserves the same arrow-slot spacing a folder row gets - otherwise
+    // file icons sit noticeably further left than folder icons at the same depth.
+    void EditorLayer::DrawFileLeaf(const fs::path& file)
+    {
+        ImGui::PushID(file.string().c_str());
+
+        ImGui::TreeNodeEx("##file", ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth);
+
+        ImGui::SameLine();
+        if (m_FileIcon && m_FileIcon->IsLoaded())
+            ImGui::Image((void*)(intptr_t)m_FileIcon->GetRendererID(), ImVec2(16.0f, 16.0f), ImVec2(0, 1), ImVec2(1, 0));
+        ImGui::SameLine();
+        ImGui::TextUnformatted(file.filename().string().c_str());
+
+        ImGui::PopID();
+    }
+
     void EditorLayer::DrawContentBrowserPanel()
     {
         ImGui::Begin("Content Browser");
-        if (ImGui::TreeNodeEx("Content", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            if (ImGui::TreeNodeEx("Your Stuff", ImGuiTreeNodeFlags_DefaultOpen))
-                ImGui::TreePop();
 
-            if (ImGui::TreeNodeEx("Scripts", ImGuiTreeNodeFlags_DefaultOpen))
+        if (m_ActiveProject)
+        {
+            if (ImGui::TreeNodeEx("Content", ImGuiTreeNodeFlags_DefaultOpen))
             {
-                ImGui::Text("Your Code Editor");
+                DrawDirectoryNode(m_ActiveProject->GetAssetDirectory(), "Assets", true);
+                DrawDirectoryNode(m_ActiveProject->GetCodeDirectory(), "Your Scripts", true);
                 ImGui::TreePop();
             }
+        }
+
+        // Engine's own source tree, rooted at the "Zeyrixon" engine module
+        // (not the whole solution, which would also pull in ZeyrixonEditor/vendor/.git).
+        fs::path engineRoot = fs::path(Z_ROOT_PATH) / "Zeyrixon";
+        if (ImGui::TreeNodeEx("Engine", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            DrawDirectoryTree(engineRoot);
             ImGui::TreePop();
         }
+
         ImGui::End();
     }
 
     void EditorLayer::DrawAssetsPanel()
     {
         ImGui::Begin("Assets");
-        ImGui::TextDisabled("Things in currently selected folder");
+
+        if (!m_ActiveProject)
+        {
+            ImGui::TextDisabled("No project loaded.");
+            ImGui::End();
+            return;
+        }
+
+        // Nothing picked in the Content Browser yet (or a project was just
+        // loaded) - default to the project's Assets folder.
+        if (m_SelectedDirectory.empty())
+            m_SelectedDirectory = m_ActiveProject->GetAssetDirectory();
+
+        ImGui::TextDisabled("%s", m_SelectedDirectory.string().c_str());
+        ImGui::Separator();
+
+        std::error_code ec;
+        if (!fs::exists(m_SelectedDirectory, ec) || !fs::is_directory(m_SelectedDirectory, ec))
+        {
+            ImGui::TextDisabled("(folder no longer exists)");
+            ImGui::End();
+            return;
+        }
+
+        std::vector<fs::directory_entry> dirs;
+        std::vector<fs::directory_entry> files;
+        ListDirectoryContents(m_SelectedDirectory, dirs, files);
+
+        const float thumbnailSize = 64.0f;
+        const float cellPadding = 16.0f;
+        const float cellSize = thumbnailSize + cellPadding;
+
+        float panelWidth = ImGui::GetContentRegionAvail().x;
+        int columnCount = (int)(panelWidth / cellSize);
+        if (columnCount < 1)
+            columnCount = 1;
+
+        ImGui::Columns(columnCount, nullptr, false);
+
+        // One grid cell: icon button on top, name wrapped/centered underneath.
+        auto drawCell = [&](const fs::path& path, bool isDir)
+        {
+            ImGui::PushID(path.string().c_str());
+
+            const auto& icon = isDir ? m_FolderClosedIcon : m_FileIcon;
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1, 1, 1, 0.08f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1, 1, 1, 0.15f));
+
+            if (icon && icon->IsLoaded())
+                ImGui::ImageButton("##thumb", (void*)(intptr_t)icon->GetRendererID(), ImVec2(thumbnailSize, thumbnailSize), ImVec2(0, 1), ImVec2(1, 0));
+            else
+                ImGui::Button("##thumb", ImVec2(thumbnailSize, thumbnailSize));
+
+            ImGui::PopStyleColor(3);
+
+            // Double-click a folder to navigate into it.
+            if (isDir && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                m_SelectedDirectory = path;
+
+            std::string name = path.filename().string();
+            float startX = ImGui::GetCursorPosX();
+            ImVec2 textSize = ImGui::CalcTextSize(name.c_str());
+            if (textSize.x < thumbnailSize)
+                ImGui::SetCursorPosX(startX + (thumbnailSize - textSize.x) * 0.5f);
+
+            ImGui::PushTextWrapPos(startX + thumbnailSize);
+            ImGui::TextWrapped("%s", name.c_str());
+            ImGui::PopTextWrapPos();
+
+            ImGui::NextColumn();
+            ImGui::PopID();
+        };
+
+        for (const auto& entry : dirs)
+            drawCell(entry.path(), true);
+
+        for (const auto& entry : files)
+            drawCell(entry.path(), false);
+
+        ImGui::Columns(1);
+
         ImGui::End();
     }
 }

@@ -22,6 +22,7 @@ namespace Zeyrixon
 
         uint32_t GetWidth() const { return m_Width; }
         uint32_t GetHeight() const { return m_Height; }
+        uint32_t GetRendererID() const { return m_RendererID; }
 
         void SetData(void* data, uint32_t size);
 

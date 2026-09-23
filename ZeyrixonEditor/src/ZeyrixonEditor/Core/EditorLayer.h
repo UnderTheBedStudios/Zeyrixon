@@ -5,7 +5,9 @@
 #include <imgui.h>
 
 #include <Platform/OpenGL/OpenGLFramebuffer.h>
+#include <Platform/OpenGL/OpenGLTexture.h>
 #include <memory>
+#include <filesystem>
 
 #include <Zeyrixon/Core/Project.h>
 
@@ -38,6 +40,15 @@ namespace Editor
         void DrawPropertiesPanel();
         void DrawContentBrowserPanel();
         void DrawAssetsPanel();
+        void DrawDirectoryTree(const std::filesystem::path& directory);
+        void DrawDirectoryNode(const std::filesystem::path& directory, const std::string& label, bool defaultOpen = false);
+        void DrawFileLeaf(const std::filesystem::path& file);
+
+        std::filesystem::path m_SelectedDirectory;
+
+        std::shared_ptr<Zeyrixon::OpenGLTexture2D> m_FolderClosedIcon;
+        std::shared_ptr<Zeyrixon::OpenGLTexture2D> m_FolderOpenIcon;
+        std::shared_ptr<Zeyrixon::OpenGLTexture2D> m_FileIcon;
 
         bool m_IsPlaying = false;
         bool m_ShowGameView = false;
