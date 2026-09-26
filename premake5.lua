@@ -27,8 +27,10 @@ include "ZeyrixonEditor/vendor/imgui"
 
 project("Zeyrixon")
 	location("Zeyrixon")
-	kind("SharedLib")
+	kind("StaticLib")
 	language("C++")
+	cppdialect "C++17"
+	staticruntime "On"
 
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
 	objdir("int/" .. outputdir .. "/%{prj.name}")
@@ -78,9 +80,7 @@ project("Zeyrixon")
 	filter({})
 
 	filter("system:windows")
-    cppdialect("C++17")
-    staticruntime("On")
-    systemversion("latest")
+    	systemversion("latest")
 
 	filter({})
 
@@ -93,14 +93,17 @@ project("Zeyrixon")
 
 	filter("configurations:Debug")
 		defines("Z_DEBUG")
+		runtime("Debug")
 		symbols("On")
 
 	filter("configurations:Release")
 		defines("Z_RELEASE")
+		runtime("Release")
 		optimize("On")
 
 	filter("configurations:Dist")
 		defines("Z_DIST")
+		runtime("Release")
 		optimize("On")
 
 	filter({ "system:windows", "configurations:Debug" })
@@ -116,6 +119,7 @@ project("TestProj")
 	location("TestProj")
 	kind("ConsoleApp")
 	language("C++")
+	cppdialect("C++17")
 
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
 	objdir("int/" .. outputdir .. "/%{prj.name}")
@@ -139,13 +143,17 @@ project("TestProj")
 
 	links({
 		"Zeyrixon",
-		"ImGui"
+		"ImGui",
+		"GLFW",
+		"Glad"
 	})
 
 	filter("system:windows")
-		cppdialect("C++17")
-		staticruntime("On")
 		systemversion("latest")
+		links({ "opengl32" })
+
+	filter("system:linux")
+		links({ "GL", "dl", "pthread", "X11" })
 
 	filter({})
 
@@ -158,14 +166,17 @@ project("TestProj")
 
 	filter("configurations:Debug")
 		defines("Z_DEBUG")
+		runtime("Debug")
 		symbols("On")
 
 	filter("configurations:Release")
 		defines("Z_RELEASE")
+		runtime("Release")
 		optimize("On")
 
 	filter("configurations:Dist")
 		defines("Z_DIST")
+		runtime("Release")
 		optimize("On")
 
 	filter({ "system:windows", "configurations:Debug" })
@@ -182,6 +193,7 @@ project("ZeyrixonEditor")
 	location("ZeyrixonEditor")
 	kind("ConsoleApp")
 	language("C++")
+	cppdialect("C++17")
 
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
 	objdir("int/" .. outputdir .. "/%{prj.name}")
@@ -210,13 +222,17 @@ project("ZeyrixonEditor")
 	links({
 		"Zeyrixon",
 		"ImGui",
-		"fmt"
+		"fmt",
+		"GLFW",
+		"Glad"
 	})
 
 	filter("system:windows")
-		cppdialect("C++17")
-		staticruntime("On")
 		systemversion("latest")
+		links({ "opengl32" })
+
+	filter("system:linux")
+		links({ "GL", "dl", "pthread", "X11" })
 
 	filter({})
 
@@ -229,14 +245,17 @@ project("ZeyrixonEditor")
 
 	filter("configurations:Debug")
 		defines("Z_DEBUG")
+		runtime("Debug")
 		symbols("On")
 
 	filter("configurations:Release")
 		defines("Z_RELEASE")
+		runtime("Release")
 		optimize("On")
 
 	filter("configurations:Dist")
 		defines("Z_DIST")
+		runtime("Release")
 		optimize("On")
 
 	filter({ "system:windows", "configurations:Debug" })
