@@ -268,6 +268,8 @@ namespace Editor
     {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         ImGui::Begin("Viewport");
+
+        ImVec2 viewportMin = ImGui::GetCursorScreenPos();
         
         ImVec2 viewportPanelSize = ImGui::GetContentRegionAvail();
         if (m_ViewportSize.x != viewportPanelSize.x || m_ViewportSize.y != viewportPanelSize.y)
@@ -278,6 +280,53 @@ namespace Editor
 
         uint32_t textureID = m_Framebuffer->GetColorAttachmentRenderID();
         ImGui::Image((void*)(intptr_t)textureID, m_ViewportSize, ImVec2(0, 1), ImVec2(1, 0));
+
+        ImVec2 padding = ImVec2(10.0f, 10.0f);
+        ImGui::SetCursorScreenPos(ImVec2(viewportMin.x + padding.x, viewportMin.y + padding.y));
+
+        ImGui::BeginGroup();
+
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.4f, 0.8f, 0.8f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+
+            if (ImGui::Button("Translate")) { /* Switch to translate mode */ }
+            ImGui::SameLine();
+            if (ImGui::Button("Rotate"))    { /* Switch to rotate mode */ }
+            ImGui::SameLine();
+            if (ImGui::Button("Scale"))     { /* Switch to scale mode */ }
+
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor();
+
+        ImGui::EndGroup();
+
+        padding = ImVec2(10.0f, 10.0f);
+        ImGui::SetCursorScreenPos(ImVec2(viewportPanelSize.x - padding.x, viewportMin.y + padding.y));
+
+        float currentX = viewportMin.x + viewportPanelSize.x - padding.x;
+        float targetY = viewportMin.y + padding.y;
+
+        float itemSpacingX = 10.f;
+
+        ImGui::BeginGroup();
+
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.4f, 0.8f, 0.8f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+
+            float btnWidth1 = 60.0f;
+            currentX -= btnWidth1;
+            ImGui::SetCursorScreenPos(ImVec2(currentX, targetY));
+            if (ImGui::Button("2D View", ImVec2(btnWidth1, 0))) { /* Switch to 2D view */ }
+
+            float btnWidth2 = 60.0f;
+            currentX -= (btnWidth2 + itemSpacingX);
+            ImGui::SetCursorScreenPos(ImVec2(currentX, targetY));
+            if (ImGui::Button("3D View", ImVec2(btnWidth2, 0))) { /* Switch to 3D view */ }
+
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor();
+
+        ImGui::EndGroup();
 
         ImGui::End();
         ImGui::PopStyleVar();
