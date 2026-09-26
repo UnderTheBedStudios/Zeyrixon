@@ -1,6 +1,6 @@
 #include <pch.h>
 #include <Zeyrixon/Core/Project.h>
-#include <Zeyrixon/Core/World.h>
+#include <Zeyrixon/World/World.h>
 #include <Zeyrixon/Core/Log.h>
 
 #include <filesystem>

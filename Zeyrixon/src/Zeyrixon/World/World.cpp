@@ -1,9 +1,21 @@
-#include <Zeyrixon/Core/World.h>
-#include <Zeyrixon/Objects/Entity.h>
+#include <pch.h>
+
+#include <Zeyrixon/World/World.h>
+#include <Zeyrixon/World/Entity.h>
 #include <pugixml.hpp>
+
+#include <glm/glm.hpp>
 
 namespace Zeyrixon
 {
+    World::World()
+    {
+        
+    }
+
+    World::~World()
+    {}
+
     std::shared_ptr<World> World::New(const std::string& name)
     {
         auto world = std::shared_ptr<World>(new World());
