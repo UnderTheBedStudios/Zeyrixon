@@ -1,5 +1,6 @@
 #include <pch.h>
 #include <Zeyrixon/Core/Project.h>
+#include <Zeyrixon/Core/World.h>
 #include <Zeyrixon/Core/Log.h>
 
 #include <filesystem>
@@ -20,6 +21,13 @@ namespace Zeyrixon
         fs::create_directories(fs::path(project->m_ProjectDirectory) / project->m_AssetRoot / "Worlds");
         fs::create_directories(fs::path(project->m_ProjectDirectory) / project->m_CodeRoot);
 
+        auto defaultWorld = World::New("Default");
+        std::string worldPath = (fs::path(project->GetAssetDirectory()) / project->m_StartupWorld).string();
+        if (!defaultWorld->SaveAs(worldPath))
+        {
+            Z_CORE_CRITICAL("Failed to write default world for project '{0}'", name);
+            return nullptr;
+        }
         if (!project->Save())
         {
             Z_CORE_CRITICAL("Failed to write project manifest for '{0}'", name);

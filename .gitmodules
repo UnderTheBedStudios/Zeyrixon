@@ -20,3 +20,6 @@
 [submodule "Zeyrixon/vendor/assimp"]
 	path = Zeyrixon/vendor/assimp
 	url = https://github.com/assimp/assimp.git
+[submodule "Zeyrixon/vendor/pugixml"]
+	path = Zeyrixon/vendor/pugixml
+	url = https://github.com/zeux/pugixml.git
