@@ -28,11 +28,7 @@ namespace Zeyrixon
         auto root = doc.append_child("World");
         root.append_attribute("Name") = m_Name.c_str();
 
-        // walk entities, write one <Entity> node per entity,
-        // and one child node per component in its generic array —
-        // reuse whatever per-component serialize function your
-        // Inspector/ECS already uses for `.zworld` saves today
-        // for (auto& entity : m_Entities) { ... }
+        // TODO: Stuff to do in the future with entities
 
         return doc.save_file(m_WorldPath.c_str());
     }
