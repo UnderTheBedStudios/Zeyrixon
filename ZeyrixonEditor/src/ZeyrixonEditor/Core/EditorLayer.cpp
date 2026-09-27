@@ -289,6 +289,8 @@ namespace Editor
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.4f, 0.8f, 0.8f));
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
 
+            if (ImGui::Button("Select"))    { /* Switch to select mode */}
+            ImGui::SameLine();
             if (ImGui::Button("Translate")) { /* Switch to translate mode */ }
             ImGui::SameLine();
             if (ImGui::Button("Rotate"))    { /* Switch to rotate mode */ }
