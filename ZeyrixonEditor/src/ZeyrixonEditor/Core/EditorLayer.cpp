@@ -77,6 +77,7 @@ namespace Editor
         ImGui::DockBuilderDockWindow("World", dockRight);
         ImGui::DockBuilderDockWindow("Properties", dockRightBottom);
         ImGui::DockBuilderDockWindow("Content Browser", dockBottomLeft);
+        ImGui::DockBuilderDockWindow("Logger", dockBottom);
         ImGui::DockBuilderDockWindow("Assets", dockBottom);
 
         ImGui::DockBuilderFinish(dockspaceId);
@@ -120,6 +121,7 @@ namespace Editor
         DrawViewportPanel();
         DrawWorldOutlinerPanel();
         DrawPropertiesPanel();
+        DrawLoggerPanel();
         DrawContentBrowserPanel();
         DrawAssetsPanel();
     }
@@ -289,13 +291,13 @@ namespace Editor
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.4f, 0.8f, 0.8f));
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
 
-            if (ImGui::Button("Select"))    { /* Switch to select mode */}
+            if (ImGui::Button("\uf245"))       { /* Switch to select mode */ }
             ImGui::SameLine();
-            if (ImGui::Button("Translate")) { /* Switch to translate mode */ }
+            if (ImGui::Button("\U000F01BE"))   { /* Switch to translate mode */ }
             ImGui::SameLine();
-            if (ImGui::Button("Rotate"))    { /* Switch to rotate mode */ }
+            if (ImGui::Button("\U000F0D98"))   { /* Switch to rotate mode */ }
             ImGui::SameLine();
-            if (ImGui::Button("Scale"))     { /* Switch to scale mode */ }
+            if (ImGui::Button("\U000F0A68"))   { /* Switch to scale mode */ }
 
             ImGui::PopStyleVar();
             ImGui::PopStyleColor();
@@ -427,6 +429,23 @@ namespace Editor
         ImGui::TextUnformatted(file.filename().string().c_str());
 
         ImGui::PopID();
+    }
+
+    void EditorLayer::DrawLoggerPanel()
+    {
+        ImGui::Begin("Logger");
+
+        if (m_ActiveProject)
+        {
+            ImGui::Text("Logger not setup yet");
+        }
+        else
+        {
+            Z_CORE_WARN("No project open, cannot show logger!");
+            ImGui::Text("You need to load a project");
+        }
+
+        ImGui::End();
     }
 
     void EditorLayer::DrawContentBrowserPanel()

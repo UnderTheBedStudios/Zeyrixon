@@ -44,6 +44,20 @@ namespace Zeyrixon {
 
 		ImGui_ImplGlfw_InitForOpenGL(window, true);
 		ImGui_ImplOpenGL3_Init("#version 410");
+
+		static const ImWchar iconRanges[] = { 0xE000, 0xF8FF, 0xF0000, 0xFFFFD, 0 };
+		
+		ImFontConfig baseConfig;
+		baseConfig.SizePixels = 12.f;
+		io.Fonts->AddFontDefault(&baseConfig);
+		
+		ImFontConfig iconConfig;
+		iconConfig.MergeMode = true;
+		iconConfig.PixelSnapH = true;
+		iconConfig.GlyphMinAdvanceX = 16.0f;
+
+		std::string iconFontPath = std::string(Z_ROOT_PATH) + "ZeyrixonEditor/Assets/Fonts/JetBrainsMonoNLNerdFont-Regular.ttf";
+		io.Fonts->AddFontFromFileTTF(iconFontPath.c_str(), 16.0f, &iconConfig, iconRanges);
 	}
 
 	void ImGuiLayer::OnDetach()

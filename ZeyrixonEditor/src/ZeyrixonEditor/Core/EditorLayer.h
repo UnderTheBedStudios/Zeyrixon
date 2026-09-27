@@ -38,6 +38,7 @@ namespace Editor
         void DrawViewportPanel();
         void DrawWorldOutlinerPanel();
         void DrawPropertiesPanel();
+        void DrawLoggerPanel();
         void DrawContentBrowserPanel();
         void DrawAssetsPanel();
         void DrawDirectoryTree(const std::filesystem::path& directory);
