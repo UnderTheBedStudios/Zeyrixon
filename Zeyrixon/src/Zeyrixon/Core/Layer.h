@@ -2,6 +2,7 @@
 
 #include <Zeyrixon/Core/Core.h>
 #include <Zeyrixon/Events/Event.h>
+#include <Zeyrixon/Core/DeltaTime.h>
 
 namespace Zeyrixon
 {
@@ -13,7 +14,7 @@ namespace Zeyrixon
 
         virtual void OnAttach() {}
         virtual void OnDetach() {}
-        virtual void OnUpdate() {}
+        virtual void OnUpdate(DeltaTime dt) {}
         virtual void OnImGuiRender() {}
         virtual void OnEvent(Event& event) {}
 

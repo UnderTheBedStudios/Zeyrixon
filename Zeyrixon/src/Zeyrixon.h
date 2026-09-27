@@ -4,6 +4,8 @@
 #include <Zeyrixon/Core/Layer.h>
 #include <Zeyrixon/Core/Log.h>
 
+#include <Zeyrixon/Core/DeltaTime.h>
+
 #include <Zeyrixon/Core/Input.h>
 #include <Zeyrixon/Core/KeyCodes.h>
 #include <Zeyrixon/Core/MouseButtonCodes.h>

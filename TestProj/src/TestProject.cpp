@@ -65,8 +65,9 @@ public:
         m_CameraUniformBuffer = std::make_shared<Zeyrixon::OpenGLUniformBuffer>(sizeof(glm::mat4), 0);
     }
 
-    void OnUpdate() override
+    void OnUpdate(Zeyrixon::DeltaTime dt) override
     {
+        Z_TRACE("Debug Delta Time: {0}s ({1}ms)", dt.GetSeconds(), dt.GetMilliseconds());
         if (Zeyrixon::Input::IsKeyPressed(Z_KEY_TAB))
             Z_INFO("Tab key was pressed!");
 

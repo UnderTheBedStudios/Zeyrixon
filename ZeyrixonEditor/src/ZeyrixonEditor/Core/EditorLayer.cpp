@@ -211,7 +211,7 @@ namespace Editor
 
     void EditorLayer::OnDetach() {}
 
-    void EditorLayer::OnUpdate()
+    void EditorLayer::OnUpdate(Zeyrixon::DeltaTime dt)
     {
         m_Framebuffer->Bind();
 

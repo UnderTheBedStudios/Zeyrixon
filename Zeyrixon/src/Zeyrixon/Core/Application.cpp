@@ -53,11 +53,15 @@ namespace Zeyrixon
     {
         while (m_Running)
         {
+            float time = (float)glfwGetTime();
+            DeltaTime dt = time - m_LastTime;
+            m_LastTime = time;
+
             OpenGLRender::SetClearColor(glm::vec4(0.19, 0.19, 0.19, 1));
             OpenGLRender::Clear();
 
             for (Layer* layer : m_LayerStack)
-                layer->OnUpdate();
+                layer->OnUpdate(dt);
 
             m_ImGuiLayer->Begin();
             for (Layer* layer : m_LayerStack)

@@ -9,6 +9,8 @@
 #include <memory>
 #include <filesystem>
 
+#include <Zeyrixon/Core/DeltaTime.h>
+
 #include <Zeyrixon/Core/Project.h>
 
 namespace Editor
@@ -23,7 +25,7 @@ namespace Editor
 
         void OnImGuiRender() override;
         void OnEvent(Zeyrixon::Event& event) override;
-        void OnUpdate() override;
+        void OnUpdate(Zeyrixon::DeltaTime dt) override;
 
         /* Things that won't be used but the compiler will yell at me if I don't include them */
         void OnAttach() override;

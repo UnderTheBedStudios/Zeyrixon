@@ -6,6 +6,8 @@
 #include <Zeyrixon/Events/ApplicationEvent.h>
 #include <Zeyrixon/Core/Window.h>
 
+#include <Zeyrixon/Core/DeltaTime.h>
+
 namespace Zeyrixon
 {
     class ImGuiLayer;
@@ -53,6 +55,9 @@ namespace Zeyrixon
         LayerStack m_LayerStack;
         ImGuiLayer* m_ImGuiLayer;
         ApplicationCommandLineArgs m_CommandLineArgs;
+
+        DeltaTime m_DT;
+        float m_LastTime = 0.f;
 
         static Application* s_Instance;
     };
