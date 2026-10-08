@@ -291,6 +291,9 @@ namespace Editor
             {
                 if (m_ActiveProject)
                     m_ActiveProject->Save();
+
+                if (m_ActiveWorld && !m_ActiveWorld->Save())
+                    Z_EDITOR_ERROR("Failed to save world '{0}'", m_ActiveWorld->GetWorldPath());
             }
             ImGui::EndMenu();
         }
