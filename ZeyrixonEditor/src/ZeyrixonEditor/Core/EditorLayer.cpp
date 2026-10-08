@@ -40,6 +40,13 @@ namespace
         std::sort(outDirs.begin(), outDirs.end(), byName);
         std::sort(outFiles.begin(), outFiles.end(), byName);
     }
+
+    bool DeleteKeyPressed()
+    {
+        return ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
+            && !ImGui::GetIO().WantTextInput
+            && ImGui::IsKeyPressed(ImGuiKey_Delete, false);
+    }
 }
 
 namespace Editor
@@ -105,6 +112,18 @@ namespace Editor
             transform.Rotation = glm::radians(rotation);
             transform.Scale = scale;
         }
+    }
+
+    void EditorLayer::DeleteEntity(Zeyrixon::Entity entity)
+    {
+        if (!m_ActiveWorld || !entity)
+            return;
+
+        // Clear the selection first so the properties panel and gizmo never see the deletion
+        if (m_SelectedEntity == entity)
+            m_SelectedEntity = {};
+
+        m_ActiveWorld->DestroyEntity(entity);
     }
 
     void EditorLayer::BuildDefaultLayout(ImGuiID dockspaceId)
@@ -344,6 +363,9 @@ namespace Editor
 
         DrawGizmo();
 
+        if (DeleteKeyPressed() && m_SelectedEntity)
+            DeleteEntity(m_SelectedEntity);
+
         ImVec2 padding = ImVec2(10.0f, 10.0f);
         ImGui::SetCursorScreenPos(ImVec2(viewportMin.x + padding.x, viewportMin.y + padding.y));
 
@@ -408,6 +430,10 @@ namespace Editor
             return;
         }
 
+        // Deleting while the view loop is running can invalidate it, so the
+        // actual deletion happens after the loop, using this.
+        Zeyrixon::Entity entityToDelete;
+
         if (ImGui::TreeNodeEx(m_ActiveWorld->GetName().c_str(), ImGuiTreeNodeFlags_DefaultOpen))
         {
             auto view = m_ActiveWorld->GetRegistry().view<Zeyrixon::TagComponent>();
@@ -416,21 +442,35 @@ namespace Editor
                 Zeyrixon::Entity entity{ handle, m_ActiveWorld.get() };
 
                 ImGui::PushID(static_cast<int>(static_cast<uint32_t>(handle)));
+
                 if (ImGui::Selectable(tag.Tag.c_str(), m_SelectedEntity == entity))
                     m_SelectedEntity = entity;
+
+                if (ImGui::BeginPopupContextItem())
+                {
+                    m_SelectedEntity = entity;
+                    if (ImGui::MenuItem("Delete Entity"))
+                        entityToDelete = entity;
+                    ImGui::EndPopup();
+                }
+
                 ImGui::PopID();
             }
             ImGui::TreePop();
         }
 
-        // Right-click empty space to add an entity. This runs after the view loop
-        // finishes, because creating entities mid-iteration can invalidate the view.
+        if (DeleteKeyPressed() && m_SelectedEntity)
+            entityToDelete = m_SelectedEntity;
+
         if (ImGui::BeginPopupContextWindow(nullptr, ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
         {
             if (ImGui::MenuItem("Create Entity"))
                 m_SelectedEntity = m_ActiveWorld->CreateEntity("Entity");
             ImGui::EndPopup();
         }
+
+        if (entityToDelete)
+            DeleteEntity(entityToDelete);
 
         ImGui::End();
     }

@@ -47,6 +47,7 @@ namespace Editor
         int m_GizmoOperation = 0; // 0 = select (no gizmo), otherwise, it will be ImGuizmo::OPERATION
 
         void DrawGizmo();
+        void DeleteEntity(Zeyrixon::Entity entity);
 
         void BuildDefaultLayout(ImGuiID dockspaceId);
         void DrawMenuBar();
