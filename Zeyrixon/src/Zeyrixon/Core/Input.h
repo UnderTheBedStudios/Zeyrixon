@@ -4,6 +4,7 @@
 
 namespace Zeyrixon
 {
+    enum class CursorMode { Normal, Hidden, Locked };
     class Z_API Input
     {
     public:
@@ -14,6 +15,8 @@ namespace Zeyrixon
         inline static float GetMouseX() { return s_Instance->GetMouseXImpl(); }
         inline static float GetMouseY() { return s_Instance->GetMouseYImpl(); }
 
+        inline static void SetCursorMode(CursorMode mode) { s_Instance->SetCursorModeImpl(mode); }
+
     protected:
         virtual bool IsKeyPressedImpl(int keycode) = 0;
 
@@ -21,6 +24,8 @@ namespace Zeyrixon
         virtual std::pair<float, float> GetMousePosImpl() = 0;
         virtual float GetMouseXImpl() = 0;
         virtual float GetMouseYImpl() = 0;
+
+        virtual void SetCursorModeImpl(CursorMode mode) = 0;
 
     private:
         static Input* s_Instance;

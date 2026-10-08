@@ -1,4 +1,6 @@
 #include <ZeyrixonEditor/Core/EditorLayer.h>
+#include <Zeyrixon/ImGui/ImGuiLayer.h>
+#include <Zeyrixon/Events/MouseEvent.h>
 #include <Zeyrixon/Core/Application.h>
 #include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/World/ComponentRegistry.h>
@@ -120,7 +122,7 @@ namespace Editor
         const glm::mat4 view = m_EditorCamera.GetView();
         const glm::mat4 projection = m_EditorCamera.GetProjection();
 
-        ImGuizmo::SetOrthographic(false);
+        ImGuizmo::SetOrthographic(m_EditorCamera.IsOrthographic());
         ImGuizmo::SetDrawlist();
         ImGuizmo::SetRect(m_ViewportMin.x, m_ViewportMin.y, m_ViewportSize.x, m_ViewportSize.y);
 
@@ -197,6 +199,9 @@ namespace Editor
     void EditorLayer::OnImGuiRender()
     {
         ImGuizmo::BeginFrame();
+
+        m_ViewportHovered = false;
+        Zeyrixon::Application::Get().GetImGuiLayer()->BlockEvents(true);
 
         if (!m_ActiveProject)
         {
@@ -326,6 +331,8 @@ namespace Editor
 
     void EditorLayer::OnUpdate(Zeyrixon::DeltaTime dt)
     {
+        m_EditorCamera.OnUpdate(dt, m_ViewportHovered);
+
         m_Framebuffer->Bind();
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -337,7 +344,15 @@ namespace Editor
 
     void EditorLayer::OnEvent(Zeyrixon::Event& e)
     {
+        Zeyrixon::EventDispatcher dispatcher(e);
+        dispatcher.Dispatch<Zeyrixon::MouseScrolledEvent>([this](Zeyrixon::MouseScrolledEvent& event)
+        {
+            if (!m_ViewportHovered)
+                return false;
 
+            m_EditorCamera.OnMouseScroll(event.GetYOffset());
+            return true;
+        });
     }
 
     void EditorLayer::DrawMenuBar()
@@ -401,8 +416,9 @@ namespace Editor
         uint32_t textureID = m_Framebuffer->GetColorAttachmentRenderID();
         ImGui::Image((void*)(intptr_t)textureID, m_ViewportSize, ImVec2(0, 1), ImVec2(1, 0));
 
-        if (ImGui::IsWindowHovered() && !ImGuizmo::IsUsing())
-            m_EditorCamera.OnInput();
+        m_ViewportHovered = ImGui::IsWindowHovered() && !ImGuizmo::IsUsing();
+
+        Zeyrixon::Application::Get().GetImGuiLayer()->BlockEvents(!m_ViewportHovered);
 
         DrawGizmo();
 
@@ -446,12 +462,38 @@ namespace Editor
             float btnWidth1 = 60.0f;
             currentX -= btnWidth1;
             ImGui::SetCursorScreenPos(ImVec2(currentX, targetY));
-            if (ImGui::Button("2D View", ImVec2(btnWidth1, 0))) { /* Switch to 2D view */ }
+            if (ImGui::Button("2D View", ImVec2(btnWidth1, 0)))
+                m_EditorCamera.SetViewType(Editor::EditorCamera::ViewType::View2D);
 
             float btnWidth2 = 60.0f;
             currentX -= (btnWidth2 + itemSpacingX);
             ImGui::SetCursorScreenPos(ImVec2(currentX, targetY));
-            if (ImGui::Button("3D View", ImVec2(btnWidth2, 0))) { /* Switch to 3D view */ }
+            if (ImGui::Button("3D View", ImVec2(btnWidth2, 0)))
+                m_EditorCamera.SetViewType(Editor::EditorCamera::ViewType::View3D);
+
+            float btnWidth3 = 100.0f;
+            currentX -= (btnWidth3 + itemSpacingX);
+            ImGui::SetCursorScreenPos(ImVec2(currentX, targetY));
+
+            // The text after ### is the widget ID, so it stays the same when the label changes.
+            const char* viewModeName = m_EditorCamera.IsOrthographic() ? "Orthographic" : "Perspective";
+            const std::string viewModeLabel = std::string(viewModeName) + "###ViewMode";
+
+            if (ImGui::Button(viewModeLabel.c_str(), ImVec2(btnWidth3, 0)))
+                ImGui::OpenPopup("ViewModePopup");
+
+            // Open the menu just below the button instead of at the mouse.
+            ImGui::SetNextWindowPos(ImVec2(currentX, targetY + ImGui::GetFrameHeight()));
+            if (ImGui::BeginPopup("ViewModePopup"))
+            {
+                if (ImGui::MenuItem("Perspective", nullptr, !m_EditorCamera.IsOrthographic()))
+                    m_EditorCamera.SetProjectionType(Editor::EditorCamera::ProjectionType::Perspective);
+
+                if (ImGui::MenuItem("Orthographic", nullptr, m_EditorCamera.IsOrthographic()))
+                    m_EditorCamera.SetProjectionType(Editor::EditorCamera::ProjectionType::Orthographic);
+
+                ImGui::EndPopup();
+            }
 
             ImGui::PopStyleVar();
             ImGui::PopStyleColor();

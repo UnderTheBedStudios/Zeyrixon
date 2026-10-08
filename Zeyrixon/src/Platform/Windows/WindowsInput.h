@@ -13,5 +13,6 @@ namespace Zeyrixon
         virtual std::pair<float, float> GetMousePosImpl() override;
         virtual float GetMouseXImpl() override;
         virtual float GetMouseYImpl() override;
+        virtual void SetCursorModeImpl(CursorMode mode) override;
     };
 }

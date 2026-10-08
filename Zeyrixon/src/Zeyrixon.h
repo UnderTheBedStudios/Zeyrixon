@@ -15,6 +15,7 @@
 #include <Zeyrixon/World/Components.h>
 
 #include <Zeyrixon/ImGui/ImGuiLayer.h>
+#include <Zeyrixon/Events/MouseEvent.h>
 
 //----- Entry Point -----
 #include <Zeyrixon/Core/EntryPoint.h>
