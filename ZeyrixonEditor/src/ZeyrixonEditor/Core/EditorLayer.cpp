@@ -1,6 +1,7 @@
 #include <ZeyrixonEditor/Core/EditorLayer.h>
 #include <Zeyrixon/Core/Application.h>
 #include <Zeyrixon/Core/Log.h>
+#include <Zeyrixon/World/ComponentRegistry.h>
 
 #include <imgui_internal.h>
 #include <ImGuizmo.h>
@@ -12,6 +13,7 @@
 #include <tinyfiledialogs.h>
 
 #include <filesystem>
+#include <functional>
 #include <vector>
 #include <algorithm>
 
@@ -46,6 +48,49 @@ namespace
         return ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
             && !ImGui::GetIO().WantTextInput
             && ImGui::IsKeyPressed(ImGuiKey_Delete, false);
+    }
+
+    void SetInspector(const char* name, std::function<void(Zeyrixon::Entity)> draw)
+    {
+        if (auto* info = Zeyrixon::ComponentRegistry::Get().Find(name))
+            info->DrawInspector = std::move(draw);
+    }
+
+    void RegisterComponentInspectors()
+    {
+        SetInspector("Tag", [](Zeyrixon::Entity entity)
+        {
+            auto& tag = entity.GetComponent<Zeyrixon::TagComponent>().Tag;
+
+            char buffer[256]{};
+            std::strncpy(buffer, tag.c_str(), sizeof(buffer) - 1);
+            if (ImGui::InputText("Name", buffer, sizeof(buffer)))
+                tag = buffer;
+        });
+
+        SetInspector("Transform", [](Zeyrixon::Entity entity)
+        {
+            auto& transform = entity.GetComponent<Zeyrixon::TransformComponent>();
+
+            ImGui::DragFloat3("Position", &transform.Position.x, 0.1f);
+
+            // Stored in radians, edited in degrees.
+            glm::vec3 rotationDegrees = glm::degrees(transform.Rotation);
+            if (ImGui::DragFloat3("Rotation", &rotationDegrees.x, 0.5f))
+                transform.Rotation = glm::radians(rotationDegrees);
+
+            ImGui::DragFloat3("Scale", &transform.Scale.x, 0.1f);
+        });
+
+        SetInspector("Camera", [](Zeyrixon::Entity entity)
+        {
+            auto& camera = entity.GetComponent<Zeyrixon::CameraComponent>();
+
+            ImGui::DragFloat("FOV", &camera.FOV, 0.1f, 1.0f, 179.0f);
+            ImGui::DragFloat("Near", &camera.Near, 0.01f, 0.001f, 100.0f);
+            ImGui::DragFloat("Far", &camera.Far, 1.0f, 1.0f, 100000.0f);
+            ImGui::Checkbox("Primary", &camera.Primary);
+        });
     }
 }
 
@@ -271,10 +316,8 @@ namespace Editor
 
     void EditorLayer::OnAttach()
     {
-        // Launched via "Open With" / double-click on a .zeyrixon file - the OS
-        // hands us the file path as argv[1], which main.cpp forwards down to here.
-        // The GL context and window already exist by this point (Application's
-        // constructor runs before PushLayer/OnAttach), so it's safe to load here.
+        RegisterComponentInspectors();
+
         if (!m_StartupProjectPath.empty())
             LoadProjectFromPath(m_StartupProjectPath);
     }
@@ -478,7 +521,7 @@ namespace Editor
     void EditorLayer::DrawPropertiesPanel()
     {
         ImGui::Begin("Properties");
-        
+
         if (!m_SelectedEntity)
         {
             ImGui::TextDisabled("Nothing selected.");
@@ -486,31 +529,50 @@ namespace Editor
             return;
         }
 
-        if (m_SelectedEntity.HasComponent<Zeyrixon::TagComponent>())
-        {
-            auto& tag = m_SelectedEntity.GetComponent<Zeyrixon::TagComponent>().Tag;
+        auto& components = Zeyrixon::ComponentRegistry::Get().GetAll();
 
-            char buffer[256]{};
-            std::strncpy(buffer, tag.c_str(), sizeof(buffer) - 1);
-            if (ImGui::InputText("Tag", buffer, sizeof(buffer)))
-                tag = buffer;
+        for (auto& info : components)
+        {
+            if (!info.DrawInspector || !info.Has(m_SelectedEntity))
+                continue;
+
+            ImGui::PushID(info.Name.c_str());
+
+            bool open = ImGui::CollapsingHeader(info.Name.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+
+            bool removeRequested = false;
+            if (!info.Core && ImGui::BeginPopupContextItem())
+            {
+                if (ImGui::MenuItem("Remove Component"))
+                    removeRequested = true;
+                ImGui::EndPopup();
+            }
+
+            if (open)
+                info.DrawInspector(m_SelectedEntity);
+
+            if (removeRequested)
+                info.Remove(m_SelectedEntity);
+
+            ImGui::PopID();
         }
 
-        if (m_SelectedEntity.HasComponent<Zeyrixon::TransformComponent>())
+        ImGui::Separator();
+
+        if (ImGui::Button("Add Component"))
+            ImGui::OpenPopup("AddComponentPopup");
+
+        if (ImGui::BeginPopup("AddComponentPopup"))
         {
-            if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
+            for (auto& info : components)
             {
-                auto& transform = m_SelectedEntity.GetComponent<Zeyrixon::TransformComponent>();
+                if (info.Core || info.Has(m_SelectedEntity))
+                    continue;
 
-                ImGui::DragFloat3("Position", &transform.Position.x, 0.1f);
-
-                // Stored in radians, edited in degrees.
-                glm::vec3 rotationDegrees = glm::degrees(transform.Rotation);
-                if (ImGui::DragFloat3("Rotation", &rotationDegrees.x, 0.5f))
-                    transform.Rotation = glm::radians(rotationDegrees);
-                
-                ImGui::DragFloat3("Scale", &transform.Scale.x, 0.1f);
+                if (ImGui::MenuItem(info.Name.c_str()))
+                    info.Add(m_SelectedEntity);
             }
+            ImGui::EndPopup();
         }
 
         ImGui::End();

@@ -3,6 +3,7 @@
 #include <Zeyrixon/World/World.h>
 #include <Zeyrixon/World/Entity.h>
 #include <Zeyrixon/World/Components.h>
+#include <Zeyrixon/World/ComponentRegistry.h>
 #include <Zeyrixon/Core/Log.h>
 
 #include <pugixml.hpp>
@@ -91,11 +92,21 @@ namespace Zeyrixon
             pugi::xml_node tagNode = node.child("Tag");
             entity.AddComponent<TagComponent>(std::string(tagNode.attribute("Value").as_string("Entity")));
 
-            pugi::xml_node transformNode = node.child("Transform");
-            auto& transform = entity.AddComponent<TransformComponent>();
-            transform.Position = StringToVec3(transformNode.attribute("Position").as_string(""), transform.Position);
-            transform.Rotation = StringToVec3(transformNode.attribute("Rotation").as_string(""), transform.Rotation);
-            transform.Scale    = StringToVec3(transformNode.attribute("Scale").as_string(""),    transform.Scale);
+            for (auto& info : ComponentRegistry::Get().GetAll())
+            {
+                pugi::xml_node componentNode = node.child(info.Name.c_str());
+
+                // Core components always exist, with defaults if the file has no node.
+                // Everything else exists only if the file lists it.
+                if (!componentNode && !info.Core)
+                    continue;
+
+                if (!info.Has(entity))
+                    info.Add(entity);
+
+                if (info.Deserialize)
+                    info.Deserialize(entity, componentNode);
+            }
         }
 
         return world;
@@ -126,8 +137,13 @@ namespace Zeyrixon
             auto node = root.append_child("Entity");
             node.append_attribute("ID") = static_cast<unsigned long long>(entity.GetComponent<IDComponent>().ID);
 
-            if (entity.HasComponent<TagComponent>())
-                node.append_child("Tag").append_attribute("Value") = entity.GetComponent<TagComponent>().Tag.c_str();
+            for (auto& info : ComponentRegistry::Get().GetAll())
+            {
+                if (!info.Serialize || !info.Has(entity))
+                    continue;
+
+                info.Serialize(entity, node.append_child(info.Name.c_str()));
+            }
 
             if (entity.HasComponent<TransformComponent>())
             {
@@ -146,8 +162,14 @@ namespace Zeyrixon
     {
         Entity entity{ m_Registry.create(), this };
         entity.AddComponent<IDComponent>(GenerateEntityID());
-        entity.AddComponent<TagComponent>(name);
-        entity.AddComponent<TransformComponent>();
+
+        for (auto& info : ComponentRegistry::Get().GetAll())
+        {
+            if (info.Core && !info.Has(entity))
+                info.Add(entity);
+        }
+
+        entity.GetComponent<TagComponent>().Tag = name;
         return entity;
     }
 

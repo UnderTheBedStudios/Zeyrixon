@@ -18,7 +18,7 @@ IncludeDir["ImGui"] = "ZeyrixonEditor/vendor/imgui"
 IncludeDir["stb"] = "Zeyrixon/vendor/stb"
 IncludeDir["TinyFileDialogs"] = "ZeyrixonEditor/vendor/tinyfiledialogs"
 IncludeDir["glm"] = "Zeyrixon/vendor/glm"
-IncludeDir["pugixml"] = "Zeyrixon/vendor/pugixml"
+IncludeDir["pugixml"] = "Zeyrixon/vendor/pugixml/src"
 IncludeDir["entt"] = "Zeyrixon/vendor/entt/include"
 IncludeDir["ImGuizmo"] = "ZeyrixonEditor/vendor/ImGizmo/ImGuizmo/src"
 

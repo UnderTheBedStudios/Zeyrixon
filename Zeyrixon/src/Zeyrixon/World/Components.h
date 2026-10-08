@@ -29,4 +29,12 @@ namespace Zeyrixon
         glm::vec3 Rotation{ 0.0f };   // radians
         glm::vec3 Scale{ 1.0f };
     };
+
+    struct CameraComponent
+    {
+        float FOV = 45.f;
+        float Near = 0.1f;
+        float Far = 1000.f;
+        bool Primary = true;
+    };
 }
