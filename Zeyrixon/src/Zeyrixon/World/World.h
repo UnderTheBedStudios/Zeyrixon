@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Zeyrixon/Core/Core.h>
+#include <Zeyrixon/Core/DeltaTime.h>
 
 #include <entt.hpp>
 
@@ -18,6 +19,8 @@ namespace Zeyrixon
         World();
         ~World();
 
+        void OnUpdate(DeltaTime dt);
+
         static std::shared_ptr<World> New(const std::string& name = "Untitled");
         static std::shared_ptr<World> Load(const std::string& worldPath);
 
@@ -29,6 +32,8 @@ namespace Zeyrixon
 
         const std::string& GetName() const { return m_Name; }
         const std::string& GetWorldPath() const { return m_WorldPath; }
+
+        entt::registry& GetRegistry() { return m_Registry; }
 
     private:
         std::string m_Name;

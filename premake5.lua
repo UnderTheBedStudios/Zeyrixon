@@ -20,6 +20,7 @@ IncludeDir["TinyFileDialogs"] = "ZeyrixonEditor/vendor/tinyfiledialogs"
 IncludeDir["glm"] = "Zeyrixon/vendor/glm"
 IncludeDir["pugixml"] = "Zeyrixon/vendor/pugixml"
 IncludeDir["entt"] = "Zeyrixon/vendor/entt/include"
+IncludeDir["ImGuizmo"] = "ZeyrixonEditor/vendor/ImGizmo/ImGuizmo/src"
 
 include "Zeyrixon/vendor/GLFW"
 include "Zeyrixon/vendor/GLAD"
@@ -29,7 +30,7 @@ project("Zeyrixon")
 	location("Zeyrixon")
 	kind("StaticLib")
 	language("C++")
-	cppdialect "C++17"
+	cppdialect "C++20"
 	staticruntime "On"
 
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
@@ -119,7 +120,7 @@ project("TestProj")
 	location("TestProj")
 	kind("ConsoleApp")
 	language("C++")
-	cppdialect("C++17")
+	cppdialect("C++20")
 
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
 	objdir("int/" .. outputdir .. "/%{prj.name}")
@@ -193,7 +194,7 @@ project("ZeyrixonEditor")
 	location("ZeyrixonEditor")
 	kind("ConsoleApp")
 	language("C++")
-	cppdialect("C++17")
+	cppdialect("C++20")
 
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
 	objdir("int/" .. outputdir .. "/%{prj.name}")
@@ -201,6 +202,8 @@ project("ZeyrixonEditor")
 	files({
 		"%{prj.name}/src/**.h",
 		"%{prj.name}/src/**.cpp",
+		"%{prj.name}/vendor/ImGizmo/ImGuizmo/src/**.h",
+		"%{prj.name}/vendor/ImGizmo/ImGuizmo/src/**.cpp",
 		"%{prj.name}/vendor/tinyfiledialogs/tinyfiledialogs.c",
 		"%{prj.name}/vendor/tinyfiledialogs/tinyfiledialogs.h",
 	})
@@ -217,6 +220,7 @@ project("ZeyrixonEditor")
 		"Zeyrixon/vendor/spdlog/include",
 		"%{IncludeDir.glm}",
 		"%{IncludeDir.entt}",
+		"%{IncludeDir.ImGuizmo}",
 	}
 
 	links({

@@ -23,3 +23,6 @@
 [submodule "Zeyrixon/vendor/pugixml"]
 	path = Zeyrixon/vendor/pugixml
 	url = https://github.com/zeux/pugixml.git
+[submodule "ZeyrixonEditor/vendor/ImGizmo/ImGuizmo"]
+	path = ZeyrixonEditor/vendor/ImGizmo/ImGuizmo
+	url = https://github.com/CedricGuillemet/ImGuizmo.git

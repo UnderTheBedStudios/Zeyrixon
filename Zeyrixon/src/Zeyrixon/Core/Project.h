@@ -19,6 +19,7 @@ namespace Zeyrixon
         std::string GetAssetDirectory() const;
         std::string GetCodeDirectory() const;
         std::string GetManifestPath() const;
+        std::string GetStartupWorldPath() const;
         
     private:
         Project() = default;

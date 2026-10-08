@@ -10,6 +10,10 @@
 #include <Zeyrixon/Core/KeyCodes.h>
 #include <Zeyrixon/Core/MouseButtonCodes.h>
 
+#include <Zeyrixon/World/World.h>
+#include <Zeyrixon/World/Entity.h>
+#include <Zeyrixon/World/Components.h>
+
 #include <Zeyrixon/ImGui/ImGuiLayer.h>
 
 //----- Entry Point -----

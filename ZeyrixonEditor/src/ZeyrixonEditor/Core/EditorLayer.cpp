@@ -3,8 +3,11 @@
 #include <Zeyrixon/Core/Log.h>
 
 #include <imgui_internal.h>
+#include <ImGuizmo.h>
 
 #include <glad/glad.h>
+
+#include <glm/gtc/type_ptr.hpp>
 
 #include <tinyfiledialogs.h>
 
@@ -60,6 +63,50 @@ namespace Editor
     {
     }
 
+    void EditorLayer::DrawGizmo()
+    {
+        const glm::mat4 view = m_EditorCamera.GetView();
+        const glm::mat4 projection = m_EditorCamera.GetProjection();
+
+        ImGuizmo::SetOrthographic(false);
+        ImGuizmo::SetDrawlist();
+        ImGuizmo::SetRect(m_ViewportMin.x, m_ViewportMin.y, m_ViewportSize.x, m_ViewportSize.y);
+
+        // Ref grid so that I can see the camera move before anything renders
+        const glm::mat4 identity(1.f);
+        ImGuizmo::DrawGrid(glm::value_ptr(view), glm::value_ptr(projection), glm::value_ptr(identity), 20.f);
+
+        if (!m_SelectedEntity || m_GizmoOperation == 0
+            || !m_SelectedEntity.HasComponent<Zeyrixon::TransformComponent>())
+            return;
+
+        auto& transform = m_SelectedEntity.GetComponent<Zeyrixon::TransformComponent>();
+        glm::vec3 rotationDegrees = glm::degrees(transform.Rotation);
+
+        float matrix[16];
+        ImGuizmo::RecomposeMatrixFromComponents(
+            glm::value_ptr(transform.Position), glm::value_ptr(rotationDegrees),
+            glm::value_ptr(transform.Scale), matrix
+        );
+
+        ImGuizmo::Manipulate(
+            glm::value_ptr(view), glm::value_ptr(projection),
+            static_cast<ImGuizmo::OPERATION>(m_GizmoOperation), ImGuizmo::WORLD, matrix
+        );
+
+        if (ImGuizmo::IsUsing())
+        {
+            glm::vec3 position, rotation, scale;
+            ImGuizmo::DecomposeMatrixToComponents(
+                matrix, glm::value_ptr(position), glm::value_ptr(rotation), glm::value_ptr(scale)
+            );
+
+            transform.Position = position;
+            transform.Rotation = glm::radians(rotation);
+            transform.Scale = scale;
+        }
+    }
+
     void EditorLayer::BuildDefaultLayout(ImGuiID dockspaceId)
     {
         ImGui::DockBuilderRemoveNode(dockspaceId);
@@ -85,6 +132,8 @@ namespace Editor
 
     void EditorLayer::OnImGuiRender()
     {
+        ImGuizmo::BeginFrame();
+
         if (!m_ActiveProject)
         {
             DrawProjectLauncher();
@@ -167,6 +216,7 @@ namespace Editor
         {
             Zeyrixon::Application::Get().ChangeWindowTitle(("Zeyrixon Editor - " + m_ActiveProject->GetName()).c_str());
             m_SelectedDirectory.clear();
+            LoadStartupWorld();
         }
     }
 
@@ -194,6 +244,7 @@ namespace Editor
         {
             Zeyrixon::Application::Get().ChangeWindowTitle(("Zeyrixon Editor - " + m_ActiveProject->GetName()).c_str());
             m_SelectedDirectory.clear();
+            LoadStartupWorld();
         }
         else
             Z_EDITOR_ERROR("Failed to open project from: {0}", manifestPath);
@@ -272,16 +323,23 @@ namespace Editor
         ImGui::Begin("Viewport");
 
         ImVec2 viewportMin = ImGui::GetCursorScreenPos();
+        m_ViewportMin = viewportMin;
         
         ImVec2 viewportPanelSize = ImGui::GetContentRegionAvail();
         if (m_ViewportSize.x != viewportPanelSize.x || m_ViewportSize.y != viewportPanelSize.y)
         {
             m_ViewportSize = viewportPanelSize;
             m_Framebuffer->Resize((uint32_t)m_ViewportSize.x, (uint32_t)m_ViewportSize.y);
+            m_EditorCamera.SetViewportSize(m_ViewportSize.x, m_ViewportSize.y);
         }
 
         uint32_t textureID = m_Framebuffer->GetColorAttachmentRenderID();
         ImGui::Image((void*)(intptr_t)textureID, m_ViewportSize, ImVec2(0, 1), ImVec2(1, 0));
+
+        if (ImGui::IsWindowHovered() && !ImGuizmo::IsUsing())
+            m_EditorCamera.OnInput();
+
+        DrawGizmo();
 
         ImVec2 padding = ImVec2(10.0f, 10.0f);
         ImGui::SetCursorScreenPos(ImVec2(viewportMin.x + padding.x, viewportMin.y + padding.y));
@@ -291,13 +349,13 @@ namespace Editor
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.4f, 0.8f, 0.8f));
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
 
-            if (ImGui::Button("\uf245"))       { /* Switch to select mode */ }
+            if (ImGui::Button("\uf245"))       { m_GizmoOperation = 0; }
             ImGui::SameLine();
-            if (ImGui::Button("\U000F01BE"))   { /* Switch to translate mode */ }
+            if (ImGui::Button("\U000F01BE"))   { m_GizmoOperation = ImGuizmo::TRANSLATE; }
             ImGui::SameLine();
-            if (ImGui::Button("\U000F0D98"))   { /* Switch to rotate mode */ }
+            if (ImGui::Button("\U000F0D98"))   { m_GizmoOperation = ImGuizmo::ROTATE; }
             ImGui::SameLine();
-            if (ImGui::Button("\U000F0A68"))   { /* Switch to scale mode */ }
+            if (ImGui::Button("\U000F0A68"))   { m_GizmoOperation = ImGuizmo::SCALE; }
 
             ImGui::PopStyleVar();
             ImGui::PopStyleColor();
@@ -339,18 +397,79 @@ namespace Editor
     void EditorLayer::DrawWorldOutlinerPanel()
     {
         ImGui::Begin("World");
-        if (ImGui::TreeNodeEx("World", ImGuiTreeNodeFlags_DefaultOpen))
+
+        if (!m_ActiveWorld)
         {
-            ImGui::Text("Stuff in World 1");
+            ImGui::TextDisabled("No world loaded.");
+            ImGui::End();
+            return;
+        }
+
+        if (ImGui::TreeNodeEx(m_ActiveWorld->GetName().c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            auto view = m_ActiveWorld->GetRegistry().view<Zeyrixon::TagComponent>();
+            for (auto [handle, tag] : view.each())
+            {
+                Zeyrixon::Entity entity{ handle, m_ActiveWorld.get() };
+
+                ImGui::PushID(static_cast<int>(static_cast<uint32_t>(handle)));
+                if (ImGui::Selectable(tag.Tag.c_str(), m_SelectedEntity == entity))
+                    m_SelectedEntity = entity;
+                ImGui::PopID();
+            }
             ImGui::TreePop();
         }
+
+        // Right-click empty space to add an entity. This runs after the view loop
+        // finishes, because creating entities mid-iteration can invalidate the view.
+        if (ImGui::BeginPopupContextWindow(nullptr, ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+        {
+            if (ImGui::MenuItem("Create Entity"))
+                m_SelectedEntity = m_ActiveWorld->CreateEntity("Entity");
+            ImGui::EndPopup();
+        }
+
         ImGui::End();
     }
 
     void EditorLayer::DrawPropertiesPanel()
     {
         ImGui::Begin("Properties");
-        ImGui::TextDisabled("Selected Obj Properties");
+        
+        if (!m_SelectedEntity)
+        {
+            ImGui::TextDisabled("Nothing selected.");
+            ImGui::End();
+            return;
+        }
+
+        if (m_SelectedEntity.HasComponent<Zeyrixon::TagComponent>())
+        {
+            auto& tag = m_SelectedEntity.GetComponent<Zeyrixon::TagComponent>().Tag;
+
+            char buffer[256]{};
+            std::strncpy(buffer, tag.c_str(), sizeof(buffer) - 1);
+            if (ImGui::InputText("Tag", buffer, sizeof(buffer)))
+                tag = buffer;
+        }
+
+        if (m_SelectedEntity.HasComponent<Zeyrixon::TransformComponent>())
+        {
+            if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                auto& transform = m_SelectedEntity.GetComponent<Zeyrixon::TransformComponent>();
+
+                ImGui::DragFloat3("Position", &transform.Position.x, 0.1f);
+
+                // Stored in radians, edited in degrees.
+                glm::vec3 rotationDegrees = glm::degrees(transform.Rotation);
+                if (ImGui::DragFloat3("Rotation", &rotationDegrees.x, 0.5f))
+                    transform.Rotation = glm::radians(rotationDegrees);
+                
+                ImGui::DragFloat3("Scale", &transform.Scale.x, 0.1f);
+            }
+        }
+
         ImGui::End();
     }
 
@@ -560,5 +679,14 @@ namespace Editor
         ImGui::Columns(1);
 
         ImGui::End();
+    }
+
+    void EditorLayer::LoadStartupWorld()
+    {
+        m_SelectedEntity = {};
+        m_ActiveWorld = Zeyrixon::World::Load(m_ActiveProject->GetStartupWorldPath());
+
+        if (!m_ActiveWorld)
+            Z_EDITOR_ERROR("Failed to load startup world for project '{0}'", m_ActiveProject->GetName());
     }
 }

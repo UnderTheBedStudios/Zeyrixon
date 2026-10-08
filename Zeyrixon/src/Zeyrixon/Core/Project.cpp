@@ -22,7 +22,7 @@ namespace Zeyrixon
         fs::create_directories(fs::path(project->m_ProjectDirectory) / project->m_CodeRoot);
 
         auto defaultWorld = World::New("Default");
-        std::string worldPath = (fs::path(project->GetAssetDirectory()) / project->m_StartupWorld).string();
+        std::string worldPath = project->GetStartupWorldPath();
         if (!defaultWorld->SaveAs(worldPath))
         {
             Z_CORE_CRITICAL("Failed to write default world for project '{0}'", name);
@@ -102,5 +102,10 @@ namespace Zeyrixon
     std::string Project::GetManifestPath() const
     {
         return (fs::path(m_ProjectDirectory) / (m_Name + ".zeyrixon")).string();
+    }
+
+    std::string Project::GetStartupWorldPath() const
+    {
+        return (fs::path(GetAssetDirectory()) / m_StartupWorld).string();
     }
 }

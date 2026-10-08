@@ -2,12 +2,17 @@
 
 #include <Zeyrixon/Core/Layer.h>
 #include <Zeyrixon/Events/Event.h>
+#include <ZeyrixonEditor/Core/EditorCamera.h>
 #include <imgui.h>
 
 #include <Platform/OpenGL/OpenGLFramebuffer.h>
 #include <Platform/OpenGL/OpenGLTexture.h>
 #include <memory>
 #include <filesystem>
+
+#include <Zeyrixon/World/World.h>
+#include <Zeyrixon/World/Entity.h>
+#include <Zeyrixon/World/Components.h>
 
 #include <Zeyrixon/Core/DeltaTime.h>
 
@@ -31,9 +36,17 @@ namespace Editor
         void OnAttach() override;
         void OnDetach() override;
 
+        void LoadStartupWorld();
+
     private:
         std::shared_ptr<Zeyrixon::OpenGLFramebuffer> m_Framebuffer;
         ImVec2 m_ViewportSize = { 0.0f, 0.0f };
+
+        EditorCamera m_EditorCamera;
+        ImVec2 m_ViewportMin = { 0.f, 0.f };
+        int m_GizmoOperation = 0; // 0 = select (no gizmo), otherwise, it will be ImGuizmo::OPERATION
+
+        void DrawGizmo();
 
         void BuildDefaultLayout(ImGuiID dockspaceId);
         void DrawMenuBar();
@@ -63,5 +76,8 @@ namespace Editor
 
         std::shared_ptr<Zeyrixon::Project> m_ActiveProject;
         std::string m_StartupProjectPath;
+        
+        std::shared_ptr<Zeyrixon::World> m_ActiveWorld;
+        Zeyrixon::Entity m_SelectedEntity;
     };
 }
