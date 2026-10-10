@@ -4,6 +4,7 @@
 #include <Zeyrixon/Core/Application.h>
 #include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/World/ComponentRegistry.h>
+#include <Zeyrixon/Renderer/WorldRenderer.h>
 
 #include <imgui_internal.h>
 #include <ImGuizmo.h>
@@ -92,6 +93,30 @@ namespace
             ImGui::DragFloat("Near", &camera.Near, 0.01f, 0.001f, 100.0f);
             ImGui::DragFloat("Far", &camera.Far, 1.0f, 1.0f, 100000.0f);
             ImGui::Checkbox("Primary", &camera.Primary);
+        });
+
+        SetInspector("Mesh", [](Zeyrixon::Entity entity)
+        {
+            auto& mesh = entity.GetComponent<Zeyrixon::MeshComponent>();
+
+            char buffer[512]{};
+            std::strncpy(buffer, mesh.MeshPath.c_str(), sizeof(buffer) - 1);
+            if (ImGui::InputText("Path", buffer, sizeof(buffer), ImGuiInputTextFlags_EnterReturnsTrue))
+                mesh.MeshPath = buffer;
+
+            if (ImGui::Button("Cube"))
+                mesh.MeshPath = "builtin:cube";
+
+            ImGui::SameLine();
+            if (ImGui::Button("Browse..."))
+            {
+                const char* filterPatterns[1] = { "*.obj" };
+                const char* chosen = tinyfd_openFileDialog("Choose a mesh", nullptr, 1, filterPatterns, "OBJ model", 0);
+                if (chosen)
+                    mesh.MeshPath = chosen;
+            }
+
+            ImGui::ColorEdit3("Color", &mesh.Color.x);
         });
     }
 }
@@ -337,7 +362,12 @@ namespace Editor
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Rendering goes here later
+        if (m_ActiveWorld)
+        {
+            Zeyrixon::WorldRenderer::RenderWorld(
+                *m_ActiveWorld, m_EditorCamera.GetView(), m_EditorCamera.GetProjection()
+            );
+        }
 
         m_Framebuffer->Unbind();
     }
@@ -404,7 +434,7 @@ namespace Editor
 
         ImVec2 viewportMin = ImGui::GetCursorScreenPos();
         m_ViewportMin = viewportMin;
-        
+
         ImVec2 viewportPanelSize = ImGui::GetContentRegionAvail();
         if (m_ViewportSize.x != viewportPanelSize.x || m_ViewportSize.y != viewportPanelSize.y)
         {

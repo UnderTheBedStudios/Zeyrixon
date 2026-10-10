@@ -87,5 +87,20 @@ namespace Zeyrixon
             c.Far = node.attribute("Far").as_float(c.Far);
             c.Primary = node.attribute("Primary").as_bool(c.Primary);
         };
+
+        auto& mesh = Register<MeshComponent>("Mesh");
+        mesh.Serialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& m = e.GetComponent<MeshComponent>();
+            node.append_attribute("Path") = m.MeshPath.c_str();
+            node.append_attribute("Color") = Vec3ToString(m.Color).c_str();
+        };
+        mesh.Deserialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& m = e.GetComponent<MeshComponent>();
+            const std::string fallbackPath = m.MeshPath;
+            m.MeshPath = node.attribute("Path").as_string(fallbackPath.c_str());
+            m.Color = StringToVec3(node.attribute("Color").as_string(""), m.Color);
+        };
     }
 }
