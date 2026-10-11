@@ -464,6 +464,10 @@ namespace Editor
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_BACK);
+        glFrontFace(GL_CCW);
+
         const glm::mat4 view = m_EditorCamera.GetView();
         const glm::mat4 projection = m_EditorCamera.GetProjection();
 
@@ -474,6 +478,7 @@ namespace Editor
             );
         }
 
+        glDisable(GL_CULL_FACE);
         // The grid goes last: it's blended over the scene and needs the scene's depth.
         Zeyrixon::WorldRenderer::RenderGrid(view, projection, m_EditorCamera.GetPosition(), m_EditorCamera.Is2D());
 
