@@ -256,10 +256,6 @@ namespace Editor
         ImGuizmo::SetDrawlist();
         ImGuizmo::SetRect(m_ViewportMin.x, m_ViewportMin.y, m_ViewportSize.x, m_ViewportSize.y);
 
-        // Ref grid so that I can see the camera move before anything renders
-        const glm::mat4 identity(1.f);
-        ImGuizmo::DrawGrid(glm::value_ptr(view), glm::value_ptr(projection), glm::value_ptr(identity), 20.f);
-
         if (!m_SelectedEntity || m_GizmoOperation == 0
             || !m_SelectedEntity.HasComponent<Zeyrixon::TransformComponent>())
             return;
@@ -467,13 +463,18 @@ namespace Editor
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        const glm::mat4 view = m_EditorCamera.GetView();
+        const glm::mat4 projection = m_EditorCamera.GetProjection();
+
         if (m_ActiveWorld)
         {
             Zeyrixon::WorldRenderer::RenderWorld(
-                *m_ActiveWorld, m_EditorCamera.GetView(), m_EditorCamera.GetProjection(),
-                m_EditorCamera.GetPosition()
+                *m_ActiveWorld, view, projection, m_EditorCamera.GetPosition()
             );
         }
+
+        // The grid goes last: it's blended over the scene and needs the scene's depth.
+        Zeyrixon::WorldRenderer::RenderGrid(view, projection, m_EditorCamera.GetPosition(), m_EditorCamera.Is2D());
 
         m_Framebuffer->Unbind();
     }

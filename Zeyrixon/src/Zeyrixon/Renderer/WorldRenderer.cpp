@@ -8,6 +8,8 @@
 #include <Platform/OpenGL/OpenGLRender.h>
 #include <Platform/OpenGL/OpenGLShader.h>
 
+#include <glad/glad.h>
+
 namespace Zeyrixon
 {
     namespace
@@ -195,6 +197,117 @@ namespace Zeyrixon
         }
     }
 
+    const char* k_GridVertexSource = R"(
+        #version 450 core
+        layout(location = 0) in vec3 a_Position;   // unit quad, x and z in [-1, 1]
+
+        uniform mat4 u_ViewProjection;
+        uniform vec3 u_Center;
+        uniform float u_Extent;
+        uniform int u_XYPlane;
+
+        out vec3 v_WorldPos;
+
+        void main()
+        {
+            vec3 offset = (u_XYPlane == 0)
+                ? vec3(a_Position.x, 0.0, a_Position.z)
+                : vec3(a_Position.x, a_Position.z, 0.0);
+
+            vec3 world = u_Center + offset * u_Extent;
+            v_WorldPos = world;
+            gl_Position = u_ViewProjection * vec4(world, 1.0);
+        }
+    )";
+
+    const char* k_GridFragmentSource = R"(
+        #version 450 core
+        in vec3 v_WorldPos;
+
+        uniform vec3 u_Center;
+        uniform float u_Extent;
+        uniform int u_XYPlane;
+
+        out vec4 o_Color;
+
+        // How much of this pixel a grid line with the given spacing covers (0..1).
+        float GridLine(vec2 coord, float spacing)
+        {
+            vec2 scaled = coord / spacing;
+            vec2 width = max(fwidth(scaled), vec2(1e-6));
+            vec2 distanceToLine = abs(fract(scaled - 0.5) - 0.5) / width;
+            float line = 1.0 - min(min(distanceToLine.x, distanceToLine.y), 1.0);
+
+            // Lines closer together than a pixel would shimmer, so fade them out.
+            float fade = 1.0 - smoothstep(0.3, 0.8, max(width.x, width.y));
+            return line * fade;
+        }
+
+        void main()
+        {
+            vec2 coord  = (u_XYPlane == 0) ? v_WorldPos.xz : v_WorldPos.xy;
+            vec2 centre = (u_XYPlane == 0) ? u_Center.xz   : u_Center.xy;
+
+            float minorLine = GridLine(coord, 1.0);
+            float majorLine = GridLine(coord, 10.0);
+
+            vec3 color = vec3(0.65);
+            float alpha = max(minorLine * 0.2, majorLine * 0.4);
+
+            // The line along X (coord.y == 0) is red. The other axis is blue on the
+            // ground and green in the 2D view.
+            vec2 pixelWidth = max(fwidth(coord), vec2(1e-6));
+            float xAxis = 1.0 - min(abs(coord.y) / pixelWidth.y, 1.0);
+            float yAxis = 1.0 - min(abs(coord.x) / pixelWidth.x, 1.0);
+            vec3 xAxisColor = vec3(0.9, 0.25, 0.25);
+            vec3 yAxisColor = (u_XYPlane == 0) ? vec3(0.3, 0.45, 0.95) : vec3(0.35, 0.85, 0.35);
+
+            color = mix(color, xAxisColor, xAxis);
+            color = mix(color, yAxisColor, yAxis);
+            alpha = max(alpha, max(xAxis, yAxis) * 0.8);
+
+            // Fade towards the edge of the quad so its border is never visible.
+            alpha *= 1.0 - smoothstep(0.5 * u_Extent, u_Extent, length(coord - centre));
+
+            if (alpha < 0.002)
+                discard;
+
+            o_Color = vec4(color, alpha);
+        }
+    )";
+
+    OpenGLShader& GetGridShader()
+    {
+        static OpenGLShader* shader = new OpenGLShader("Grid", k_GridVertexSource, k_GridFragmentSource);
+        return *shader;
+    }
+
+    // A unit quad in the XZ plane; the vertex shader scales and places it. Never freed, for the
+    // same reason as the other GL statics.
+    std::shared_ptr<OpenGLVertexArray>& GetGridQuad()
+    {
+        static auto* quad = []
+        {
+            float vertices[] = {
+                -1.0f, 0.0f, -1.0f,
+                1.0f, 0.0f, -1.0f,
+                1.0f, 0.0f,  1.0f,
+                -1.0f, 0.0f,  1.0f,
+            };
+            uint32_t indices[] = { 0, 1, 2, 0, 2, 3 };
+
+            auto vertexArray = std::make_shared<OpenGLVertexArray>();
+
+            auto vertexBuffer = std::make_shared<OpenGLVertexBuffer>(vertices, sizeof(vertices));
+            vertexBuffer->SetLayout({ { ShaderDataType::Float3, "a_Position" } });
+            vertexArray->AddVertexBuffer(vertexBuffer);
+
+            vertexArray->SetIndexBuffer(std::make_shared<OpenGLIndexBuffer>(indices, 6));
+            return new std::shared_ptr<OpenGLVertexArray>(vertexArray);
+        }();
+        return *quad;
+    }
+
     void WorldRenderer::RenderWorld(World& world, const glm::mat4& view, const glm::mat4& projection,
                                     const glm::vec3& cameraPosition)
     {
@@ -241,5 +354,35 @@ namespace Zeyrixon
 
             OpenGLRender::DrawIndexed(meshData->GetVertexArray());
         }
+    }
+
+    void WorldRenderer::RenderGrid(const glm::mat4& view, const glm::mat4& projection,
+                                   const glm::vec3& cameraPosition, bool xyPlane)
+    {
+        OpenGLShader& shader = GetGridShader();
+        shader.Bind();
+
+        // Centred under the camera so the grid never runs out; the pattern is computed from
+        // world position, so it doesn't slide as the quad follows.
+        const glm::vec3 center = xyPlane
+            ? glm::vec3(cameraPosition.x, cameraPosition.y, 0.0f)
+            : glm::vec3(cameraPosition.x, 0.0f, cameraPosition.z);
+
+        shader.SetMat4("u_ViewProjection", projection * view);
+        shader.SetFloat3("u_Center", center);
+        shader.SetFloat("u_Extent", 200.0f);
+        shader.SetInt("u_XYPlane", xyPlane ? 1 : 0);
+
+        // Blend over the scene, test against its depth so objects hide the grid, don't write depth.
+        // The separate alpha function keeps the framebuffer's alpha at 1; with the plain function
+        // the lines would lower it, and ImGui would then draw the viewport see-through there.
+        glEnable(GL_BLEND);
+        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+        glDepthMask(GL_FALSE);
+
+        OpenGLRender::DrawIndexed(GetGridQuad());
+
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
     }
 }

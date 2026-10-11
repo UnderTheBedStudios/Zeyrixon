@@ -172,7 +172,7 @@ namespace Editor
             // 2D is pan-only, so scroll does nothing there.
             if (Is2D())
             {
-                m_2DZoom = m_2DZoom + ((yOffset * 0.005f) * -1.f);
+                m_2DZoom = m_2DZoom + ((yOffset * 0.05f) * -1.f);
                 m_2DZoom = std::clamp(m_2DZoom, 0.000001f, 1000.f);
             }
             else
