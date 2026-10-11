@@ -13,14 +13,24 @@ namespace Zeyrixon
 {
     static_assert(sizeof(MeshVertex) == 8 * sizeof(float), "MeshVertex must be tightly packed");
 
-    Mesh::Mesh(std::vector<MeshVertex> verticies, std::vector<uint32_t> indices)
+    Mesh::Mesh(std::vector<MeshVertex> vertices, std::vector<uint32_t> indices)
+        : m_Verticies(std::move(vertices)), m_Indices(std::move(indices))
     {
+        if (!m_Verticies.empty())
+        {
+            m_BoundsMin = m_BoundsMax = m_Verticies[0].Position;
+            for (const MeshVertex& vertex : m_Verticies)
+            {
+                m_BoundsMin = glm::min(m_BoundsMin, vertex.Position);
+                m_BoundsMax = glm::max(m_BoundsMax, vertex.Position);
+            }
+        }
+
         m_VertexArray = std::make_shared<OpenGLVertexArray>();
 
         auto vertexBuffer = std::make_shared<OpenGLVertexBuffer>(
-            reinterpret_cast<float*>(verticies.data()),
-            static_cast<uint32_t>(verticies.size() * sizeof(MeshVertex))
-        );
+            reinterpret_cast<float*>(m_Verticies.data()),
+            static_cast<uint32_t>(m_Verticies.size() * sizeof(MeshVertex)));
         vertexBuffer->SetLayout({
             { ShaderDataType::Float3, "a_Position" },
             { ShaderDataType::Float3, "a_Normal" },
@@ -29,8 +39,7 @@ namespace Zeyrixon
         m_VertexArray->AddVertexBuffer(vertexBuffer);
 
         auto indexBuffer = std::make_shared<OpenGLIndexBuffer>(
-            indices.data(), static_cast<uint32_t>(indices.size())
-        );
+            m_Indices.data(), static_cast<uint32_t>(m_Indices.size()));
         m_VertexArray->SetIndexBuffer(indexBuffer);
     }
 

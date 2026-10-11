@@ -5,6 +5,7 @@
 #include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/World/ComponentRegistry.h>
 #include <Zeyrixon/Renderer/WorldRenderer.h>
+#include <Zeyrixon/Renderer/Picking.h>
 
 #include <imgui_internal.h>
 #include <ImGuizmo.h>
@@ -636,6 +637,25 @@ namespace Editor
             ImGui::PopStyleColor();
 
         ImGui::EndGroup();
+
+        /* Click to select. Skipped over toolbar buttons and gizmo, and while Alt is held
+           (Alt + left drag orbits the camera). */
+        if (m_ViewportHovered
+            && m_ActiveWorld
+            && ImGui::IsMouseClicked(ImGuiMouseButton_Left)
+            && !ImGui::IsAnyItemHovered()
+            && !ImGuizmo::IsOver()
+            && !Zeyrixon::Input::IsKeyPressed(Z_KEY_LEFT_ALT))
+        {
+            const ImVec2 mouse = ImGui::GetMousePos();
+            const glm::vec2 point(mouse.x - m_ViewportMin.x, mouse.y - m_ViewportMin.y);
+
+            glm::vec3 origin, direction;
+            m_EditorCamera.ScreenPointToRay(point, glm::vec2(m_ViewportSize.x, m_ViewportSize.y), origin, direction);
+
+            // An empty click gives an invalid entity, which also deselects.
+            m_SelectedEntity = Zeyrixon::Picking::PickEntity(*m_ActiveWorld, origin, direction);
+        }
 
         ImGui::End();
         ImGui::PopStyleVar();

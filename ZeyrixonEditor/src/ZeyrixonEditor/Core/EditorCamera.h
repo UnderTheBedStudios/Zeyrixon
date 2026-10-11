@@ -183,6 +183,26 @@ namespace Editor
             }
         }
 
+        /* A wold-space ray through a point in the viewport. 'point' is in pixels from the
+           viewport's top-left corner. */
+        void ScreenPointToRay(const glm::vec2& point, const glm::vec2& viewportSize,
+                              glm::vec3& origin, glm::vec3& direction) const
+        {
+            const glm::vec2 ndc(
+                (point.x / viewportSize.x) * 2.f - 1.f,
+                1.f - (point.y / viewportSize.y) * 2.f);   // screen y points down, NDC y points up
+
+            const glm::mat4 inverseViewProjection = glm::inverse(GetProjection() * GetView());
+
+            glm::vec4 nearPoint = inverseViewProjection * glm::vec4(ndc, -1.f, 1.f);
+            glm::vec4 farPoint  = inverseViewProjection * glm::vec4(ndc,  1.f, 1.f);
+            nearPoint /= nearPoint.w;
+            farPoint  /= farPoint.w;
+
+            origin = glm::vec3(nearPoint);
+            direction = glm::normalize(glm::vec3(farPoint - nearPoint));
+        }
+
     private:
         void Rotate(const glm::vec2& mouseDelta)
         {
