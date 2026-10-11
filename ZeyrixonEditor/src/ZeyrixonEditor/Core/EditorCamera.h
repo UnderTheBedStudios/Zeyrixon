@@ -71,7 +71,7 @@ namespace Editor
                 // 3D: same visible height at the pivot as the perspective view, so switching
                 // doesn't change the apparent zoom. 2D: its own fixed size.
                 const float halfHeight = Is2D()
-                    ? m_Size2D
+                    ? m_Size2D * m_2DZoom
                     : m_Distance * std::tan(glm::radians(m_Fov) * 0.5f);
                 const float halfWidth = halfHeight * m_Aspect;
 
@@ -171,11 +171,16 @@ namespace Editor
         {
             // 2D is pan-only, so scroll does nothing there.
             if (Is2D())
-                return;
-
-            const float newDistance = std::max(0.5f, m_Distance * (1.f - yOffset * 0.1f));
-            m_Position += GetForward() * (m_Distance - newDistance);
-            m_Distance = newDistance;
+            {
+                m_2DZoom = m_2DZoom + ((yOffset * 0.005f) * -1.f);
+                m_2DZoom = std::clamp(m_2DZoom, 0.000001f, 1000.f);
+            }
+            else
+            {
+                const float newDistance = std::max(0.5f, m_Distance * (1.f - yOffset * 0.1f));
+                m_Position += GetForward() * (m_Distance - newDistance);
+                m_Distance = newDistance;
+            }
         }
 
     private:
@@ -207,6 +212,7 @@ namespace Editor
         float m_BoostSpeed = 20.f;
 
         float m_Fov = 45.f;
+        float m_2DZoom = 1.f;
         float m_Near = 0.1f;
         float m_Far = 1000.f;
         float m_Aspect = 16.f / 9.f;
