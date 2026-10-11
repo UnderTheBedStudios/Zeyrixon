@@ -17,6 +17,8 @@
 
 #include <filesystem>
 #include <functional>
+#include <fstream>
+#include <sstream>
 #include <vector>
 #include <algorithm>
 
@@ -57,6 +59,85 @@ namespace
     {
         if (auto* info = Zeyrixon::ComponentRegistry::Get().Find(name))
             info->DrawInspector = std::move(draw);
+    }
+
+    // One row of the material inspector: an editable path (applied on Enter), Browse and Clear.
+    void DrawTextureSlot(const char* label, std::string& path)
+    {
+        ImGui::PushID(label);
+
+        char buffer[512]{};
+        std::strncpy(buffer, path.c_str(), sizeof(buffer) - 1);
+        if (ImGui::InputText(label, buffer, sizeof(buffer), ImGuiInputTextFlags_EnterReturnsTrue))
+            path = buffer;
+
+        if (ImGui::Button("Browse..."))
+        {
+            const char* filterPatterns[3] = { "*.png", "*.jpg", "*.jpeg" };
+            const char* chosen = tinyfd_openFileDialog("Choose a texture", nullptr, 3, filterPatterns, "Images", 0);
+            if (chosen)
+                path = chosen;
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("Clear"))
+            path.clear();
+
+        ImGui::PopID();
+    }
+
+    // Fills a material from the first material in an .mtl file. Texture paths in the file are
+    // relative to the .mtl, so they're resolved to full paths. Limitation: a texture path
+    // containing spaces isn't handled (the last token on the line is taken as the path).
+    bool ApplyMTL(const std::string& mtlPath, Zeyrixon::MaterialComponent& material)
+    {
+        std::ifstream file(mtlPath);
+        if (!file)
+            return false;
+
+        const std::filesystem::path directory = std::filesystem::path(mtlPath).parent_path();
+
+        glm::vec3 diffuse(0.8f);
+        bool inMaterial = false;
+
+        std::string line;
+        while (std::getline(file, line))
+        {
+            std::istringstream stream(line);
+            std::string keyword;
+            stream >> keyword;
+
+            if (keyword == "newmtl")
+            {
+                if (inMaterial)
+                    break;
+                inMaterial = true;
+            }
+            else if (keyword == "Kd")
+            {
+                stream >> diffuse.x >> diffuse.y >> diffuse.z;
+            }
+            else if (keyword == "map_Kd" || keyword == "map_Pr" || keyword == "map_Pm"
+                  || keyword == "map_Bump" || keyword == "bump" || keyword == "norm")
+            {
+                // Options such as "-bm 1.0" can come first; the file name is the last token.
+                std::string token, last;
+                while (stream >> token)
+                    last = token;
+                if (last.empty())
+                    continue;
+
+                const std::string fullPath = (directory / last).string();
+                if (keyword == "map_Kd")      material.AlbedoMap = fullPath;
+                else if (keyword == "map_Pr") material.RoughnessMap = fullPath;
+                else if (keyword == "map_Pm") material.MetallicMap = fullPath;
+                else                          material.NormalMap = fullPath;
+            }
+        }
+
+        // The albedo map carries the colour, so don't also tint it with Kd.
+        material.Albedo = material.AlbedoMap.empty() ? diffuse : glm::vec3(1.0f);
+        return true;
     }
 
     void RegisterComponentInspectors()
@@ -115,8 +196,32 @@ namespace
                 if (chosen)
                     mesh.MeshPath = chosen;
             }
+        });
 
-            ImGui::ColorEdit3("Color", &mesh.Color.x);
+        SetInspector("Material", [](Zeyrixon::Entity entity)
+        {
+            auto& material = entity.GetComponent<Zeyrixon::MaterialComponent>();
+
+            ImGui::ColorEdit3("Albedo", &material.Albedo.x);
+            ImGui::SliderFloat("Metallic", &material.Metallic, 0.0f, 1.0f);
+            ImGui::SliderFloat("Roughness", &material.Roughness, 0.0f, 1.0f);
+            ImGui::SliderFloat("AO", &material.AO, 0.0f, 1.0f);
+
+            ImGui::SeparatorText("Maps (replace the values above)");
+            DrawTextureSlot("Albedo Map", material.AlbedoMap);
+            DrawTextureSlot("Normal Map", material.NormalMap);
+            DrawTextureSlot("Roughness Map", material.RoughnessMap);
+            DrawTextureSlot("Metallic Map", material.MetallicMap);
+            DrawTextureSlot("AO Map", material.AOMap);
+
+            ImGui::Separator();
+            if (ImGui::Button("Load from .mtl..."))
+            {
+                const char* filterPatterns[1] = { "*.mtl" };
+                const char* chosen = tinyfd_openFileDialog("Choose a material file", nullptr, 1, filterPatterns, "MTL file", 0);
+                if (chosen)
+                    ApplyMTL(chosen, material);
+            }
         });
     }
 }
@@ -365,7 +470,8 @@ namespace Editor
         if (m_ActiveWorld)
         {
             Zeyrixon::WorldRenderer::RenderWorld(
-                *m_ActiveWorld, m_EditorCamera.GetView(), m_EditorCamera.GetProjection()
+                *m_ActiveWorld, m_EditorCamera.GetView(), m_EditorCamera.GetProjection(),
+                m_EditorCamera.GetPosition()
             );
         }
 

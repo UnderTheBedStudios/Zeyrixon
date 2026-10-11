@@ -8,7 +8,7 @@
 
 namespace Zeyrixon
 {
-    OpenGLTexture2D::OpenGLTexture2D(const std::string& path)
+    OpenGLTexture2D::OpenGLTexture2D(const std::string& path, bool srgb)
         : m_Path(path)
     {
         int width, height, channels;
@@ -29,12 +29,12 @@ namespace Zeyrixon
         GLenum internalFormat = 0, dataFormat = 0;
         if (channels == 4)
         {
-            internalFormat = GL_RGBA8;
+            internalFormat = srgb ? GL_SRGB8_ALPHA8 : GL_RGBA8;
             dataFormat = GL_RGBA;
         }
         else if (channels == 3)
         {
-            internalFormat = GL_RGB8;
+            internalFormat = srgb ? GL_SRGB8 : GL_RGB8;
             dataFormat = GL_RGB;
         }
         else
@@ -60,7 +60,9 @@ namespace Zeyrixon
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, m_Width, m_Height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
         glGenerateMipmap(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, 0);
 

@@ -12,7 +12,7 @@ namespace Zeyrixon
     class Z_API OpenGLTexture2D
     {
     public:
-        OpenGLTexture2D(const std::string& path);
+        OpenGLTexture2D(const std::string& path, bool srgb = false);
         OpenGLTexture2D(uint32_t width, uint32_t height);
         OpenGLTexture2D(glm::vec2 size);
 
@@ -31,7 +31,7 @@ namespace Zeyrixon
         bool IsLoaded() const { return m_IsLoaded; }
 
         const std::string& GetPath() const { return m_Path; }
-        
+
     private:
         std::string m_Path;
         bool m_IsLoaded = false;

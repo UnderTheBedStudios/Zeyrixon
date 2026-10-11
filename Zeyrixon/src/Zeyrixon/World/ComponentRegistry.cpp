@@ -91,16 +91,41 @@ namespace Zeyrixon
         auto& mesh = Register<MeshComponent>("Mesh");
         mesh.Serialize = [](Entity e, pugi::xml_node node)
         {
-            auto& m = e.GetComponent<MeshComponent>();
-            node.append_attribute("Path") = m.MeshPath.c_str();
-            node.append_attribute("Color") = Vec3ToString(m.Color).c_str();
+            node.append_attribute("Path") = e.GetComponent<MeshComponent>().MeshPath.c_str();
         };
         mesh.Deserialize = [](Entity e, pugi::xml_node node)
         {
             auto& m = e.GetComponent<MeshComponent>();
             const std::string fallbackPath = m.MeshPath;
             m.MeshPath = node.attribute("Path").as_string(fallbackPath.c_str());
-            m.Color = StringToVec3(node.attribute("Color").as_string(""), m.Color);
+        };
+
+        auto& material = Register<MaterialComponent>("Material");
+        material.Serialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& m = e.GetComponent<MaterialComponent>();
+            node.append_attribute("Albedo") = Vec3ToString(m.Albedo).c_str();
+            node.append_attribute("Metallic") = m.Metallic;
+            node.append_attribute("Roughness") = m.Roughness;
+            node.append_attribute("AO") = m.AO;
+            node.append_attribute("AlbedoMap") = m.AlbedoMap.c_str();
+            node.append_attribute("NormalMap") = m.NormalMap.c_str();
+            node.append_attribute("RoughnessMap") = m.RoughnessMap.c_str();
+            node.append_attribute("MetallicMap") = m.MetallicMap.c_str();
+            node.append_attribute("AOMap") = m.AOMap.c_str();
+        };
+        material.Deserialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& m = e.GetComponent<MaterialComponent>();
+            m.Albedo = StringToVec3(node.attribute("Albedo").as_string(""), m.Albedo);
+            m.Metallic = node.attribute("Metallic").as_float(m.Metallic);
+            m.Roughness = node.attribute("Roughness").as_float(m.Roughness);
+            m.AO = node.attribute("AO").as_float(m.AO);
+            m.AlbedoMap = node.attribute("AlbedoMap").as_string();
+            m.NormalMap = node.attribute("NormalMap").as_string();
+            m.RoughnessMap = node.attribute("RoughnessMap").as_string();
+            m.MetallicMap = node.attribute("MetallicMap").as_string();
+            m.AOMap = node.attribute("AOMap").as_string();
         };
     }
 }

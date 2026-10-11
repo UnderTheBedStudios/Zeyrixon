@@ -12,6 +12,7 @@ namespace Zeyrixon
     public:
         /* Draws every entity that has a Transform and a Mesh into the framebuffer
            that is currently bound. The caller binds, clears and unbinds. */
-        static void RenderWorld(World& world, const glm::mat4& view, const glm::mat4& projection);
+        static void RenderWorld(World& world, const glm::mat4& view, const glm::mat4& projection,
+                                const glm::vec3& cameraPosition);
     };
 }

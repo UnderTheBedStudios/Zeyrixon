@@ -55,6 +55,20 @@ namespace Zeyrixon
     {
         // "builtin:cube", or the path of an .obj file.
         std::string MeshPath = "builtin:cube";
-        glm::vec3 Color{ 0.8f };
+    };
+
+    struct MaterialComponent
+    {
+        glm::vec3 Albedo{ 1.f };    // Tints the albedo map, or the color if there is none
+        float Metallic = 0.f;       // Used only when there is no metallic map
+        float Roughness = 0.5f;     // Used only when there is no roughness map
+        float AO = 1.f;             // Used only when there is no AO map
+
+        // Empty means not assigned. Full file paths for now
+        std::string AlbedoMap;
+        std::string NormalMap;
+        std::string RoughnessMap;
+        std::string MetallicMap;
+        std::string AOMap;
     };
 }
