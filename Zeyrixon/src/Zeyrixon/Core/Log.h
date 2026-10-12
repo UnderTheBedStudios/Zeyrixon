@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Zeyrixon/Core/LogBuffer.h>
+
 #include <memory>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/ostr.h>
@@ -29,10 +31,13 @@ namespace Zeyrixon
         inline static std::shared_ptr<spdlog::logger>& GetClientLogger() { return m_ClientLogger; }
         /* It can get the editor logger */
         inline static std::shared_ptr<spdlog::logger>& GetEditorLogger() { return m_EditorLogger; }
+        /* The in-memory copy of recent log messages, for the editor's Logger panel */
+        inline static std::shared_ptr<LogBuffer>& GetBuffer() { return m_Buffer; }
     private:
         static std::shared_ptr<spdlog::logger> m_CoreLogger;
         static std::shared_ptr<spdlog::logger> m_ClientLogger;
         static std::shared_ptr<spdlog::logger> m_EditorLogger;
+        static std::shared_ptr<LogBuffer> m_Buffer;
     };
 }
 

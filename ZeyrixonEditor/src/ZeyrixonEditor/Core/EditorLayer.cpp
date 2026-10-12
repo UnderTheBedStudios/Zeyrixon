@@ -2,7 +2,6 @@
 #include <Zeyrixon/ImGui/ImGuiLayer.h>
 #include <Zeyrixon/Events/MouseEvent.h>
 #include <Zeyrixon/Core/Application.h>
-#include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/World/ComponentRegistry.h>
 #include <Zeyrixon/Renderer/WorldRenderer.h>
 #include <Zeyrixon/Renderer/Picking.h>
@@ -54,6 +53,25 @@ namespace
         return ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
             && !ImGui::GetIO().WantTextInput
             && ImGui::IsKeyPressed(ImGuiKey_Delete, false);
+    }
+
+    const char* k_LogLevelNames[] = { "Trace", "Info", "Warning", "Error", "Critical" };
+    const spdlog::level::level_enum k_LogLevelValues[] = {
+        spdlog::level::trace, spdlog::level::info, spdlog::level::warn,
+        spdlog::level::err, spdlog::level::critical
+    };
+
+    ImVec4 LogLevelColor(spdlog::level::level_enum level)
+    {
+        switch (level)
+        {
+            case spdlog::level::trace:
+            case spdlog::level::debug:    return ImVec4(0.55f, 0.55f, 0.55f, 1.0f);
+            case spdlog::level::warn:     return ImVec4(1.0f, 0.85f, 0.3f, 1.0f);
+            case spdlog::level::err:      return ImVec4(1.0f, 0.4f, 0.4f, 1.0f);
+            case spdlog::level::critical: return ImVec4(1.0f, 0.15f, 0.55f, 1.0f);
+            default:                      return ImGui::GetStyleColorVec4(ImGuiCol_Text);
+        }
     }
 
     void SetInspector(const char* name, std::function<void(Zeyrixon::Entity)> draw)
@@ -919,15 +937,82 @@ namespace Editor
     {
         ImGui::Begin("Logger");
 
-        if (m_ActiveProject)
+        auto buffer = Zeyrixon::Log::GetBuffer();
+        if (!buffer)
         {
-            ImGui::Text("Logger not setup yet");
+            ImGui::TextDisabled("Logging isn't initialised.");
+            ImGui::End();
+            return;
         }
-        else
+
+        // Only copy the entries again when something new was logged.
+        const uint64_t version = buffer->GetVersion();
+        if (version != m_LogVersion)
         {
-            Z_CORE_WARN("No project open, cannot show logger!");
-            ImGui::Text("You need to load a project");
+            buffer->CopyEntries(m_LogEntries);
+            m_LogVersion = version;
         }
+
+        if (ImGui::Button("Clear"))
+            buffer->Clear();
+
+        ImGui::SameLine();
+        ImGui::Checkbox("Auto-scroll", &m_LogAutoScroll);
+
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(100.0f);
+        ImGui::Combo("##LogLevel", &m_LogMinLevelIndex, k_LogLevelNames, IM_ARRAYSIZE(k_LogLevelNames));
+
+        ImGui::SameLine();
+        m_LogFilter.Draw("Filter", 200.0f);
+
+        ImGui::Separator();
+
+        const spdlog::level::level_enum minLevel = k_LogLevelValues[m_LogMinLevelIndex];
+
+        // Which entries pass the level and text filters.
+        static std::vector<int> visible;
+        visible.clear();
+        for (int i = 0; i < static_cast<int>(m_LogEntries.size()); ++i)
+        {
+            const Zeyrixon::LogEntry& entry = m_LogEntries[i];
+
+            if (entry.Level < minLevel)
+                continue;
+
+            if (m_LogFilter.IsActive()
+                && !m_LogFilter.PassFilter(entry.Message.c_str())
+                && !m_LogFilter.PassFilter(entry.Logger.c_str()))
+                continue;
+
+            visible.push_back(i);
+        }
+
+        // Scrolls horizontally instead of wrapping, which keeps every row the same height
+        // so the clipper below can skip the rows that aren't on screen.
+        ImGui::BeginChild("LogScroll", ImVec2(0.0f, 0.0f), 0, ImGuiWindowFlags_HorizontalScrollbar);
+
+        ImGuiListClipper clipper;
+        clipper.Begin(static_cast<int>(visible.size()));
+        while (clipper.Step())
+        {
+            for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
+            {
+                const Zeyrixon::LogEntry& entry = m_LogEntries[visible[row]];
+
+                ImGui::PushStyleColor(ImGuiCol_Text, LogLevelColor(entry.Level));
+                ImGui::Text("[%s] %s: %s", entry.Time.c_str(), entry.Logger.c_str(), entry.Message.c_str());
+                ImGui::PopStyleColor();
+            }
+        }
+        clipper.End();
+
+        // Stay pinned to the newest message, but only if the view was already at the bottom,
+        // so scrolling up to read something isn't yanked away.
+        if (m_LogAutoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+            ImGui::SetScrollHereY(1.0f);
+
+        ImGui::EndChild();
 
         ImGui::End();
     }

@@ -11,6 +11,8 @@ namespace Zeyrixon
     std::shared_ptr<spdlog::logger> Log::m_CoreLogger;
     std::shared_ptr<spdlog::logger> Log::m_EditorLogger;
 
+    std::shared_ptr<LogBuffer> Log::m_Buffer;
+
     void Log::Init()
     {
         spdlog::set_pattern("%^[%T] %n: %v%$");
@@ -23,5 +25,10 @@ namespace Zeyrixon
 
         m_EditorLogger = spdlog::stdout_color_mt("EDITOR");
         m_EditorLogger->set_level(spdlog::level::trace);
+
+        m_Buffer = std::make_shared<LogBuffer>(2000);
+        m_CoreLogger->sinks().push_back(m_Buffer);
+        m_ClientLogger->sinks().push_back(m_Buffer);
+        m_EditorLogger->sinks().push_back(m_Buffer);
     }
 }

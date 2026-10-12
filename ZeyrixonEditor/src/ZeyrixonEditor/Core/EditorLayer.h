@@ -3,6 +3,7 @@
 #include <Zeyrixon/Core/Layer.h>
 #include <Zeyrixon/Events/Event.h>
 #include <ZeyrixonEditor/Core/EditorCamera.h>
+#include <Zeyrixon/Core/Log.h>
 #include <imgui.h>
 
 #include <Platform/OpenGL/OpenGLFramebuffer.h>
@@ -78,8 +79,14 @@ namespace Editor
 
         std::shared_ptr<Zeyrixon::Project> m_ActiveProject;
         std::string m_StartupProjectPath;
-        
+
         std::shared_ptr<Zeyrixon::World> m_ActiveWorld;
         Zeyrixon::Entity m_SelectedEntity;
+
+        std::vector<Zeyrixon::LogEntry> m_LogEntries;
+        uint64_t m_LogVersion = UINT64_MAX;
+        bool m_LogAutoScroll = true;
+        int m_LogMinLevelIndex = 0;
+        ImGuiTextFilter m_LogFilter;
     };
 }
