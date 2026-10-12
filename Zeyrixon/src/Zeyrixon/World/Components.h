@@ -41,14 +41,40 @@ namespace Zeyrixon
                 * glm::rotate(identity, Rotation.x, glm::vec3(1.f, 0.f, 0.f))
                 * glm::scale(identity, Scale);
         }
+
+        /* The view matrix of a camera placed at this transform: position and rotation only
+           (scale is ignored). A camera looks down its own -Z axis. */
+        glm::mat4 GetViewMatrix() const
+        {
+            const glm::mat4 identity(1.f);
+            const glm::mat4 cameraToWorld = glm::translate(identity, Position)
+                * glm::rotate(identity, Rotation.z, glm::vec3(0.f, 0.f, 1.f))
+                * glm::rotate(identity, Rotation.y, glm::vec3(0.f, 1.f, 0.f))
+                * glm::rotate(identity, Rotation.x, glm::vec3(1.f, 0.f, 0.f));
+            return glm::inverse(cameraToWorld);
+        }
     };
 
     struct CameraComponent
     {
-        float FOV = 45.f;
+        bool Orthographic = false;
+        float FOV = 45.f;               // degrees; perspective only
+        float OrthographicSize = 5.f;   // half the visible height in world units; orthographic only
         float Near = 0.1f;
         float Far = 1000.f;
         bool Primary = true;
+
+        glm::mat4 GetProjection(float aspect) const
+        {
+            if (Orthographic)
+            {
+                const float halfHeight = OrthographicSize;
+                const float halfWidth = halfHeight * aspect;
+                return glm::ortho(-halfWidth, halfWidth, -halfHeight, halfHeight, Near, Far);
+            }
+
+            return glm::perspective(glm::radians(FOV), aspect, Near, Far);
+        }
     };
 
     struct MeshComponent

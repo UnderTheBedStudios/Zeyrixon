@@ -40,7 +40,7 @@ namespace Zeyrixon
 {
     World::World()
     {
-        
+
     }
 
     World::~World()
@@ -179,5 +179,17 @@ namespace Zeyrixon
             return;
 
         m_Registry.destroy(entity.Handle());
+    }
+
+    Entity World::GetPrimaryCamera()
+    {
+        auto cameras = m_Registry.view<CameraComponent, TransformComponent>();
+        for (auto [handle, camera, transform] : cameras.each())
+        {
+            if (camera.Primary)
+                return Entity{ handle, this };
+        }
+
+        return Entity{};
     }
 }

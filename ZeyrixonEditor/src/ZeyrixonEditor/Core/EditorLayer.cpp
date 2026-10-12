@@ -171,10 +171,16 @@ namespace
         {
             auto& camera = entity.GetComponent<Zeyrixon::CameraComponent>();
 
-            ImGui::DragFloat("FOV", &camera.FOV, 0.1f, 1.0f, 179.0f);
+            ImGui::Checkbox("Primary", &camera.Primary);
+            ImGui::Checkbox("Orthographic", &camera.Orthographic);
+
+            if (camera.Orthographic)
+                ImGui::DragFloat("Size", &camera.OrthographicSize, 0.05f, 0.1f, 1000.f);
+            else
+                ImGui::DragFloat("FOV", &camera.FOV, 0.1f, 1.0f, 179.0f);
+
             ImGui::DragFloat("Near", &camera.Near, 0.01f, 0.001f, 100.0f);
             ImGui::DragFloat("Far", &camera.Far, 1.0f, 1.0f, 100000.0f);
-            ImGui::Checkbox("Primary", &camera.Primary);
         });
 
         SetInspector("Mesh", [](Zeyrixon::Entity entity)
@@ -250,6 +256,9 @@ namespace Editor
 
     void EditorLayer::DrawGizmo()
     {
+        if (m_ShowGameView)
+            return;
+
         const glm::mat4 view = m_EditorCamera.GetView();
         const glm::mat4 projection = m_EditorCamera.GetProjection();
 
@@ -458,7 +467,9 @@ namespace Editor
 
     void EditorLayer::OnUpdate(Zeyrixon::DeltaTime dt)
     {
-        m_EditorCamera.OnUpdate(dt, m_ViewportHovered);
+        /* In Game View the editor camera can't start a new drag, but it still finished one
+           that's in progress, so the cursor always gets released. */
+        m_EditorCamera.OnUpdate(dt, m_ViewportHovered && !m_ShowGameView);
 
         m_Framebuffer->Bind();
 
@@ -468,19 +479,38 @@ namespace Editor
         glCullFace(GL_BACK);
         glFrontFace(GL_CCW);
 
-        const glm::mat4 view = m_EditorCamera.GetView();
-        const glm::mat4 projection = m_EditorCamera.GetProjection();
-
-        if (m_ActiveWorld)
+        if (m_ShowGameView)
         {
-            Zeyrixon::WorldRenderer::RenderWorld(
-                *m_ActiveWorld, view, projection, m_EditorCamera.GetPosition()
-            );
-        }
+            // What the primary camera sees. Nothing is drawn if there isn't one.
+            Zeyrixon::Entity camera = m_ActiveWorld ? m_ActiveWorld->GetPrimaryCamera() : Zeyrixon::Entity{};
+            if (camera)
+            {
+                const auto& transform = camera.GetComponent<Zeyrixon::TransformComponent>();
+                const auto& cameraData = camera.GetComponent<Zeyrixon::CameraComponent>();
 
-        glDisable(GL_CULL_FACE);
-        // The grid goes last: it's blended over the scene and needs the scene's depth.
-        Zeyrixon::WorldRenderer::RenderGrid(view, projection, m_EditorCamera.GetPosition(), m_EditorCamera.Is2D());
+                const float aspect = m_ViewportSize.y > 0.f ? m_ViewportSize.x / m_ViewportSize.y : 1.f;
+
+                Zeyrixon::WorldRenderer::RenderWorld(
+                    *m_ActiveWorld, transform.GetViewMatrix(), cameraData.GetProjection(aspect), transform.Position
+                );
+            }
+        }
+        else
+        {
+            const glm::mat4 view = m_EditorCamera.GetView();
+            const glm::mat4 projection = m_EditorCamera.GetProjection();
+
+            if (m_ActiveWorld)
+            {
+                Zeyrixon::WorldRenderer::RenderWorld(
+                    *m_ActiveWorld, view, projection, m_EditorCamera.GetPosition()
+                );
+            }
+
+            glDisable(GL_CULL_FACE);
+            // The grid goes last: it's blended over the scene and needs the scene's depth.
+            Zeyrixon::WorldRenderer::RenderGrid(view, projection, m_EditorCamera.GetPosition(), m_EditorCamera.Is2D());
+        }
 
         m_Framebuffer->Unbind();
     }
@@ -490,7 +520,7 @@ namespace Editor
         Zeyrixon::EventDispatcher dispatcher(e);
         dispatcher.Dispatch<Zeyrixon::MouseScrolledEvent>([this](Zeyrixon::MouseScrolledEvent& event)
         {
-            if (!m_ViewportHovered)
+            if (!m_ViewportHovered || m_ShowGameView)
                 return false;
 
             m_EditorCamera.OnMouseScroll(event.GetYOffset());
@@ -565,87 +595,113 @@ namespace Editor
 
         DrawGizmo();
 
-        if (DeleteKeyPressed() && m_SelectedEntity)
+        // No deleting while in Game View (the selection isn't visible there).
+        if (!m_ShowGameView && DeleteKeyPressed() && m_SelectedEntity)
             DeleteEntity(m_SelectedEntity);
 
-        ImVec2 padding = ImVec2(10.0f, 10.0f);
-        ImGui::SetCursorScreenPos(ImVec2(viewportMin.x + padding.x, viewportMin.y + padding.y));
+        // The toolbars only exist in Editor View.
+        if (!m_ShowGameView)
+        {
+            ImVec2 padding = ImVec2(10.0f, 10.0f);
+            ImGui::SetCursorScreenPos(ImVec2(viewportMin.x + padding.x, viewportMin.y + padding.y));
 
-        ImGui::BeginGroup();
+            ImGui::BeginGroup();
 
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.4f, 0.8f, 0.8f));
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.4f, 0.8f, 0.8f));
+                ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
 
-            if (ImGui::Button("\uf245"))       { m_GizmoOperation = 0; }
-            ImGui::SameLine();
-            if (ImGui::Button("\U000F01BE"))   { m_GizmoOperation = ImGuizmo::TRANSLATE; }
-            ImGui::SameLine();
-            if (ImGui::Button("\U000F0D98"))   { m_GizmoOperation = ImGuizmo::ROTATE; }
-            ImGui::SameLine();
-            if (ImGui::Button("\U000F0A68"))   { m_GizmoOperation = ImGuizmo::SCALE; }
+                if (ImGui::Button("\uf245"))       { m_GizmoOperation = 0; }
+                ImGui::SameLine();
+                if (ImGui::Button("\U000F01BE"))   { m_GizmoOperation = ImGuizmo::TRANSLATE; }
+                ImGui::SameLine();
+                if (ImGui::Button("\U000F0D98"))   { m_GizmoOperation = ImGuizmo::ROTATE; }
+                ImGui::SameLine();
+                if (ImGui::Button("\U000F0A68"))   { m_GizmoOperation = ImGuizmo::SCALE; }
 
-            ImGui::PopStyleVar();
-            ImGui::PopStyleColor();
+                ImGui::PopStyleVar();
+                ImGui::PopStyleColor();
 
-        ImGui::EndGroup();
+            ImGui::EndGroup();
 
-        padding = ImVec2(10.0f, 10.0f);
-        ImGui::SetCursorScreenPos(ImVec2(viewportPanelSize.x - padding.x, viewportMin.y + padding.y));
+            padding = ImVec2(10.0f, 10.0f);
+            ImGui::SetCursorScreenPos(ImVec2(viewportPanelSize.x - padding.x, viewportMin.y + padding.y));
 
-        float currentX = viewportMin.x + viewportPanelSize.x - padding.x;
-        float targetY = viewportMin.y + padding.y;
+            float currentX = viewportMin.x + viewportPanelSize.x - padding.x;
+            float targetY = viewportMin.y + padding.y;
 
-        float itemSpacingX = 10.f;
+            float itemSpacingX = 10.f;
 
-        ImGui::BeginGroup();
+            ImGui::BeginGroup();
 
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.4f, 0.8f, 0.8f));
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.4f, 0.8f, 0.8f));
+                ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
 
-            float btnWidth1 = 60.0f;
-            currentX -= btnWidth1;
-            ImGui::SetCursorScreenPos(ImVec2(currentX, targetY));
-            if (ImGui::Button("2D View", ImVec2(btnWidth1, 0)))
-                m_EditorCamera.SetViewType(Editor::EditorCamera::ViewType::View2D);
+                float btnWidth1 = 60.0f;
+                currentX -= btnWidth1;
+                ImGui::SetCursorScreenPos(ImVec2(currentX, targetY));
+                if (ImGui::Button("2D View", ImVec2(btnWidth1, 0)))
+                    m_EditorCamera.SetViewType(Editor::EditorCamera::ViewType::View2D);
 
-            float btnWidth2 = 60.0f;
-            currentX -= (btnWidth2 + itemSpacingX);
-            ImGui::SetCursorScreenPos(ImVec2(currentX, targetY));
-            if (ImGui::Button("3D View", ImVec2(btnWidth2, 0)))
-                m_EditorCamera.SetViewType(Editor::EditorCamera::ViewType::View3D);
+                float btnWidth2 = 60.0f;
+                currentX -= (btnWidth2 + itemSpacingX);
+                ImGui::SetCursorScreenPos(ImVec2(currentX, targetY));
+                if (ImGui::Button("3D View", ImVec2(btnWidth2, 0)))
+                    m_EditorCamera.SetViewType(Editor::EditorCamera::ViewType::View3D);
 
-            float btnWidth3 = 100.0f;
-            currentX -= (btnWidth3 + itemSpacingX);
-            ImGui::SetCursorScreenPos(ImVec2(currentX, targetY));
+                float btnWidth3 = 100.0f;
+                currentX -= (btnWidth3 + itemSpacingX);
+                ImGui::SetCursorScreenPos(ImVec2(currentX, targetY));
 
-            // The text after ### is the widget ID, so it stays the same when the label changes.
-            const char* viewModeName = m_EditorCamera.IsOrthographic() ? "Orthographic" : "Perspective";
-            const std::string viewModeLabel = std::string(viewModeName) + "###ViewMode";
+                // The text after ### is the widget ID, so it stays the same when the label changes.
+                const char* viewModeName = m_EditorCamera.IsOrthographic() ? "Orthographic" : "Perspective";
+                const std::string viewModeLabel = std::string(viewModeName) + "###ViewMode";
 
-            if (ImGui::Button(viewModeLabel.c_str(), ImVec2(btnWidth3, 0)))
-                ImGui::OpenPopup("ViewModePopup");
+                if (ImGui::Button(viewModeLabel.c_str(), ImVec2(btnWidth3, 0)))
+                    ImGui::OpenPopup("ViewModePopup");
 
-            // Open the menu just below the button instead of at the mouse.
-            ImGui::SetNextWindowPos(ImVec2(currentX, targetY + ImGui::GetFrameHeight()));
-            if (ImGui::BeginPopup("ViewModePopup"))
+                // Open the menu just below the button instead of at the mouse.
+                ImGui::SetNextWindowPos(ImVec2(currentX, targetY + ImGui::GetFrameHeight()));
+                if (ImGui::BeginPopup("ViewModePopup"))
+                {
+                    if (ImGui::MenuItem("Perspective", nullptr, !m_EditorCamera.IsOrthographic()))
+                        m_EditorCamera.SetProjectionType(Editor::EditorCamera::ProjectionType::Perspective);
+
+                    if (ImGui::MenuItem("Orthographic", nullptr, m_EditorCamera.IsOrthographic()))
+                        m_EditorCamera.SetProjectionType(Editor::EditorCamera::ProjectionType::Orthographic);
+
+                    ImGui::EndPopup();
+                }
+
+                ImGui::PopStyleVar();
+                ImGui::PopStyleColor();
+
+            ImGui::EndGroup();
+        }
+        else
+        {
+            // Game View overlay: the camera's name, or a hint if there isn't a primary camera.
+            Zeyrixon::Entity camera = m_ActiveWorld ? m_ActiveWorld->GetPrimaryCamera() : Zeyrixon::Entity{};
+            if (camera)
             {
-                if (ImGui::MenuItem("Perspective", nullptr, !m_EditorCamera.IsOrthographic()))
-                    m_EditorCamera.SetProjectionType(Editor::EditorCamera::ProjectionType::Perspective);
-
-                if (ImGui::MenuItem("Orthographic", nullptr, m_EditorCamera.IsOrthographic()))
-                    m_EditorCamera.SetProjectionType(Editor::EditorCamera::ProjectionType::Orthographic);
-
-                ImGui::EndPopup();
+                const std::string& name = camera.GetComponent<Zeyrixon::TagComponent>().Tag;
+                ImGui::SetCursorScreenPos(ImVec2(viewportMin.x + 10.0f, viewportMin.y + 10.0f));
+                ImGui::TextDisabled("Game View - %s", name.c_str());
             }
-
-            ImGui::PopStyleVar();
-            ImGui::PopStyleColor();
-
-        ImGui::EndGroup();
+            else
+            {
+                const char* message = "No primary camera. Add a Camera component to an entity and tick Primary.";
+                const ImVec2 textSize = ImGui::CalcTextSize(message);
+                ImGui::SetCursorScreenPos(ImVec2(
+                    viewportMin.x + (m_ViewportSize.x - textSize.x) * 0.5f,
+                    viewportMin.y + m_ViewportSize.y * 0.5f));
+                ImGui::TextDisabled("%s", message);
+            }
+        }
 
         /* Click to select. Skipped over toolbar buttons and gizmo, and while Alt is held
            (Alt + left drag orbits the camera). */
         if (m_ViewportHovered
+            && !m_ShowGameView   // NEW
             && m_ActiveWorld
             && ImGui::IsMouseClicked(ImGuiMouseButton_Left)
             && !ImGui::IsAnyItemHovered()

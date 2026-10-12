@@ -30,6 +30,9 @@ namespace Zeyrixon
         Entity CreateEntity(const std::string& name = "Entity");
         void DestroyEntity(Entity entity);
 
+        // The first entity with a camera component marked Primary, or invalid Entity if there isn't one.
+        Entity GetPrimaryCamera();
+
         const std::string& GetName() const { return m_Name; }
         const std::string& GetWorldPath() const { return m_WorldPath; }
 
@@ -38,7 +41,7 @@ namespace Zeyrixon
     private:
         std::string m_Name;
         std::string m_WorldPath;
-        
+
         entt::registry m_Registry;
     };
 }

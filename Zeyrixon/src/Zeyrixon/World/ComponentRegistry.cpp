@@ -74,6 +74,8 @@ namespace Zeyrixon
         camera.Serialize = [](Entity e, pugi::xml_node node)
         {
             auto& c = e.GetComponent<CameraComponent>();
+            node.append_attribute("Orthographic") = c.Orthographic;
+            node.append_attribute("OrthographicSize") = c.OrthographicSize;
             node.append_attribute("FOV") = c.FOV;
             node.append_attribute("Near") = c.Near;
             node.append_attribute("Far") = c.Far;
@@ -82,6 +84,8 @@ namespace Zeyrixon
         camera.Deserialize = [](Entity e, pugi::xml_node node)
         {
             auto& c = e.GetComponent<CameraComponent>();
+            c.Orthographic = node.attribute("Orthographic").as_bool(c.Orthographic);
+            c.OrthographicSize = node.attribute("OrthographicSize").as_float(c.OrthographicSize);
             c.FOV = node.attribute("FOV").as_float(c.FOV);
             c.Near = node.attribute("Near").as_float(c.Near);
             c.Far = node.attribute("Far").as_float(c.Far);
