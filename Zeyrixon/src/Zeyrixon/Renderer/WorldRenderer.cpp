@@ -10,6 +10,9 @@
 
 #include <glad/glad.h>
 
+#include <algorithm>
+#include <vector>
+
 namespace Zeyrixon
 {
     namespace
@@ -308,6 +311,105 @@ namespace Zeyrixon
         return *quad;
     }
 
+    const char* k_SpriteVertexSource = R"(
+        #version 450 core
+        layout(location = 0) in vec3 a_Position;
+        layout(location = 1) in vec2 a_TexCoord;
+
+        uniform mat4 u_ViewProjection;
+        uniform mat4 u_Model;
+        uniform vec2 u_UVScale;
+        uniform vec2 u_UVOffset;
+
+        out vec2 v_TexCoord;
+
+        void main()
+        {
+            v_TexCoord = a_TexCoord * u_UVScale + u_UVOffset;
+            gl_Position = u_ViewProjection * u_Model * vec4(a_Position, 1.0);
+        }
+    )";
+
+    const char* k_SpriteFragmentSource = R"(
+        #version 450 core
+        in vec2 v_TexCoord;
+
+        uniform sampler2D u_Texture;
+        uniform int u_HasTexture;
+        uniform vec4 u_Color;
+
+        out vec4 o_Color;
+
+        void main()
+        {
+            vec4 color = u_Color;
+            if (u_HasTexture != 0)
+                color *= texture(u_Texture, v_TexCoord);
+
+            if (color.a < 0.001)
+                discard;
+
+            // Unlit. Gamma, because the framebuffer isn't sRGB (same as the PBR shader).
+            o_Color = vec4(pow(color.rgb, vec3(1.0 / 2.2)), color.a);
+        }
+    )";
+
+    OpenGLShader& GetSpriteShader()
+    {
+        static OpenGLShader* shader = new OpenGLShader("Sprite", k_SpriteVertexSource, k_SpriteFragmentSource);
+        return *shader;
+    }
+
+    // A unit quad in the XY plane, centred on the origin. Never freed, like the other GL statics.
+    std::shared_ptr<OpenGLVertexArray>& GetSpriteQuad()
+    {
+        static auto* quad = []
+        {
+            float vertices[] = {
+                // position            uv
+                -0.5f, -0.5f, 0.0f,    0.0f, 0.0f,
+                    0.5f, -0.5f, 0.0f,    1.0f, 0.0f,
+                    0.5f,  0.5f, 0.0f,    1.0f, 1.0f,
+                -0.5f,  0.5f, 0.0f,    0.0f, 1.0f,
+            };
+            uint32_t indices[] = { 0, 1, 2, 0, 2, 3 };
+
+            auto vertexArray = std::make_shared<OpenGLVertexArray>();
+
+            auto vertexBuffer = std::make_shared<OpenGLVertexBuffer>(vertices, sizeof(vertices));
+            vertexBuffer->SetLayout({
+                { ShaderDataType::Float3, "a_Position" },
+                { ShaderDataType::Float2, "a_TexCoord" }
+            });
+            vertexArray->AddVertexBuffer(vertexBuffer);
+
+            vertexArray->SetIndexBuffer(std::make_shared<OpenGLIndexBuffer>(indices, 6));
+            return new std::shared_ptr<OpenGLVertexArray>(vertexArray);
+        }();
+        return *quad;
+    }
+
+    // Sampler objects override a texture's own filtering for one draw, so the same texture
+    // can be smooth for one sprite and pixel-sharp for another.
+    GLuint GetSpriteSampler(bool pixelArt)
+    {
+        static GLuint samplers[2] = { 0, 0 };
+        if (samplers[0] == 0)
+        {
+            glCreateSamplers(2, samplers);
+            for (int i = 0; i < 2; ++i)
+            {
+                glSamplerParameteri(samplers[i], GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                glSamplerParameteri(samplers[i], GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            }
+            glSamplerParameteri(samplers[0], GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glSamplerParameteri(samplers[0], GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glSamplerParameteri(samplers[1], GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glSamplerParameteri(samplers[1], GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        }
+        return samplers[pixelArt ? 1 : 0];
+    }
+
     void WorldRenderer::RenderWorld(World& world, const glm::mat4& view, const glm::mat4& projection,
                                     const glm::vec3& cameraPosition)
     {
@@ -382,6 +484,92 @@ namespace Zeyrixon
 
         OpenGLRender::DrawIndexed(GetGridQuad());
 
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
+    }
+
+    glm::vec2 WorldRenderer::GetSpriteSize(const SpriteComponent& sprite)
+    {
+        if (sprite.TexturePath.empty())
+            return glm::vec2(1.0f);
+
+        std::shared_ptr<OpenGLTexture2D> texture = TextureLibrary::Get(sprite.TexturePath, true);
+        if (!texture)
+            return glm::vec2(1.0f);
+
+        const float pixelsPerUnit = sprite.PixelsPerUnit > 0.0f ? sprite.PixelsPerUnit : 100.0f;
+        return glm::vec2(texture->GetWidth(), texture->GetHeight()) / pixelsPerUnit;
+    }
+
+    void WorldRenderer::RenderSprites(World& world, const glm::mat4& view, const glm::mat4& projection)
+    {
+        struct SpriteDraw
+        {
+            const TransformComponent* Transform;
+            const SpriteComponent* Sprite;
+            float Depth;   // view-space z: more negative = farther from the camera
+        };
+
+        std::vector<SpriteDraw> draws;
+        auto sprites = world.GetRegistry().view<TransformComponent, SpriteComponent>();
+        for (auto [entity, transform, sprite] : sprites.each())
+        {
+            const glm::vec4 viewPosition = view * glm::vec4(transform.Position, 1.0f);
+            draws.push_back({ &transform, &sprite, viewPosition.z });
+        }
+
+        if (draws.empty())
+            return;
+
+        // Sorting order first, then back to front. Stable, so equal sprites keep a steady order.
+        std::stable_sort(draws.begin(), draws.end(), [](const SpriteDraw& a, const SpriteDraw& b)
+        {
+            if (a.Sprite->SortingOrder != b.Sprite->SortingOrder)
+                return a.Sprite->SortingOrder < b.Sprite->SortingOrder;
+            return a.Depth < b.Depth;
+        });
+
+        OpenGLShader& shader = GetSpriteShader();
+        shader.Bind();
+        shader.SetMat4("u_ViewProjection", projection * view);
+        shader.SetInt("u_Texture", 0);
+
+        /* Blend over what's there and test against the 3D depth, but don't write depth, so sprites
+           never hide each other (that's the sorting's job). The separate alpha function keeps the
+           framebuffer's alpha at 1 so ImGui doesn't draw the viewport see-through. */
+        glEnable(GL_BLEND);
+        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+        glDepthMask(GL_FALSE);
+
+        for (const SpriteDraw& draw : draws)
+        {
+            const SpriteComponent& sprite = *draw.Sprite;
+
+            std::shared_ptr<OpenGLTexture2D> texture;
+            if (!sprite.TexturePath.empty())
+                texture = TextureLibrary::Get(sprite.TexturePath, true);
+
+            const glm::vec2 size = GetSpriteSize(sprite);
+            const glm::mat4 model = draw.Transform->GetMatrix() * glm::scale(glm::mat4(1.0f), glm::vec3(size, 1.0f));
+
+            shader.SetMat4("u_Model", model);
+            shader.SetFloat4("u_Color", sprite.Color);
+            shader.SetInt("u_HasTexture", texture ? 1 : 0);
+
+            // Flipping is a UV mirror: u' = 1 - u is scale -1, offset 1.
+            shader.SetFloat2("u_UVScale", glm::vec2(sprite.FlipX ? -1.0f : 1.0f, sprite.FlipY ? -1.0f : 1.0f));
+            shader.SetFloat2("u_UVOffset", glm::vec2(sprite.FlipX ? 1.0f : 0.0f, sprite.FlipY ? 1.0f : 0.0f));
+
+            if (texture)
+            {
+                texture->Bind(0);
+                glBindSampler(0, GetSpriteSampler(sprite.PixelArt));
+            }
+
+            OpenGLRender::DrawIndexed(GetSpriteQuad());
+        }
+
+        glBindSampler(0, 0);   // so the next mesh pass sees the textures' own filtering again
         glDepthMask(GL_TRUE);
         glDisable(GL_BLEND);
     }

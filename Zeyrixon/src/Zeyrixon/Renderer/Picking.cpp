@@ -3,6 +3,7 @@
 #include <Zeyrixon/Renderer/Picking.h>
 #include <Zeyrixon/Renderer/Mesh.h>
 #include <Zeyrixon/World/Components.h>
+#include <Zeyrixon/Renderer/WorldRenderer.h>
 
 #include <algorithm>
 #include <cmath>
@@ -111,6 +112,32 @@ namespace Zeyrixon
                     closestDistance = t;
                     closestEntity = handle;
                 }
+            }
+        }
+
+        auto sprites = registry.view<TransformComponent, SpriteComponent>();
+        for (auto [handle, transform, sprite] : sprites.each())
+        {
+            const glm::vec2 size = WorldRenderer::GetSpriteSize(sprite);
+            const glm::mat4 model = transform.GetMatrix() * glm::scale(glm::mat4(1.0f), glm::vec3(size, 1.0f));
+            const glm::mat4 inverseModel = glm::inverse(model);
+
+            // Same trick as for meshes: an unnormalised local direction keeps t comparable.
+            const glm::vec3 localOrigin = glm::vec3(inverseModel * glm::vec4(rayOrigin, 1.0f));
+            const glm::vec3 localDirection = glm::vec3(inverseModel * glm::vec4(rayDirection, 0.0f));
+
+            if (std::abs(localDirection.z) < 1e-8f)
+                continue;   // edge-on
+
+            const float t = -localOrigin.z / localDirection.z;
+            if (t <= 0.0f || t >= closestDistance)
+                continue;
+
+            const glm::vec3 hit = localOrigin + localDirection * t;
+            if (std::abs(hit.x) <= 0.5f && std::abs(hit.y) <= 0.5f)
+            {
+                closestDistance = t;
+                closestEntity = handle;
             }
         }
 

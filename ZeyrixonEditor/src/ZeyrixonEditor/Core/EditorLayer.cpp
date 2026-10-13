@@ -105,60 +105,6 @@ namespace
         ImGui::PopID();
     }
 
-    // Fills a material from the first material in an .mtl file. Texture paths in the file are
-    // relative to the .mtl, so they're resolved to full paths. Limitation: a texture path
-    // containing spaces isn't handled (the last token on the line is taken as the path).
-    bool ApplyMTL(const std::string& mtlPath, Zeyrixon::MaterialComponent& material)
-    {
-        std::ifstream file(mtlPath);
-        if (!file)
-            return false;
-
-        const std::filesystem::path directory = std::filesystem::path(mtlPath).parent_path();
-
-        glm::vec3 diffuse(0.8f);
-        bool inMaterial = false;
-
-        std::string line;
-        while (std::getline(file, line))
-        {
-            std::istringstream stream(line);
-            std::string keyword;
-            stream >> keyword;
-
-            if (keyword == "newmtl")
-            {
-                if (inMaterial)
-                    break;
-                inMaterial = true;
-            }
-            else if (keyword == "Kd")
-            {
-                stream >> diffuse.x >> diffuse.y >> diffuse.z;
-            }
-            else if (keyword == "map_Kd" || keyword == "map_Pr" || keyword == "map_Pm"
-                  || keyword == "map_Bump" || keyword == "bump" || keyword == "norm")
-            {
-                // Options such as "-bm 1.0" can come first; the file name is the last token.
-                std::string token, last;
-                while (stream >> token)
-                    last = token;
-                if (last.empty())
-                    continue;
-
-                const std::string fullPath = (directory / last).string();
-                if (keyword == "map_Kd")      material.AlbedoMap = fullPath;
-                else if (keyword == "map_Pr") material.RoughnessMap = fullPath;
-                else if (keyword == "map_Pm") material.MetallicMap = fullPath;
-                else                          material.NormalMap = fullPath;
-            }
-        }
-
-        // The albedo map carries the colour, so don't also tint it with Kd.
-        material.Albedo = material.AlbedoMap.empty() ? diffuse : glm::vec3(1.0f);
-        return true;
-    }
-
     void RegisterComponentInspectors()
     {
         SetInspector("Tag", [](Zeyrixon::Entity entity)
@@ -223,6 +169,23 @@ namespace
             }
         });
 
+        SetInspector("Sprite", [](Zeyrixon::Entity entity)
+        {
+            auto& sprite = entity.GetComponent<Zeyrixon::SpriteComponent>();
+
+            DrawTextureSlot("Texture", sprite.TexturePath);
+
+            ImGui::ColorEdit4("Color", &sprite.Color.x);
+            ImGui::DragFloat("Pixels Per Unit", &sprite.PixelsPerUnit, 1.0f, 1.0f, 10000.0f);
+            ImGui::DragInt("Sorting Order", &sprite.SortingOrder);
+
+            ImGui::Checkbox("Flip X", &sprite.FlipX);
+            ImGui::SameLine();
+            ImGui::Checkbox("Flip Y", &sprite.FlipY);
+            ImGui::SameLine();
+            ImGui::Checkbox("Pixel Art", &sprite.PixelArt);
+        });
+
         SetInspector("Material", [](Zeyrixon::Entity entity)
         {
             auto& material = entity.GetComponent<Zeyrixon::MaterialComponent>();
@@ -245,7 +208,7 @@ namespace
                 const char* filterPatterns[1] = { "*.mtl" };
                 const char* chosen = tinyfd_openFileDialog("Choose a material file", nullptr, 1, filterPatterns, "MTL file", 0);
                 if (chosen)
-                    ApplyMTL(chosen, material);
+                    material.ApplyMTL(chosen);
             }
         });
     }
@@ -511,6 +474,10 @@ namespace Editor
                 Zeyrixon::WorldRenderer::RenderWorld(
                     *m_ActiveWorld, transform.GetViewMatrix(), cameraData.GetProjection(aspect), transform.Position
                 );
+
+                Zeyrixon::WorldRenderer::RenderSprites(
+                    *m_ActiveWorld, transform.GetViewMatrix(), cameraData.GetProjection(aspect)
+                );
             }
         }
         else
@@ -528,6 +495,9 @@ namespace Editor
             glDisable(GL_CULL_FACE);
             // The grid goes last: it's blended over the scene and needs the scene's depth.
             Zeyrixon::WorldRenderer::RenderGrid(view, projection, m_EditorCamera.GetPosition(), m_EditorCamera.Is2D());
+
+            if (m_ActiveWorld)
+                Zeyrixon::WorldRenderer::RenderSprites(*m_ActiveWorld, view, projection);
         }
 
         m_Framebuffer->Unbind();
@@ -787,6 +757,14 @@ namespace Editor
         {
             if (ImGui::MenuItem("Create Entity"))
                 m_SelectedEntity = m_ActiveWorld->CreateEntity("Entity");
+
+            if (ImGui::MenuItem("Create Sprite"))
+            {
+                Zeyrixon::Entity sprite = m_ActiveWorld->CreateEntity("Sprite");
+                sprite.AddComponent<Zeyrixon::SpriteComponent>();
+                m_SelectedEntity = sprite;
+            }
+
             ImGui::EndPopup();
         }
 

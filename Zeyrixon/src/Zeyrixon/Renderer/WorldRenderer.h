@@ -7,6 +7,7 @@
 
 namespace Zeyrixon
 {
+   struct SpriteComponent;
     class Z_API WorldRenderer
     {
     public:
@@ -20,5 +21,12 @@ namespace Zeyrixon
            for 2D view. */
         static void RenderGrid(const glm::mat4& view, const glm::mat4& projection,
                                const glm::vec3& cameraPosition, bool xyPlane);
+
+         /* Draws every entity with a Transform and a Sprite, sorted for alpha blending. Call after
+            RenderWorld (and after RenderGrid, if drawing one), with the same frame buffer bound. */
+         static void RenderSprites(World& world, const glm::mat4& view, const glm::mat4& projection);
+
+         // The sprite's quad size in world units, before the entity's scale. Shared with picking.
+         static glm::vec2 GetSpriteSize(const SpriteComponent& sprite);
     };
 }

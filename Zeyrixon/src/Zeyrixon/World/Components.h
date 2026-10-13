@@ -3,6 +3,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <filesystem>
+#include <sstream>
+#include <fstream>
 #include <cstdint>
 #include <string>
 
@@ -83,6 +86,17 @@ namespace Zeyrixon
         std::string MeshPath = "builtin:cube";
     };
 
+    struct SpriteComponent
+    {
+        std::string TexturePath;            // empty = a flat coloured square
+        glm::vec4 Color{ 1.0f };            // tint; alpha is the opacity
+        float PixelsPerUnit = 100.0f;       // texture pixels per world unit, before the entity's scale
+        bool FlipX = false;
+        bool FlipY = false;
+        bool PixelArt = false;              // sharp pixels instead of smoothed ones
+        int SortingOrder = 0;               // higher draws on top
+    };
+
     struct MaterialComponent
     {
         glm::vec3 Albedo{ 1.f };    // Tints the albedo map, or the color if there is none
@@ -96,5 +110,56 @@ namespace Zeyrixon
         std::string RoughnessMap;
         std::string MetallicMap;
         std::string AOMap;
+
+        bool ApplyMTL(const std::string& mtlPath)
+        {
+            std::ifstream file(mtlPath);
+            if (!file)
+                return false;
+
+            const std::filesystem::path directory = std::filesystem::path(mtlPath).parent_path();
+
+            glm::vec3 diffuse(0.8f);
+            bool inMaterial = false;
+
+            std::string line;
+            while (std::getline(file, line))
+            {
+                std::istringstream stream(line);
+                std::string keyword;
+                stream >> keyword;
+
+                if (keyword == "newmtl")
+                {
+                    if (inMaterial)
+                        break;
+                    inMaterial = true;
+                }
+                else if (keyword == "Kd")
+                {
+                    stream >> diffuse.x >> diffuse.y >> diffuse.z;
+                }
+                else if (keyword == "map_Kd" || keyword == "map_Pr" || keyword == "map_Pm"
+                    || keyword == "map_Bump" || keyword == "bump" || keyword == "norm")
+                {
+                    // Options such as "-bm 1.0" can come first; the file name is the last token.
+                    std::string token, last;
+                    while (stream >> token)
+                        last = token;
+                    if (last.empty())
+                        continue;
+
+                    const std::string fullPath = (directory / last).string();
+                    if (keyword == "map_Kd")      AlbedoMap = fullPath;
+                    else if (keyword == "map_Pr") RoughnessMap = fullPath;
+                    else if (keyword == "map_Pm") MetallicMap = fullPath;
+                    else                          NormalMap = fullPath;
+                }
+            }
+
+            // The albedo map carries the colour, so don't also tint it with Kd.
+            Albedo = AlbedoMap.empty() ? diffuse : glm::vec3(1.0f);
+            return true;
+        }
     };
 }

@@ -20,6 +20,21 @@ namespace{
             return fallback;
         return v;
     }
+
+    std::string Vec4ToString(const glm::vec4& v)
+    {
+        char buffer[128];
+        std::snprintf(buffer, sizeof(buffer), "%.9g %.9g %.9g %.9g", v.x, v.y, v.z, v.w);
+        return buffer;
+    }
+
+    glm::vec4 StringToVec4(const char* text, const glm::vec4& fallback)
+    {
+        glm::vec4 v;
+        if (std::sscanf(text, "%f %f %f %f", &v.x, &v.y, &v.z, &v.w) != 4)
+            return fallback;
+        return v;
+    }
 }
 
 namespace Zeyrixon
@@ -130,6 +145,30 @@ namespace Zeyrixon
             m.RoughnessMap = node.attribute("RoughnessMap").as_string();
             m.MetallicMap = node.attribute("MetallicMap").as_string();
             m.AOMap = node.attribute("AOMap").as_string();
+        };
+
+        auto& sprite = Register<SpriteComponent>("Sprite");
+        sprite.Serialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& s = e.GetComponent<SpriteComponent>();
+            node.append_attribute("Texture") = s.TexturePath.c_str();
+            node.append_attribute("Color") = Vec4ToString(s.Color).c_str();
+            node.append_attribute("PixelsPerUnit") = s.PixelsPerUnit;
+            node.append_attribute("FlipX") = s.FlipX;
+            node.append_attribute("FlipY") = s.FlipY;
+            node.append_attribute("PixelArt") = s.PixelArt;
+            node.append_attribute("SortingOrder") = s.SortingOrder;
+        };
+        sprite.Deserialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& s = e.GetComponent<SpriteComponent>();
+            s.TexturePath = node.attribute("Texture").as_string();
+            s.Color = StringToVec4(node.attribute("Color").as_string(""), s.Color);
+            s.PixelsPerUnit = node.attribute("PixelsPerUnit").as_float(s.PixelsPerUnit);
+            s.FlipX = node.attribute("FlipX").as_bool(s.FlipX);
+            s.FlipY = node.attribute("FlipY").as_bool(s.FlipY);
+            s.PixelArt = node.attribute("PixelArt").as_bool(s.PixelArt);
+            s.SortingOrder = node.attribute("SortingOrder").as_int(s.SortingOrder);
         };
     }
 }
