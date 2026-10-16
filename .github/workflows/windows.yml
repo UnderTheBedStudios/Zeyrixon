@@ -7,13 +7,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      with:
-        submodules: recursive
+        with:
+          submodules: recursive
 
       - uses: microsoft/setup-msbuild@v2
 
       - name: Generate project files
-      run: vendor/binary/premake5.exe vs2022
+        run: .\vendor\binary\premake5.exe vs2022
 
-      -name: build
-      run: msbuild Zeyrixon.sln /m /p:Configuration=Dist /p:Platform=x64
+      - name: Build
+        run: msbuild Zeyrixon.sln /m /p:Configuration=Dist /p:Platform=x64
