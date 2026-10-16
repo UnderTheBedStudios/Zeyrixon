@@ -34,6 +34,11 @@ project("Zeyrixon")
 	multiprocessorcompile("on")
 	staticruntime "On"
 
+	filter("toolset:msc")
+		buildoptions({ "/utf-8" })
+
+	filter({})
+
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
 	objdir("int/" .. outputdir .. "/%{prj.name}")
 
@@ -48,6 +53,10 @@ project("Zeyrixon")
 		"%{prj.name}/vendor/pugixml/src/**.cpp",
 		"%{prj.name}/vendor/pugixml/src/*.hpp",
 	})
+
+	filter("files:**/pugixml.cpp")
+		enablepch("Off")
+	filter({})
 
 	includedirs({
 		"Zeyrixon/src",
@@ -115,6 +124,11 @@ project("TestProj")
 	cppdialect("C++20")
 	multiprocessorcompile("on")
 
+	filter("toolset:msc")
+		buildoptions({ "/utf-8" })
+
+	filter({})
+
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
 	objdir("int/" .. outputdir .. "/%{prj.name}")
 
@@ -149,8 +163,9 @@ project("TestProj")
 		defines({ "NOMINMAX", "WIN32_LEAN_AND_MEAN" })
 
 	filter({ "system:windows", "toolset:gcc" })
-		links({ "winpthread" })
-		linkoptions({ "-static" })
+		linkoptions({ "-static", "-Wl,--whole-archive", "-lwinpthread", "-Wl,--no-whole-archive" })
+
+	filter({})
 
 	filter("system:linux")
 		links({ "GL", "dl", "pthread", "X11" })
@@ -185,6 +200,11 @@ project("ZeyrixonEditor")
 	language("C++")
 	cppdialect("C++20")
 	multiprocessorcompile("on")
+
+	filter("toolset:msc")
+		buildoptions({ "/utf-8" })
+
+	filter({})
 
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
 	objdir("int/" .. outputdir .. "/%{prj.name}")
