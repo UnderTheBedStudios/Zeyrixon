@@ -69,7 +69,7 @@ project("Zeyrixon")
 
 	filter("system:windows")
 		links({ "opengl32" })
-		defines("Z_PLATFORM_WINDOWS", "NOMINMAX", "WIN32_LEAN_AND_MEAN")
+		defines({ "Z_PLATFORM_WINDOWS", "NOMINMAX", "WIN32_LEAN_AND_MEAN" })
 
 	filter("system:linux")
 		links({ "GL" })
@@ -108,15 +108,6 @@ project("Zeyrixon")
 		runtime("Release")
 		optimize("On")
 
-	filter({ "system:windows", "configurations:Debug" })
-		buildoptions("/MDd")
-
-	filter({ "system:windows", "configurations:Release" })
-		buildoptions("/MD")
-
-	filter({ "system:windows", "configurations:Dist" })
-		buildoptions("/MD")
-
 project("TestProj")
 	location("TestProj")
 	kind("ConsoleApp")
@@ -142,6 +133,7 @@ project("TestProj")
 		"%{IncludeDir.stb}",
 		"%{IncludeDir.glm}",
 		"%{IncludeDir.entt}",
+		"%{IncludeDir.pugixml}",
 	}
 
 	links({
@@ -153,8 +145,12 @@ project("TestProj")
 
 	filter("system:windows")
 		systemversion("latest")
-		links({ "opengl32" })
+		links({ "opengl32", "gdi32" })
 		defines({ "NOMINMAX", "WIN32_LEAN_AND_MEAN" })
+
+	filter({ "system:windows", "toolset:gcc" })
+		links({ "winpthread" })
+		linkoptions({ "-static" })
 
 	filter("system:linux")
 		links({ "GL", "dl", "pthread", "X11" })
@@ -180,18 +176,8 @@ project("TestProj")
 
 	filter("configurations:Dist")
 		defines("Z_DIST")
-		runtime("Release")u
+		runtime("Release")
 		optimize("On")
-
-	filter({ "system:windows", "configurations:Debug" })
-		buildoptions("/MDd")
-
-	filter({ "system:windows", "configurations:Release" })
-		buildoptions("/MD")
-
-	filter({ "system:windows", "configurations:Dist" })
-		buildoptions("/MD")
-
 
 project("ZeyrixonEditor")
 	location("ZeyrixonEditor")
@@ -225,6 +211,7 @@ project("ZeyrixonEditor")
 		"%{IncludeDir.glm}",
 		"%{IncludeDir.entt}",
 		"%{IncludeDir.ImGuizmo}",
+		"%{IncludeDir.pugixml}",
 	}
 
 	links({
@@ -236,8 +223,13 @@ project("ZeyrixonEditor")
 
 	filter("system:windows")
 		systemversion("latest")
-		links({ "opengl32" })
-		defines({ "NOMINMAX", "WIN32_LEAN_AND_MEAN" })
+		links({ "opengl32", "gdi32", "comdlg32", "ole32" })
+		defines({ "NOMINMAX" })
+
+	filter({ "system:windows", "toolset:gcc" })
+		linkoptions({ "-static", "-Wl,--whole-archive", "-lwinpthread", "-Wl,--no-whole-archive" })
+
+	filter({})
 
 	filter("system:linux")
 		links({ "GL", "dl", "pthread", "X11" })
@@ -265,12 +257,3 @@ project("ZeyrixonEditor")
 		defines("Z_DIST")
 		runtime("Release")
 		optimize("On")
-
-	filter({ "system:windows", "configurations:Debug" })
-		buildoptions("/MDd")
-
-	filter({ "system:windows", "configurations:Release" })
-		buildoptions("/MD")
-
-	filter({ "system:windows", "configurations:Dist" })
-		buildoptions("/MD")

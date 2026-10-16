@@ -1,0 +1,19 @@
+name: Windows build
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Generate project files
+      run: vendor/binary/premake5.exe vs2022
+
+      -name: build
+      run: msbuild Zeyrixon.sln /m /p:Configuration=Dist /p:Platform=x64
