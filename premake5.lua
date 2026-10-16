@@ -31,6 +31,7 @@ project("Zeyrixon")
 	kind("StaticLib")
 	language("C++")
 	cppdialect "C++20"
+	multiprocessorcompile("on")
 	staticruntime "On"
 
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
@@ -68,7 +69,7 @@ project("Zeyrixon")
 
 	filter("system:windows")
 		links({ "opengl32" })
-		defines("Z_PLATFORM_WINDOWS")
+		defines("Z_PLATFORM_WINDOWS", "NOMINMAX", "WIN32_LEAN_AND_MEAN")
 
 	filter("system:linux")
 		links({ "GL" })
@@ -121,6 +122,7 @@ project("TestProj")
 	kind("ConsoleApp")
 	language("C++")
 	cppdialect("C++20")
+	multiprocessorcompile("on")
 
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
 	objdir("int/" .. outputdir .. "/%{prj.name}")
@@ -152,6 +154,7 @@ project("TestProj")
 	filter("system:windows")
 		systemversion("latest")
 		links({ "opengl32" })
+		defines({ "NOMINMAX", "WIN32_LEAN_AND_MEAN" })
 
 	filter("system:linux")
 		links({ "GL", "dl", "pthread", "X11" })
@@ -177,7 +180,7 @@ project("TestProj")
 
 	filter("configurations:Dist")
 		defines("Z_DIST")
-		runtime("Release")
+		runtime("Release")u
 		optimize("On")
 
 	filter({ "system:windows", "configurations:Debug" })
@@ -195,6 +198,7 @@ project("ZeyrixonEditor")
 	kind("ConsoleApp")
 	language("C++")
 	cppdialect("C++20")
+	multiprocessorcompile("on")
 
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
 	objdir("int/" .. outputdir .. "/%{prj.name}")
@@ -226,7 +230,6 @@ project("ZeyrixonEditor")
 	links({
 		"Zeyrixon",
 		"ImGui",
-		"fmt",
 		"GLFW",
 		"Glad"
 	})
@@ -234,6 +237,7 @@ project("ZeyrixonEditor")
 	filter("system:windows")
 		systemversion("latest")
 		links({ "opengl32" })
+		defines({ "NOMINMAX", "WIN32_LEAN_AND_MEAN" })
 
 	filter("system:linux")
 		links({ "GL", "dl", "pthread", "X11" })

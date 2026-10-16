@@ -25,14 +25,35 @@ Zeyrixon is an engine + editor project built with C/C++ and OpenGL. The goal is 
 
 ## Quick start
 
-Prerequisites:
+### 1. Clone with submodules
 
-- On Linux: a C/C++ toolchain (Clang or GCC), `make`, and `premake`.
-- On Windows: Visual Studio (optional — see Visual Studio section).
+Dependencies (GLFW, ImGui, glm, spdlog, etc.) are git submodules:
 
-Basic steps:
+```bash
+git clone --recursive https://github.com/UnderTheBedStudios/Zeyrixon.git
+# already cloned without --recursive?
+git submodule update --init --recursive
+```
 
-1. Generate project files:
+### 2. Prerequisites
+
+Premake is bundled in `vendor/binary/`, so you don't need to install it.
+
+**Linux**
+- GCC or Clang with C++20 support, and `make`
+- X11 development headers (GLFW is built against X11; Wayland works via XWayland)
+- A file-dialog helper for the editor (`zenity` or `kdialog`)
+
+| Distro | Packages |
+|---|---|
+| Arch | `base-devel libx11 libxrandr libxinerama libxcursor libxi zenity` |
+| Debian/Ubuntu | `build-essential libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl-dev zenity` |
+| Fedora | `gcc-c++ make libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel libXi-devel mesa-libGL-devel zenity` |
+
+**Windows**
+- Visual Studio 2022 with the "Desktop development with C++" workload
+
+### 3. Generate project files
 
 ```bash
 # Linux
@@ -41,6 +62,11 @@ Basic steps:
 # Windows (PowerShell or cmd)
 GenerateProjects.bat
 ```
+
+> Project files embed this folder's absolute path (used to find editor assets).
+> If you move or rename the folder, re-run the generate script.
+
+Then build (see below).
 
 2. Build (Makefile method) or open the generated solution in Visual Studio (see below).
 
