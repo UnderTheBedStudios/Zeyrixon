@@ -32,11 +32,10 @@ project("Zeyrixon")
 	language("C++")
 	cppdialect "C++20"
 	multiprocessorcompile("on")
-	staticruntime "On"
+	staticruntime "Off"
 
-	filter("toolset:msc")
+	filter("action:vs*")
 		buildoptions({ "/utf-8" })
-
 	filter({})
 
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
@@ -124,7 +123,7 @@ project("TestProj")
 	cppdialect("C++20")
 	multiprocessorcompile("on")
 
-	filter("toolset:msc")
+	filter("action:vs*")
 		buildoptions({ "/utf-8" })
 
 	filter({})
@@ -201,9 +200,8 @@ project("ZeyrixonEditor")
 	cppdialect("C++20")
 	multiprocessorcompile("on")
 
-	filter("toolset:msc")
+	filter("action:vs*")
 		buildoptions({ "/utf-8" })
-
 	filter({})
 
 	targetdir("bin/" .. outputdir .. "/%{prj.name}")
