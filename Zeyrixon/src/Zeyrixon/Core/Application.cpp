@@ -3,6 +3,7 @@
 #include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/ImGui/ImGuiLayer.h>
 #include <Zeyrixon/Core/Input.h>
+#include <Zeyrixon/Scripting/ScriptEngine.h>
 #include <Platform/OpenGL/OpenGLRender.h>
 
 #include <string>
@@ -29,12 +30,15 @@ namespace Zeyrixon
 
         OpenGLRender::Init();
 
+        ScriptEngine::Init();
+
         m_ImGuiLayer = new ImGuiLayer();
         PushOverlay(m_ImGuiLayer);
     }
 
     Application::~Application()
     {
+        ScriptEngine::Shutdown();
     }
 
     void Application::PushLayer(Layer* layer)

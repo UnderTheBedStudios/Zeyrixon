@@ -13,6 +13,11 @@
 #include <Zeyrixon/World/World.h>
 #include <Zeyrixon/World/Entity.h>
 #include <Zeyrixon/World/Components.h>
+#include <Zeyrixon/World/ComponentRegistry.h>
+
+#include <Zeyrixon/Core/Project.h>
+#include <Zeyrixon/Core/RuntimeLayer.h>
+#include <Zeyrixon/Scripting/ScriptEngine.h>
 
 #include <Zeyrixon/ImGui/ImGuiLayer.h>
 #include <Zeyrixon/Events/MouseEvent.h>

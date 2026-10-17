@@ -147,6 +147,20 @@ namespace Zeyrixon
             m.AOMap = node.attribute("AOMap").as_string();
         };
 
+        auto& script = Register<ScriptComponent>("Script");
+        script.Serialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& s = e.GetComponent<ScriptComponent>();
+            node.append_attribute("Path") = s.ScriptPath.c_str();
+            node.append_attribute("Class") = s.ClassName.c_str();
+        };
+        script.Deserialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& s = e.GetComponent<ScriptComponent>();
+            s.ScriptPath = node.attribute("Path").as_string();
+            s.ClassName = node.attribute("Class").as_string();
+        };
+
         auto& sprite = Register<SpriteComponent>("Sprite");
         sprite.Serialize = [](Entity e, pugi::xml_node node)
         {

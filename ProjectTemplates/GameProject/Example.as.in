@@ -1,0 +1,39 @@
+// An example script. To try it: select an entity in the editor, Add Component -> Script,
+// set its Path to Scripts/Example.as and press Play.
+//
+// A script file holds a class. The class has the same name as the file (or the name you type
+// in the Script component's Class field). The engine calls these methods if you write them:
+//
+//   void OnCreate()          once, when Play starts
+//   void OnUpdate(float dt)  every frame; dt is the seconds since the last frame
+//   void OnDestroy()         once, when Play stops
+class Example
+{
+    // The engine puts the entity this script is attached to in here.
+    // The name must be exactly "entity" and the type must be Entity.
+    Entity entity;
+
+    float speed = 2.0f;
+
+    void OnCreate()
+    {
+        Log::Info("Example started on '" + entity.name + "'");
+    }
+
+    void OnUpdate(float dt)
+    {
+        // entity.position gives you a COPY. Change the copy, then assign it back.
+        // (entity.position.x += 1 would change the copy and throw it away.)
+        Vec3 p = entity.position;
+        p.x += speed * dt;
+        entity.position = p;
+
+        if (Input::IsKeyDown(Key::Space))
+            Log::Info("Space is down");
+    }
+
+    void OnDestroy()
+    {
+        Log::Info("Example stopped");
+    }
+}

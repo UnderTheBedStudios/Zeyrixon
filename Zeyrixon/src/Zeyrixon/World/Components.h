@@ -97,6 +97,20 @@ namespace Zeyrixon
         int SortingOrder = 0;               // higher draws on top
     };
 
+    struct ScriptComponent
+    {
+        std::string ScriptPath;
+
+        std::string ClassName;
+
+        std::string GetResolvedClassName() const
+        {
+            if (!ClassName.empty())
+                return ClassName;
+            return std::filesystem::path(ScriptPath).stem().string();
+        }
+    };
+
     struct MaterialComponent
     {
         glm::vec3 Albedo{ 1.f };    // Tints the albedo map, or the color if there is none

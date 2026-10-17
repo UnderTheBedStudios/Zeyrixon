@@ -4,9 +4,11 @@
 #include <Zeyrixon/Core/DeltaTime.h>
 
 #include <entt.hpp>
+#include <glm/glm.hpp>
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace Zeyrixon
@@ -18,6 +20,14 @@ namespace Zeyrixon
     public:
         World();
         ~World();
+
+        /* Play mode. OnRuntimeStart remembers every entity's transform, compiles and starts the
+           scripts and returns false if a script fails to compile (the world then is not running).
+           OnRuntimeStop stops the scripts and puts the transforms back, so playing never changes
+           the world you were editing. OnUpdate runs the scripts, and does nothing when stopped. */
+        bool OnRuntimeStart();
+        void OnRuntimeStop();
+        bool IsRunning() const { return m_Running; }
 
         void OnUpdate(DeltaTime dt);
 
@@ -43,5 +53,10 @@ namespace Zeyrixon
         std::string m_WorldPath;
 
         entt::registry m_Registry;
+
+        bool m_Running = false;
+
+        struct TransformSnapshot { glm::vec3 Position, Rotation, Scale; };
+        std::unordered_map<uint64_t, TransformSnapshot> m_RuntimeSnapshot;   // keyed by IDComponent::ID
     };
 }

@@ -5,6 +5,7 @@
 #include <Zeyrixon/World/ComponentRegistry.h>
 #include <Zeyrixon/Renderer/WorldRenderer.h>
 #include <Zeyrixon/Renderer/Picking.h>
+#include <Zeyrixon/Scripting/ScriptEngine.h>
 
 #include <imgui_internal.h>
 #include <ImGuizmo.h>
@@ -184,6 +185,43 @@ namespace
             ImGui::Checkbox("Flip Y", &sprite.FlipY);
             ImGui::SameLine();
             ImGui::Checkbox("Pixel Art", &sprite.PixelArt);
+        });
+
+        SetInspector("Script", [](Zeyrixon::Entity entity)
+        {
+            auto& script = entity.GetComponent<Zeyrixon::ScriptComponent>();
+
+            char pathBuffer[512]{};
+            std::strncpy(pathBuffer, script.ScriptPath.c_str(), sizeof(pathBuffer) - 1);
+            if (ImGui::InputText("Path", pathBuffer, sizeof(pathBuffer)))
+                script.ScriptPath = pathBuffer;
+
+            if (ImGui::Button("Browse..."))
+            {
+                const char* filterPatterns[1] = { "*.as" };
+                const char* chosen = tinyfd_openFileDialog("Choose a script", nullptr, 1, filterPatterns, "AngelScript", 0);
+                if (chosen)
+                {
+                    // Store it relative to the project's Assets folder when it is inside it,
+                    // so the project still works if the folder is moved.
+                    namespace fs = std::filesystem;
+                    std::error_code ec;
+                    fs::path relative = fs::relative(chosen, Zeyrixon::ScriptEngine::GetAssetRoot(), ec);
+                    const bool inside = !ec && !relative.empty() && *relative.begin() != "..";
+                    script.ScriptPath = inside ? relative.generic_string() : std::string(chosen);
+                }
+            }
+
+            ImGui::SameLine();
+            if (ImGui::Button("Clear"))
+                script.ScriptPath.clear();
+
+            char classBuffer[128]{};
+            std::strncpy(classBuffer, script.ClassName.c_str(), sizeof(classBuffer) - 1);
+            if (ImGui::InputText("Class", classBuffer, sizeof(classBuffer)))
+                script.ClassName = classBuffer;
+
+            ImGui::TextDisabled("Class empty = same name as the file.");
         });
 
         SetInspector("Material", [](Zeyrixon::Entity entity)
@@ -452,6 +490,9 @@ namespace Editor
            that's in progress, so the cursor always gets released. */
         m_EditorCamera.OnUpdate(dt, m_ViewportHovered && !m_ShowGameView);
 
+        if (m_IsPlaying && m_ActiveWorld)
+            m_ActiveWorld->OnUpdate(dt);
+
         m_Framebuffer->Bind();
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -548,8 +589,19 @@ namespace Editor
         const float rightBlockWidth = 220.0f;
         ImGui::SameLine(ImGui::GetWindowWidth() - rightBlockWidth);
 
-        if (ImGui::Button(m_IsPlaying ? "Stop" : "Play", ImVec2(60, 0)))
-            m_IsPlaying = !m_IsPlaying;
+        if (ImGui::Button(m_IsPlaying ? "Stop" : "Play", ImVec2(60, 0)) && m_ActiveWorld)
+        {
+            if (m_IsPlaying)
+            {
+                m_ActiveWorld->OnRuntimeStop();
+                m_IsPlaying = false;
+            }
+            else
+            {
+                // False means a script failed to compile; the errors are in the Logger panel.
+                m_IsPlaying = m_ActiveWorld->OnRuntimeStart();
+            }
+        }
 
         ImGui::SameLine();
         if (ImGui::Button(m_ShowGameView ? "Game View" : "Editor View", ImVec2(140, 0)))
@@ -1111,6 +1163,13 @@ namespace Editor
 
     void EditorLayer::LoadStartupWorld()
     {
+        // Replacing the world while it is playing would leave scripts pointing at a dead world.
+        if (m_IsPlaying && m_ActiveWorld)
+            m_ActiveWorld->OnRuntimeStop();
+        m_IsPlaying = false;
+
+        Zeyrixon::ScriptEngine::SetAssetRoot(m_ActiveProject->GetAssetDirectory());
+
         m_SelectedEntity = {};
         m_ActiveWorld = Zeyrixon::World::Load(m_ActiveProject->GetStartupWorldPath());
 

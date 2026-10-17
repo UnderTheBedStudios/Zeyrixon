@@ -21,10 +21,13 @@ IncludeDir["glm"] = "Zeyrixon/vendor/glm"
 IncludeDir["pugixml"] = "Zeyrixon/vendor/pugixml/src"
 IncludeDir["entt"] = "Zeyrixon/vendor/entt/include"
 IncludeDir["ImGuizmo"] = "ZeyrixonEditor/vendor/ImGizmo/ImGuizmo/src"
+IncludeDir["AngelScript"] = "Zeyrixon/vendor/AngelScript/sdk/angelscript/include"
+IncludeDir["AngelScriptAddOn"] = "Zeyrixon/vendor/AngelScript/sdk/add_on"
 
 include "Zeyrixon/vendor/GLFW"
 include "Zeyrixon/vendor/GLAD"
 include "ZeyrixonEditor/vendor/imgui"
+include "Zeyrixon/vendor/AngelScript"
 
 project("Zeyrixon")
 	location("Zeyrixon")
@@ -67,12 +70,15 @@ project("Zeyrixon")
 		"%{IncludeDir.glm}",
 		"%{IncludeDir.pugixml}",
 		"%{IncludeDir.entt}",
+		"%{IncludeDir.AngelScript}",
+		"%{IncludeDir.AngelScriptAddOn}",
 	})
 
 	links({
 		"GLFW",
 		"Glad",
-		"ImGui"
+		"ImGui",
+		"AngelScript",
 	})
 
 	filter("system:windows")
@@ -146,6 +152,8 @@ project("TestProj")
 		"%{IncludeDir.stb}",
 		"%{IncludeDir.glm}",
 		"%{IncludeDir.entt}",
+		"%{IncludeDir.AngelScript}",
+		"%{IncludeDir.AngelScriptAddOn}",
 		"%{IncludeDir.pugixml}",
 	}
 
@@ -153,7 +161,8 @@ project("TestProj")
 		"Zeyrixon",
 		"ImGui",
 		"GLFW",
-		"Glad"
+		"Glad",
+		"AngelScript",
 	})
 
 	filter("system:windows")
@@ -228,6 +237,8 @@ project("ZeyrixonEditor")
 		"Zeyrixon/vendor/spdlog/include",
 		"%{IncludeDir.glm}",
 		"%{IncludeDir.entt}",
+		"%{IncludeDir.AngelScript}",
+		"%{IncludeDir.AngelScriptAddOn}",
 		"%{IncludeDir.ImGuizmo}",
 		"%{IncludeDir.pugixml}",
 	}
@@ -236,7 +247,8 @@ project("ZeyrixonEditor")
 		"Zeyrixon",
 		"ImGui",
 		"GLFW",
-		"Glad"
+		"Glad",
+		"AngelScript",
 	})
 
 	filter("system:windows")

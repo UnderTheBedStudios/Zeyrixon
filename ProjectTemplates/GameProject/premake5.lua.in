@@ -1,0 +1,37 @@
+-- Build file for @PROJECT_NAME@. The Zeyrixon editor created it; from now on it is yours to edit.
+--
+--   1. Build the Zeyrixon engine once (from the engine folder: make config=debug).
+--   2. Run GenerateProjects.sh (Windows: GenerateProjects.bat) in this folder.
+--   3. make config=debug, then run bin/Debug-<platform>/@PROJECT_ID@/@PROJECT_ID@
+--
+-- ZEYRIXON_DIR is the folder that holds the engine's premake5.lua. The path below was filled
+-- in when the project was created. If the engine moves, set the ZEYRIXON_DIR environment
+-- variable (it wins over the path below) or edit the line.
+ZEYRIXON_DIR = os.getenv("ZEYRIXON_DIR") or "@ZEYRIXON_DIR@"
+
+-- Brings in ZeyrixonLink(): the engine's includes, libraries, defines and system libraries.
+include(ZEYRIXON_DIR .. "/premake/ZeyrixonGame.lua")
+
+workspace "@PROJECT_ID@"
+	architecture "x64"
+	configurations { "Debug", "Release", "Dist" }
+	startproject "@PROJECT_ID@"
+
+project "@PROJECT_ID@"
+	kind "ConsoleApp"
+	language "C++"
+	cppdialect "C++20"
+	staticruntime "Off"
+	multiprocessorcompile "On"
+
+	targetdir("bin/" .. ZeyrixonOutputDir .. "/%{prj.name}")
+	objdir("int/" .. ZeyrixonOutputDir .. "/%{prj.name}")
+
+	files { "src/**.h", "src/**.cpp" }
+
+	-- Connects this project to the engine.
+	ZeyrixonLink()
+
+	-- Where this game's .zeyrixon file is. src/main.cpp loads it. Pass another path as the
+	-- first command line argument to run a different project.
+	defines { 'Z_GAME_MANIFEST="@MANIFEST_PATH@"' }

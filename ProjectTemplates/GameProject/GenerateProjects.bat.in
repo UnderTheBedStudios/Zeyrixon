@@ -1,0 +1,9 @@
+@echo off
+cd /d "%~dp0"
+
+rem premake5.lua reads this too; it decides which Zeyrixon engine this game builds against.
+if "%ZEYRIXON_DIR%"=="" set "ZEYRIXON_DIR=@ZEYRIXON_DIR@"
+
+echo Generating build files against engine at %ZEYRIXON_DIR%
+"%ZEYRIXON_DIR%\vendor\binary\premake5.exe" vs2022
+pause

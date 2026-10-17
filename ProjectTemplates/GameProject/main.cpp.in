@@ -1,0 +1,34 @@
+#include <Zeyrixon.h>
+
+// Everything in the engine is available through Zeyrixon.h. For the scripting language itself,
+// also include <angelscript.h>.
+
+namespace
+{
+    class Game : public Zeyrixon::Application
+    {
+    public:
+        Game(const Zeyrixon::ApplicationCommandLineArgs& args)
+            : Zeyrixon::Application(args)
+        {
+            // Your own C++ can be offered to your scripts here, BEFORE the layer starts the
+            // world (it compiles the scripts when it attaches). For example:
+            //
+            //   asIScriptEngine* scripting = Zeyrixon::ScriptEngine::GetEngine();
+            //   scripting->RegisterGlobalFunction(...);
+            //
+            // See Zeyrixon/Scripting/ScriptEngine.cpp for how the engine registers Entity and Vec3.
+
+            std::string manifest = Z_GAME_MANIFEST;
+            if (args.Count > 1)
+                manifest = args[1];
+
+            PushLayer(new Zeyrixon::RuntimeLayer(manifest));
+        }
+    };
+}
+
+Zeyrixon::Application* Zeyrixon::CreateApplication(Zeyrixon::ApplicationCommandLineArgs args)
+{
+    return new Game(args);
+}

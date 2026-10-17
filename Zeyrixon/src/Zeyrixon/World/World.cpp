@@ -5,6 +5,7 @@
 #include <Zeyrixon/World/Components.h>
 #include <Zeyrixon/World/ComponentRegistry.h>
 #include <Zeyrixon/Core/Log.h>
+#include <Zeyrixon/Scripting/ScriptEngine.h>
 
 #include <pugixml.hpp>
 #include <glm/glm.hpp>
@@ -44,11 +45,57 @@ namespace Zeyrixon
     }
 
     World::~World()
-    {}
+    {
+        // Scripts hold handles into this world, so they must be gone before it is.
+        OnRuntimeStop();
+    }
+
+    bool World::OnRuntimeStart()
+    {
+        if (m_Running)
+            return true;
+
+        m_RuntimeSnapshot.clear();
+        for (auto [handle, id, transform] : m_Registry.view<IDComponent, TransformComponent>().each())
+            m_RuntimeSnapshot[id.ID] = { transform.Position, transform.Rotation, transform.Scale };
+
+        if (!ScriptEngine::OnRuntimeStart(*this))
+        {
+            m_RuntimeSnapshot.clear();
+            return false;
+        }
+
+        m_Running = true;
+        return true;
+    }
+
+    void World::OnRuntimeStop()
+    {
+        if (!m_Running)
+            return;
+
+        ScriptEngine::OnRuntimeStop(*this);
+
+        // Entities created while playing are not in the snapshot and are left as they are.
+        for (auto [handle, id, transform] : m_Registry.view<IDComponent, TransformComponent>().each())
+        {
+            auto saved = m_RuntimeSnapshot.find(id.ID);
+            if (saved == m_RuntimeSnapshot.end())
+                continue;
+
+            transform.Position = saved->second.Position;
+            transform.Rotation = saved->second.Rotation;
+            transform.Scale = saved->second.Scale;
+        }
+
+        m_RuntimeSnapshot.clear();
+        m_Running = false;
+    }
 
     void World::OnUpdate(DeltaTime dt)
     {
-
+        if (m_Running)
+            ScriptEngine::OnRuntimeUpdate(*this, dt);
     }
 
     std::shared_ptr<World> World::New(const std::string& name)
@@ -120,6 +167,14 @@ namespace Zeyrixon
 
     bool World::Save()
     {
+        // While playing, the transforms are whatever the scripts made them. Saving now would
+        // write that into the file, so refuse; stop the game first.
+        if (m_Running)
+        {
+            Z_CORE_ERROR("Can't save world '{0}' while the game is running. Press Stop first.", m_Name);
+            return false;
+        }
+
         pugi::xml_document doc;
         auto root = doc.append_child("World");
         root.append_attribute("Name") = m_Name.c_str();
