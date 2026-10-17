@@ -12,6 +12,8 @@ TL;DR: Zeyrixon is a cross-platform (Linux/Windows) game engine + editor using O
 - [Build (Makefile)](#build-makefile)
 - [Build (Visual Studio)](#build-visual-studio)
 - [Run](#run)
+- [Scripting (AngelScript)](#scripting-angelscript)
+- [Making a game project](#making-a-game-project)
 - [Supported platforms](#supported-platforms)
 - [Languages used](#languages-used)
 - [Architecture diagram](#architecture-diagram)
@@ -99,6 +101,60 @@ Binaries are placed under `bin/Config-platform-architecture/` (for example `bin/
 
 After building, open the appropriate folder under `bin/` and run either `TestProj` or `ZeyrixonEditor`.
 
+## Scripting (AngelScript)
+
+Game logic is written in [AngelScript](https://www.angelcode.com/angelscript/) (`.as` files), so people who don't know C++ can still make a game. A script file holds one class, named like the file:
+
+```angelscript
+class Mover
+{
+    Entity entity;          // the engine fills this in: the entity the script is attached to
+    float speed = 2.0f;
+
+    void OnCreate() { Log::Info("Hello from " + entity.name); }   // when Play starts
+    void OnUpdate(float dt)                                       // every frame
+    {
+        Vec3 p = entity.position;      // a copy: change it, then assign it back
+        p.x += speed * dt;
+        entity.position = p;
+    }
+    void OnDestroy() {}                                           // when Play stops
+}
+```
+
+Attach it with **Add Component -> Script** in the editor, set **Path** (relative to the project's `Assets` folder, for example `Scripts/Mover.as`) and press **Play**. Compile errors and script exceptions appear in the Logger panel. Pressing **Stop** puts every transform back the way it was.
+
+What scripts can use:
+
+| Name | What it is |
+|---|---|
+| `Entity` | `name`, `position`, `rotation` (degrees), `scale`, `id`, `IsValid()`, `Forward()`, `Right()`, `Up()` |
+| `FindEntity("Name")` | Looks an entity up by its name |
+| `Vec3` | `x y z`, `+ - * /`, `Length()`, `Normalized()`, `Dot()`, `Cross()`, `Distance()` |
+| `Log::Info/Warn/Error/Trace`, `Print` | Writes to the Logger panel |
+| `Input::IsKeyDown(Key::W)`, `Input::IsMouseDown(MouseButton::Left)`, `Input::MouseX()/MouseY()` | Input |
+| `string`, `array<T>`, `sin cos sqrt pow ...` | The standard AngelScript add-ons |
+
+To offer your own C++ to scripts, register it on `Zeyrixon::ScriptEngine::GetEngine()` (see `Zeyrixon/src/Zeyrixon/Scripting/ScriptEngine.cpp` for how `Entity` and `Vec3` are done).
+
+## Making a game project
+
+**File -> New Project** in the editor creates a folder with:
+
+```
+MyGame/
+  MyGame.zeyrixon        project manifest
+  premake5.lua           connects the game to the engine (see below)
+  GenerateProjects.sh/.bat
+  src/main.cpp           the game's C++ entry point (loads the project and runs it)
+  Assets/Worlds/        worlds
+  Assets/Scripts/       AngelScript files (Example.as is created for you)
+```
+
+`premake5.lua` sets `ZEYRIXON_DIR` (where the engine is; override with the environment variable of the same name) and includes `premake/ZeyrixonGame.lua` from the engine. Calling `ZeyrixonLink()` in the game's `project` block adds the engine's headers, libraries, defines and system libraries, so the game can use everything the engine has.
+
+To build a game: build the engine once (`make config=debug` in the engine folder), then in the game folder run `./GenerateProjects.sh`, `make config=debug` and run the executable in `bin/`.
+
 ## Supported platforms
 
 - Linux (actively tested on Arch Linux)
@@ -112,6 +168,7 @@ macOS is not supported by the author. If you get it working, open a PR — you w
 |---:        |---:                       |---:                           |
 | C / C++    | Engine, Editor, User code | High performance core         |
 | HTML / CSS | User-created UI           | For editor/user UI creation   |
+| AngelScript| Game scripts (`.as`)      | Easy to learn, C++-like syntax |
 
 ## Architecture diagram
 

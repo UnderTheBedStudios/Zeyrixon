@@ -26,3 +26,6 @@
 [submodule "ZeyrixonEditor/vendor/ImGizmo/ImGuizmo"]
 	path = ZeyrixonEditor/vendor/ImGizmo/ImGuizmo
 	url = https://github.com/CedricGuillemet/ImGuizmo.git
+[submodule "Zeyrixon/vendor/AngelScript"]
+	path = Zeyrixon/vendor/AngelScript
+	url = https://github.com/UnderTheBedStudios/angelscript-mirror-premake.git
