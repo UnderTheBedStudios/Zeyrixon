@@ -25,3 +25,14 @@ make -j"$(nproc)" config="$CONFIG" CC="$CC" CXX="$CXX" $TARGET
 
 echo "Done. Output:"
 ls -lh bin/*-windows-x86_64/*/*.exe 2>/dev/null || true
+
+# zip the editor so it can be sent as one file.
+if command -v zip >/dev/null; then
+    for dir in bin/*-windows-x86_64/ZeyrixonEditor/; do
+        [ -d "$dir" ] || continue
+        out="$(pwd)/bin/ZeyrixonEditor-$(basename "$(dirname "$dir")")-windows.zip"
+        rm -f "$out"
+        (cd "$dir" && zip -qr "$out" . -x '*.pdb' '*.ilk')
+        echo "Packaged: $out"
+    done
+fi

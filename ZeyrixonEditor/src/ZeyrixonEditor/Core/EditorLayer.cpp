@@ -1,4 +1,5 @@
 #include <ZeyrixonEditor/Core/EditorLayer.h>
+#include <Zeyrixon/Embedded/EmbeddedResources.h>
 #include <Zeyrixon/ImGui/ImGuiLayer.h>
 #include <Zeyrixon/Events/MouseEvent.h>
 #include <Zeyrixon/Core/Application.h>
@@ -262,11 +263,11 @@ namespace Editor
         spec.Height = 720;
         m_Framebuffer = std::make_shared<Zeyrixon::OpenGLFramebuffer>(spec);
 
-        // Content Browser / Assets panel icons, shipped at the solution root's Icons/ folder.
-        fs::path iconsDir = fs::path(Z_ROOT_PATH) / "Icons";
-        m_FolderClosedIcon = std::make_shared<Zeyrixon::OpenGLTexture2D>((iconsDir / "ClosedFolder.png").string());
-        m_FolderOpenIcon   = std::make_shared<Zeyrixon::OpenGLTexture2D>((iconsDir / "Folder.png").string());
-        m_FileIcon         = std::make_shared<Zeyrixon::OpenGLTexture2D>((iconsDir / "File.png").string());
+        // Content Browser / Assets panel icons, compiled into the binary.
+        namespace E = Zeyrixon::Embedded;
+        m_FolderClosedIcon = std::make_shared<Zeyrixon::OpenGLTexture2D>(E::FolderClosedPng, E::FolderClosedPngSize);
+        m_FolderOpenIcon   = std::make_shared<Zeyrixon::OpenGLTexture2D>(E::FolderOpenPng, E::FolderOpenPngSize);
+        m_FileIcon         = std::make_shared<Zeyrixon::OpenGLTexture2D>(E::FilePng, E::FilePngSize);
     }
 
     EditorLayer::~EditorLayer()
@@ -1064,7 +1065,8 @@ namespace Editor
         // Engine's own source tree, rooted at the "Zeyrixon" engine module
         // (not the whole solution, which would also pull in ZeyrixonEditor/vendor/.git).
         fs::path engineRoot = fs::path(Z_ROOT_PATH) / "Zeyrixon";
-        if (ImGui::TreeNodeEx("Engine", ImGuiTreeNodeFlags_DefaultOpen))
+        std::error_code engineEc;
+        if (fs::is_directory(engineRoot, engineEc) && ImGui::TreeNodeEx("Engine", ImGuiTreeNodeFlags_DefaultOpen))
         {
             DrawDirectoryTree(engineRoot);
             ImGui::TreePop();

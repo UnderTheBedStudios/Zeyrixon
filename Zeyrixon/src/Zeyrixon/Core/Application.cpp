@@ -1,4 +1,5 @@
 #include <pch.h>
+#include <Zeyrixon/Embedded/EmbeddedResources.h>
 #include <Zeyrixon/Core/Application.h>
 #include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/ImGui/ImGuiLayer.h>
@@ -114,6 +115,22 @@ namespace Zeyrixon
             glfwSetWindowIcon(static_cast<GLFWwindow*>(GetWindow()->GetNativeWindow()), 1, images);
         else
             Z_CORE_CRITICAL("Failed to load image for window Image at: {0}", full_path.c_str());
+
+        stbi_image_free(images[0].pixels);
+    }
+
+    void Application::UseDefaultWindowImage()
+    {
+        GLFWimage images[1];
+        stbi_set_flip_vertically_on_load(0);   // the texture loader turns this on globally; icons must not be flipped
+
+        images[0].pixels = stbi_load_from_memory(Embedded::WindowIconPng,
+            static_cast<int>(Embedded::WindowIconPngSize), &images[0].width, &images[0].height, 0, 4);
+
+        if (images[0].pixels)
+            glfwSetWindowIcon(static_cast<GLFWwindow*>(GetWindow()->GetNativeWindow()), 1, images);
+        else
+            Z_CORE_CRITICAL("Failed to decode the embedded window icon");
 
         stbi_image_free(images[0].pixels);
     }

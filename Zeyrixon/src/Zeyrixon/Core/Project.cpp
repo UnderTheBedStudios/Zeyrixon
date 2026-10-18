@@ -89,7 +89,17 @@ namespace
         while (!engineDir.empty() && engineDir.back() == '/')
             engineDir.pop_back();
 
-        const fs::path templates = fs::path(engineDir) / "templates" / "GameProject";
+        // The generated premake files point at the engine *source*, so they only make sense when we have it.
+        // A standalone (Dist) editor ships without source: the project is still usable, it just isn't set up
+        // for C++ builds.
+        std::error_code ec;
+        if (!fs::exists(fs::path(engineDir) / "Zeyrixon" / "src", ec))
+        {
+            Z_CORE_INFO("Engine source not found next to the editor; skipping C++ build files for '{0}'.", name);
+            return;
+        }
+
+        const fs::path templates = fs::path(engineDir) / "ProjectTemplates" / "GameProject";
 
         const Tokens tokens =
         {

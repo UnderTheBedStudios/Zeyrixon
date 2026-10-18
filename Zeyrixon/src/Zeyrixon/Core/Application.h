@@ -36,6 +36,8 @@ namespace Zeyrixon
 
         std::shared_ptr<Window> GetWindow() { return m_Window; }
         void ChangeWindowImage(const char* path);
+        /* Sets the engine's built-in icon (compiled into the binary, no files needed). */
+        void UseDefaultWindowImage();
         void ChangeWindowTitle(const char* name);
 
         // --------- Layer Stuff ---------

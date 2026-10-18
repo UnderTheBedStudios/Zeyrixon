@@ -4,6 +4,7 @@
 
 #include <glm/glm.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -13,6 +14,8 @@ namespace Zeyrixon
     {
     public:
         OpenGLTexture2D(const std::string& path, bool srgb = false);
+        /* Decodes a PNG/JPG that is already in memory (e.g. compiled into the binary). */
+        OpenGLTexture2D(const unsigned char* encodedData, size_t encodedSize, bool srgb = false);
         OpenGLTexture2D(uint32_t width, uint32_t height);
         OpenGLTexture2D(glm::vec2 size);
 
@@ -33,6 +36,8 @@ namespace Zeyrixon
         const std::string& GetPath() const { return m_Path; }
 
     private:
+        void Upload(unsigned char* pixels, int width, int height, int channels, bool srgb);
+
         std::string m_Path;
         bool m_IsLoaded = false;
 

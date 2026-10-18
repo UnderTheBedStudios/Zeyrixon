@@ -27,7 +27,7 @@ namespace Editor
             // immediately (see Application::PushLayer), which will load a startup
             // project and retitle the window - if we set the title after PushLayer
             // instead, we'd clobber that with the generic one.
-            ChangeWindowImage("Icon.png");
+            UseDefaultWindowImage();
             ChangeWindowTitle("Zeyrixon Editor");
 
             // argv[0] is the executable path; argv[1], if present, is the file the

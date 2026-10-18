@@ -14,15 +14,36 @@ namespace Zeyrixon
         int width, height, channels;
         stbi_set_flip_vertically_on_load(1);
 
-        stbi_uc* data = nullptr;
-        data = stbi_load(path.c_str(), &width, &height, &channels, 0);
-
+        stbi_uc* data = stbi_load(path.c_str(), &width, &height, &channels, 0);
         if (!data)
         {
             Z_CORE_CRITICAL("Failed to load texture: '{0}'!", path);
             return;
         }
 
+        Upload(data, width, height, channels, srgb);
+    }
+
+    OpenGLTexture2D::OpenGLTexture2D(const unsigned char* encodedData, size_t encodedSize, bool srgb)
+        : m_Path("<embedded>")
+    {
+        int width, height, channels;
+        stbi_set_flip_vertically_on_load(1);
+
+        stbi_uc* data = stbi_load_from_memory(encodedData, static_cast<int>(encodedSize), &width, &height, &channels, 0);
+        if (!data)
+        {
+            Z_CORE_CRITICAL("Failed to decode embedded texture!");
+            return;
+        }
+
+        Upload(data, width, height, channels, srgb);
+    }
+
+    /* Takes ownership of `data` (frees it). */
+    void OpenGLTexture2D::Upload(unsigned char* data, int width, int height, int channels, bool srgb)
+    {
+        const std::string& path = m_Path;
         m_Width = width;
         m_Height = height;
 
