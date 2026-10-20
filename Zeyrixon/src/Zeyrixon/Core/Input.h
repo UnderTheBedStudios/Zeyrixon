@@ -15,7 +15,8 @@ namespace Zeyrixon
         inline static float GetMouseX() { return s_Instance->GetMouseXImpl(); }
         inline static float GetMouseY() { return s_Instance->GetMouseYImpl(); }
 
-        inline static void SetCursorMode(CursorMode mode) { s_Instance->SetCursorModeImpl(mode); }
+        inline static void SetCursorMode(CursorMode mode)   { s_Instance->SetCursorModeImpl(mode); }
+        inline static CursorMode GetCursorMode()            { return s_Instance->GetCursorModeImpl(); }
 
     protected:
         virtual bool IsKeyPressedImpl(int keycode) = 0;
@@ -26,6 +27,7 @@ namespace Zeyrixon
         virtual float GetMouseYImpl() = 0;
 
         virtual void SetCursorModeImpl(CursorMode mode) = 0;
+        virtual CursorMode GetCursorModeImpl() = 0;
 
     private:
         static Input* s_Instance;

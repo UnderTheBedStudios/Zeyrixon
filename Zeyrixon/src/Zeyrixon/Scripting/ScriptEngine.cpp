@@ -69,6 +69,46 @@ namespace Zeyrixon
         };
 
         // ------------------------------------------------------------------------------------
+        //  Vec2, the vector type scripts see. It is its own small struct (not glm::vec2) so the
+        //  script API stays stable even if the math library changes.
+        // ------------------------------------------------------------------------------------
+        struct ScriptVec2
+        {
+            float x = 0.f, y = 0.f;
+
+            ScriptVec2() = default;
+            ScriptVec2(float x, float y) : x(x), y(y) {}
+            ScriptVec2(const glm::vec2& v) : x(v.x), y(v.y) {}
+            operator glm::vec2() const { return { x, y }; }
+
+            ScriptVec2 Add(const ScriptVec2& o) const { return { x + o.x, y + o.y }; }
+            ScriptVec2 Sub(const ScriptVec2& o) const { return { x - o.x, y - o.y }; }
+            ScriptVec2 Mul(float s) const { return { x * s, y * s }; }
+            ScriptVec2 Div(float s) const { return { x / s, y / s }; }
+            ScriptVec2 Neg() const { return { -x, -y }; }
+
+            ScriptVec2& AddAssign(const ScriptVec2& o) { x += o.x; y += o.y; return *this; }
+            ScriptVec2& SubAssign(const ScriptVec2& o) { x -= o.x; y -= o.y; return *this; }
+            ScriptVec2& MulAssign(float s) { x *= s; y *= s; return *this; }
+
+            bool Equals(const ScriptVec2& o) const { return x == o.x && y == o.y; }
+
+            float Dot(const ScriptVec2& o) const { return x * o.x + y * o.y; }
+            float Cross(const ScriptVec2& o) const   // 2D cross product is a scalar
+            {
+                return x * o.y - y * o.x;
+            }
+            float LengthSquared() const { return Dot(*this); }
+            float Length() const { return std::sqrt(LengthSquared()); }
+            float Distance(const ScriptVec2& o) const { return Sub(o).Length(); }
+            ScriptVec2 Normalized() const
+            {
+                const float length = Length();
+                return length > 0.f ? Div(length) : ScriptVec2{};
+            }
+        };
+
+        // ------------------------------------------------------------------------------------
         //  Entity: what a script holds to refer to an entity. It is a handle, not the entity
         //  itself: it remembers which entity and which world, and checks that the entity still
         //  exists every time it is used.
@@ -181,6 +221,9 @@ namespace Zeyrixon
         float InputMouseX()                     { return Input::GetMouseX(); }
         float InputMouseY()                     { return Input::GetMouseY(); }
 
+        int  InputGetMouseMode()                { return static_cast<int>(Input::GetCursorMode()); }
+        void InputSetMouseMode(int mode)        { Input::SetCursorMode(static_cast<CursorMode>(mode)); }
+
         ScriptEntity FindEntity(const std::string& name)
         {
             if (!s_CurrentWorld)
@@ -289,6 +332,41 @@ namespace Zeyrixon
             return ok;
         }
 
+        bool RegisterVec2(asIScriptEngine* engine)
+        {
+            bool ok = true;
+
+            AS_REG(engine->RegisterObjectType("Vec2", sizeof(ScriptVec2),
+                asOBJ_VALUE | asOBJ_POD | asGetTypeTraits<ScriptVec2>()));
+
+            AS_REG(engine->RegisterObjectProperty("Vec2", "float x", asOFFSET(ScriptVec2, x)));
+            AS_REG(engine->RegisterObjectProperty("Vec2", "float y", asOFFSET(ScriptVec2, y)));
+
+            AS_REG(engine->RegisterObjectBehaviour("Vec2", asBEHAVE_CONSTRUCT, "void f()",
+                WRAP_CON(ScriptVec2, (void)), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectBehaviour("Vec2", asBEHAVE_CONSTRUCT, "void f(float, float)",
+                WRAP_CON(ScriptVec2, (float, float)), asCALL_GENERIC));
+
+            AS_REG(engine->RegisterObjectMethod("Vec2", "Vec2 opAdd(const Vec2 &in) const", WRAP_MFN(ScriptVec2, Add), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "Vec2 opSub(const Vec2 &in) const", WRAP_MFN(ScriptVec2, Sub), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "Vec2 opMul(float) const", WRAP_MFN(ScriptVec2, Mul), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "Vec2 opMul_r(float) const", WRAP_MFN(ScriptVec2, Mul), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "Vec2 opDiv(float) const", WRAP_MFN(ScriptVec2, Div), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "Vec2 opNeg() const", WRAP_MFN(ScriptVec2, Neg), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "Vec2 &opAddAssign(const Vec2 &in)", WRAP_MFN(ScriptVec2, AddAssign), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "Vec2 &opSubAssign(const Vec2 &in)", WRAP_MFN(ScriptVec2, SubAssign), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "Vec2 &opMulAssign(float)", WRAP_MFN(ScriptVec2, MulAssign), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "bool opEquals(const Vec2 &in) const", WRAP_MFN(ScriptVec2, Equals), asCALL_GENERIC));
+
+            AS_REG(engine->RegisterObjectMethod("Vec2", "float Dot(const Vec2 &in) const", WRAP_MFN(ScriptVec2, Dot), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "float Cross(const Vec2 &in) const", WRAP_MFN(ScriptVec2, Cross), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "float Length() const", WRAP_MFN(ScriptVec2, Length), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "float LengthSquared() const", WRAP_MFN(ScriptVec2, LengthSquared), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "float Distance(const Vec2 &in) const", WRAP_MFN(ScriptVec2, Distance), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Vec2", "Vec2 Normalized() const", WRAP_MFN(ScriptVec2, Normalized), asCALL_GENERIC));
+            return ok;
+        }
+
         bool RegisterEntity(asIScriptEngine* engine)
         {
             bool ok = true;
@@ -342,11 +420,18 @@ namespace Zeyrixon
             AS_REG(engine->RegisterEnumValue("MouseButton", "Right", Z_MOUSE_BUTTON_RIGHT));
             AS_REG(engine->RegisterEnumValue("MouseButton", "Middle", Z_MOUSE_BUTTON_MIDDLE));
 
+            AS_REG(engine->RegisterEnum("CursorMode"));
+            AS_REG(engine->RegisterEnumValue("CursorMode", "Normal", static_cast<int>(Zeyrixon::CursorMode::Normal)));
+            AS_REG(engine->RegisterEnumValue("CursorMode", "Hidden", static_cast<int>(Zeyrixon::CursorMode::Hidden)));
+            AS_REG(engine->RegisterEnumValue("CursorMode", "Locked", static_cast<int>(Zeyrixon::CursorMode::Locked)));
+
             AS_REG(engine->SetDefaultNamespace("Input"));
             AS_REG(engine->RegisterGlobalFunction("bool IsKeyDown(Key)", WRAP_FN(InputIsKeyDown), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("bool IsMouseDown(MouseButton)", WRAP_FN(InputIsMouseDown), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("float MouseX()", WRAP_FN(InputMouseX), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("float MouseY()", WRAP_FN(InputMouseY), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("CursorMode GetMouseMode()", WRAP_FN(InputGetMouseMode), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("void SetMouseMode(CursorMode)", WRAP_FN(InputSetMouseMode), asCALL_GENERIC));
 
             AS_REG(engine->SetDefaultNamespace(""));
             return ok;
@@ -468,6 +553,7 @@ namespace Zeyrixon
 
         bool ok = true;
         ok &= RegisterVec3(engine);
+        ok &= RegisterVec2(engine);
         ok &= RegisterEntity(engine);
         ok &= RegisterLogAndInput(engine);
         if (!ok)

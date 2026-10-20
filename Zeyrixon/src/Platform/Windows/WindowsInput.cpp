@@ -2,6 +2,7 @@
 
 #include <Platform/Windows/WindowsInput.h>
 #include <Zeyrixon/Core/Application.h>
+#include <Zeyrixon/Core/Log.h>
 
 #include <GLFW/glfw3.h>
 
@@ -60,5 +61,20 @@ namespace Zeyrixon
            It only has an effect while the cursor is locked. */
         if (glfwRawMouseMotionSupported())
             glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, mode == CursorMode::Locked ? GLFW_TRUE : GLFW_FALSE);
+    }
+
+    CursorMode WindowsInput::GetCursorModeImpl()
+    {
+        auto window = static_cast<GLFWwindow*>(Application::Get().GetWindow()->GetNativeWindow());
+
+        int glfwMode = glfwGetInputMode(window, GLFW_CURSOR);
+
+        if (glfwMode == GLFW_CURSOR_NORMAL) return CursorMode::Normal;
+        if (glfwMode == GLFW_CURSOR_HIDDEN) return CursorMode::Hidden;
+        if (glfwMode == GLFW_CURSOR_DISABLED) return CursorMode::Locked;
+
+        Z_CORE_WARN("Couldn't find the Cursor Mode!");
+
+        return CursorMode::Normal;
     }
 }
