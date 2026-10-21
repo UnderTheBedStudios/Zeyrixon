@@ -17,6 +17,7 @@ TL;DR: Zeyrixon is a cross-platform (Linux/Windows) game engine + editor using O
 - [Supported platforms](#supported-platforms)
 - [Languages used](#languages-used)
 - [Architecture diagram](#architecture-diagram)
+- [Examples](#examples)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [License](#license)
@@ -183,6 +184,10 @@ sequenceDiagram
     Engine->>UserCode: Delivers responses/events
     Editor->>User: Presents results
 ```
+## Examples
+### Multi Material Meshes examples:
+![Sponza Example](./Readme%20Resources/Materials%20Example.png)
+
 
 ## Troubleshooting
 
