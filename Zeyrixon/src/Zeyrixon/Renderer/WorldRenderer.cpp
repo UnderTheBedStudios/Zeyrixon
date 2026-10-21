@@ -175,12 +175,12 @@ namespace Zeyrixon
             return *shader;
         }
 
-        // What an entity with a mesh but no material component is drawn with.
-        const MaterialComponent& DefaultMaterial()
+        // What a submesh with no material slot is drawn with.
+        const MaterialSlot& DefaultMaterial()
         {
-            static const MaterialComponent material = []
+            static const MaterialSlot material = []
             {
-                MaterialComponent m;
+                MaterialSlot m;
                 m.Albedo = glm::vec3(0.8f);
                 return m;
             }();
@@ -197,6 +197,21 @@ namespace Zeyrixon
             shader.SetInt(hasUniform, texture ? 1 : 0);
             if (texture)
                 texture->Bind(slot);
+        }
+
+        // Uploads one material's values and binds its maps, ready for the next draw call.
+        void ApplyMaterial(OpenGLShader& shader, const MaterialSlot& material)
+        {
+            shader.SetFloat3("u_Albedo", material.Albedo);
+            shader.SetFloat("u_Metallic", material.Metallic);
+            shader.SetFloat("u_Roughness", material.Roughness);
+            shader.SetFloat("u_AO", material.AO);
+
+            BindMap(shader, material.AlbedoMap,    true,  0, "u_HasAlbedoMap");
+            BindMap(shader, material.NormalMap,    false, 1, "u_HasNormalMap");
+            BindMap(shader, material.RoughnessMap, false, 2, "u_HasRoughnessMap");
+            BindMap(shader, material.MetallicMap,  false, 3, "u_HasMetallicMap");
+            BindMap(shader, material.AOMap,        false, 4, "u_HasAOMap");
         }
     }
 
@@ -435,26 +450,22 @@ namespace Zeyrixon
             if (!meshData)
                 continue;
 
-            const MaterialComponent& material = registry.all_of<MaterialComponent>(entity)
-                ? registry.get<MaterialComponent>(entity)
-                : DefaultMaterial();
+            const MaterialComponent* materials = registry.try_get<MaterialComponent>(entity);
 
+            // The transform is the same for the whole entity, so it is set once.
             const glm::mat4 model = transform.GetMatrix();
             shader.SetMat4("u_Model", model);
             shader.SetMat3("u_NormalMatrix", glm::transpose(glm::inverse(glm::mat3(model))));
 
-            shader.SetFloat3("u_Albedo", material.Albedo);
-            shader.SetFloat("u_Metallic", material.Metallic);
-            shader.SetFloat("u_Roughness", material.Roughness);
-            shader.SetFloat("u_AO", material.AO);
+            // One draw call per submesh, each with its own material.
+            const auto& submeshes = meshData->GetSubmeshes();
+            for (size_t i = 0; i < submeshes.size(); ++i)
+            {
+                const MaterialSlot* slot = materials ? materials->FindSlot(static_cast<int>(i)) : nullptr;
+                ApplyMaterial(shader, slot ? *slot : DefaultMaterial());
 
-            BindMap(shader, material.AlbedoMap,    true,  0, "u_HasAlbedoMap");
-            BindMap(shader, material.NormalMap,    false, 1, "u_HasNormalMap");
-            BindMap(shader, material.RoughnessMap, false, 2, "u_HasRoughnessMap");
-            BindMap(shader, material.MetallicMap,  false, 3, "u_HasMetallicMap");
-            BindMap(shader, material.AOMap,        false, 4, "u_HasAOMap");
-
-            OpenGLRender::DrawIndexed(meshData->GetVertexArray());
+                OpenGLRender::DrawIndexed(meshData->GetVertexArray(), submeshes[i].IndexCount, submeshes[i].IndexOffset);
+            }
         }
     }
 

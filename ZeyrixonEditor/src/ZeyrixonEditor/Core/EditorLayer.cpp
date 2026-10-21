@@ -6,6 +6,7 @@
 #include <Zeyrixon/World/ComponentRegistry.h>
 #include <Zeyrixon/Renderer/WorldRenderer.h>
 #include <Zeyrixon/Renderer/Picking.h>
+#include <Zeyrixon/Renderer/Mesh.h>
 #include <Zeyrixon/Scripting/ScriptEngine.h>
 
 #include <imgui_internal.h>
@@ -229,25 +230,83 @@ namespace
         {
             auto& material = entity.GetComponent<Zeyrixon::MaterialComponent>();
 
-            ImGui::ColorEdit3("Albedo", &material.Albedo.x);
-            ImGui::SliderFloat("Metallic", &material.Metallic, 0.0f, 1.0f);
-            ImGui::SliderFloat("Roughness", &material.Roughness, 0.0f, 1.0f);
-            ImGui::SliderFloat("AO", &material.AO, 0.0f, 1.0f);
+            // The names of the mesh's submeshes (index = position): shown as a hint, and
+            // matched against by "Load from .mtl".
+            std::vector<std::string> submeshNames;
+            if (entity.HasComponent<Zeyrixon::MeshComponent>())
+            {
+                const auto& meshComponent = entity.GetComponent<Zeyrixon::MeshComponent>();
+                if (auto mesh = Zeyrixon::MeshLibrary::Get(meshComponent.MeshPath))
+                    for (const auto& submesh : mesh->GetSubmeshes())
+                        submeshNames.push_back(submesh.MaterialName);
+            }
 
-            ImGui::SeparatorText("Maps (replace the values above)");
-            DrawTextureSlot("Albedo Map", material.AlbedoMap);
-            DrawTextureSlot("Normal Map", material.NormalMap);
-            DrawTextureSlot("Roughness Map", material.RoughnessMap);
-            DrawTextureSlot("Metallic Map", material.MetallicMap);
-            DrawTextureSlot("AO Map", material.AOMap);
+            int removeIndex = -1;
+            for (int i = 0; i < static_cast<int>(material.Slots.size()); ++i)
+            {
+                auto& slot = material.Slots[i];
+
+                // ImGui builds widget IDs from labels plus the ID stack. Without this, every
+                // slot's "Browse..." and "Clear" buttons would share IDs with the other slots'.
+                ImGui::PushID(i);
+
+                std::string label = "Slot " + std::to_string(i);
+                if (!slot.Name.empty())
+                    label += " - " + slot.Name;
+
+                if (ImGui::TreeNodeEx(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    ImGui::DragInt("Submesh Index", &slot.SubmeshIndex, 0.1f, -1,
+                                   std::max(0, static_cast<int>(submeshNames.size()) - 1));
+
+                    if (slot.SubmeshIndex < 0)
+                        ImGui::TextDisabled("Affects every submesh without its own slot");
+                    else if (slot.SubmeshIndex < static_cast<int>(submeshNames.size()))
+                        ImGui::TextDisabled("Affects: %s", submeshNames[slot.SubmeshIndex].empty()
+                                            ? "(unnamed)" : submeshNames[slot.SubmeshIndex].c_str());
+                    else
+                        ImGui::TextDisabled("The mesh has no submesh with this index");
+
+                    ImGui::ColorEdit3("Albedo", &slot.Albedo.x);
+                    ImGui::SliderFloat("Metallic", &slot.Metallic, 0.0f, 1.0f);
+                    ImGui::SliderFloat("Roughness", &slot.Roughness, 0.0f, 1.0f);
+                    ImGui::SliderFloat("AO", &slot.AO, 0.0f, 1.0f);
+
+                    ImGui::SeparatorText("Maps (replace the values above)");
+                    DrawTextureSlot("Albedo Map", slot.AlbedoMap);
+                    DrawTextureSlot("Normal Map", slot.NormalMap);
+                    DrawTextureSlot("Roughness Map", slot.RoughnessMap);
+                    DrawTextureSlot("Metallic Map", slot.MetallicMap);
+                    DrawTextureSlot("AO Map", slot.AOMap);
+
+                    if (material.Slots.size() > 1 && ImGui::Button("Remove Slot"))
+                        removeIndex = i;   // erased after the loop, so the vector isn't changed mid-iteration
+
+                    ImGui::TreePop();
+                }
+
+                ImGui::PopID();
+            }
+
+            if (removeIndex >= 0)
+                material.Slots.erase(material.Slots.begin() + removeIndex);
 
             ImGui::Separator();
+            if (ImGui::Button("Add Slot"))
+            {
+                Zeyrixon::MaterialSlot slot;
+                slot.SubmeshIndex = material.Slots.size() < submeshNames.size()
+                    ? static_cast<int>(material.Slots.size()) : -1;
+                material.Slots.push_back(slot);
+            }
+
+            ImGui::SameLine();
             if (ImGui::Button("Load from .mtl..."))
             {
                 const char* filterPatterns[1] = { "*.mtl" };
                 const char* chosen = tinyfd_openFileDialog("Choose a material file", nullptr, 1, filterPatterns, "MTL file", 0);
                 if (chosen)
-                    material.ApplyMTL(chosen);
+                    material.ApplyMTL(chosen, submeshNames);
             }
         });
     }

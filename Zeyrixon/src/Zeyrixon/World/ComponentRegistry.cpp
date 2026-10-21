@@ -39,6 +39,41 @@ namespace{
 
 namespace Zeyrixon
 {
+    namespace
+    {
+        void WriteMaterialSlot(const MaterialSlot& s, pugi::xml_node n)
+        {
+            n.append_attribute("Name") = s.Name.c_str();
+            n.append_attribute("Index") = s.SubmeshIndex;
+            n.append_attribute("Albedo") = Vec3ToString(s.Albedo).c_str();
+            n.append_attribute("Metallic") = s.Metallic;
+            n.append_attribute("Roughness") = s.Roughness;
+            n.append_attribute("AO") = s.AO;
+            n.append_attribute("AlbedoMap") = s.AlbedoMap.c_str();
+            n.append_attribute("NormalMap") = s.NormalMap.c_str();
+            n.append_attribute("RoughnessMap") = s.RoughnessMap.c_str();
+            n.append_attribute("MetallicMap") = s.MetallicMap.c_str();
+            n.append_attribute("AOMap") = s.AOMap.c_str();
+        }
+
+        MaterialSlot ReadMaterialSlot(pugi::xml_node n)
+        {
+            MaterialSlot s;
+            s.Name = n.attribute("Name").as_string();
+            s.SubmeshIndex = n.attribute("Index").as_int(-1);   // missing (old files) = -1
+            s.Albedo = StringToVec3(n.attribute("Albedo").as_string(""), s.Albedo);
+            s.Metallic = n.attribute("Metallic").as_float(s.Metallic);
+            s.Roughness = n.attribute("Roughness").as_float(s.Roughness);
+            s.AO = n.attribute("AO").as_float(s.AO);
+            s.AlbedoMap = n.attribute("AlbedoMap").as_string();
+            s.NormalMap = n.attribute("NormalMap").as_string();
+            s.RoughnessMap = n.attribute("RoughnessMap").as_string();
+            s.MetallicMap = n.attribute("MetallicMap").as_string();
+            s.AOMap = n.attribute("AOMap").as_string();
+            return s;
+        }
+    }
+
     ComponentRegistry& ComponentRegistry::Get()
     {
         static ComponentRegistry instance;
@@ -122,29 +157,25 @@ namespace Zeyrixon
         auto& material = Register<MaterialComponent>("Material");
         material.Serialize = [](Entity e, pugi::xml_node node)
         {
-            auto& m = e.GetComponent<MaterialComponent>();
-            node.append_attribute("Albedo") = Vec3ToString(m.Albedo).c_str();
-            node.append_attribute("Metallic") = m.Metallic;
-            node.append_attribute("Roughness") = m.Roughness;
-            node.append_attribute("AO") = m.AO;
-            node.append_attribute("AlbedoMap") = m.AlbedoMap.c_str();
-            node.append_attribute("NormalMap") = m.NormalMap.c_str();
-            node.append_attribute("RoughnessMap") = m.RoughnessMap.c_str();
-            node.append_attribute("MetallicMap") = m.MetallicMap.c_str();
-            node.append_attribute("AOMap") = m.AOMap.c_str();
+            for (const MaterialSlot& slot : e.GetComponent<MaterialComponent>().Slots)
+                WriteMaterialSlot(slot, node.append_child("Slot"));
         };
         material.Deserialize = [](Entity e, pugi::xml_node node)
         {
             auto& m = e.GetComponent<MaterialComponent>();
-            m.Albedo = StringToVec3(node.attribute("Albedo").as_string(""), m.Albedo);
-            m.Metallic = node.attribute("Metallic").as_float(m.Metallic);
-            m.Roughness = node.attribute("Roughness").as_float(m.Roughness);
-            m.AO = node.attribute("AO").as_float(m.AO);
-            m.AlbedoMap = node.attribute("AlbedoMap").as_string();
-            m.NormalMap = node.attribute("NormalMap").as_string();
-            m.RoughnessMap = node.attribute("RoughnessMap").as_string();
-            m.MetallicMap = node.attribute("MetallicMap").as_string();
-            m.AOMap = node.attribute("AOMap").as_string();
+            m.Slots.clear();
+
+            if (node.child("Slot"))
+            {
+                for (pugi::xml_node slotNode : node.children("Slot"))
+                    m.Slots.push_back(ReadMaterialSlot(slotNode));
+            }
+            else
+            {
+                // The old format kept the attributes on <Material> itself: one slot, index -1,
+                // which applies to every submesh just like it used to.
+                m.Slots.push_back(ReadMaterialSlot(node));
+            }
         };
 
         auto& script = Register<ScriptComponent>("Script");

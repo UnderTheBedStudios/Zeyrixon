@@ -20,6 +20,9 @@ namespace Zeyrixon
         static void Clear();
         static void OnWindowResize(uint32_t width, uint32_t height);
 
-        static void DrawIndexed(const std::shared_ptr<OpenGLVertexArray>& vertexArray, uint32_t indexCount = 0);
+        /* indexCount 0 = all indices. indexOffset is the first index to draw, counted in
+           indices (not bytes); a submesh is drawn with its own count and offset. */
+        static void DrawIndexed(const std::shared_ptr<OpenGLVertexArray>& vertexArray,
+                                uint32_t indexCount = 0, uint32_t indexOffset = 0);
     };
 }

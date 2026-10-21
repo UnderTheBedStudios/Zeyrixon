@@ -13,8 +13,8 @@ namespace Zeyrixon
 {
     static_assert(sizeof(MeshVertex) == 8 * sizeof(float), "MeshVertex must be tightly packed");
 
-    Mesh::Mesh(std::vector<MeshVertex> vertices, std::vector<uint32_t> indices)
-        : m_Verticies(std::move(vertices)), m_Indices(std::move(indices))
+    Mesh::Mesh(std::vector<MeshVertex> vertices, std::vector<uint32_t> indices, std::vector<Submesh> submeshes)
+        : m_Verticies(std::move(vertices)), m_Indices(std::move(indices)), m_Submeshes(std::move(submeshes))
     {
         if (!m_Verticies.empty())
         {
@@ -25,6 +25,10 @@ namespace Zeyrixon
                 m_BoundsMax = glm::max(m_BoundsMax, vertex.Position);
             }
         }
+
+        // A mesh with no material info (the built-in cube) is one submesh covering everything.
+        if (m_Submeshes.empty())
+            m_Submeshes.push_back({ "", 0, static_cast<uint32_t>(m_Indices.size()) });
 
         m_VertexArray = std::make_shared<OpenGLVertexArray>();
 
@@ -126,8 +130,22 @@ namespace Zeyrixon
             std::vector<glm::vec2> texCoords;
 
             std::vector<MeshVertex> vertices;
-            std::vector<uint32_t> indices;
             std::map<std::tuple<int, int, int>, uint32_t> uniqueVertices;
+
+            /* One list of indices per material. An OBJ can switch materials back and forth, so
+               the indices can't go into one list and be sliced afterwards; they are joined
+               into a single index buffer once the whole file has been read. */
+            struct Group { std::string Name; std::vector<uint32_t> Indices; };
+            std::vector<Group> groups;
+            auto selectGroup = [&](const std::string& name) -> size_t
+            {
+                for (size_t i = 0; i < groups.size(); ++i)
+                    if (groups[i].Name == name)
+                        return i;
+                groups.push_back({ name, {} });
+                return groups.size() - 1;
+            };
+            size_t currentGroup = selectGroup("");   // faces before any usemtl
 
             std::string line;
             while (std::getline(file, line))
@@ -153,6 +171,12 @@ namespace Zeyrixon
                     glm::vec2 t;
                     stream >> t.x >> t.y;
                     texCoords.push_back(t);
+                }
+                else if (keyword == "usemtl")
+                {
+                    std::string name;
+                    stream >> name;
+                    currentGroup = selectGroup(name);
                 }
                 else if (keyword == "f")
                 {
@@ -206,7 +230,7 @@ namespace Zeyrixon
                                 auto found = uniqueVertices.find(*corner);
                                 if (found != uniqueVertices.end())
                                 {
-                                    indices.push_back(found->second);
+                                    groups[currentGroup].Indices.push_back(found->second);
                                     continue;
                                 }
                             }
@@ -218,7 +242,7 @@ namespace Zeyrixon
 
                             const uint32_t newIndex = static_cast<uint32_t>(vertices.size());
                             vertices.push_back(vertex);
-                            indices.push_back(newIndex);
+                            groups[currentGroup].Indices.push_back(newIndex);
                             if (hasNormal)
                                 uniqueVertices[*corner] = newIndex;
                         }
@@ -232,7 +256,18 @@ namespace Zeyrixon
                 return nullptr;
             }
 
-            return std::make_shared<Mesh>(std::move(vertices), std::move(indices));
+            // Join the per-material lists into one index buffer; each becomes a submesh.
+            std::vector<uint32_t> indices;
+            std::vector<Submesh> submeshes;
+            for (const Group& group : groups)
+            {
+                if (group.Indices.empty())
+                    continue;
+                submeshes.push_back({ group.Name, static_cast<uint32_t>(indices.size()), static_cast<uint32_t>(group.Indices.size()) });
+                indices.insert(indices.end(), group.Indices.begin(), group.Indices.end());
+            }
+
+            return std::make_shared<Mesh>(std::move(vertices), std::move(indices), std::move(submeshes));
         }
     }
 

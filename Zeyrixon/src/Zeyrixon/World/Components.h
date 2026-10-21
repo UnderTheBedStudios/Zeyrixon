@@ -8,6 +8,8 @@
 #include <fstream>
 #include <cstdint>
 #include <string>
+#include <vector>
+#include <algorithm>
 
 namespace Zeyrixon
 {
@@ -111,8 +113,13 @@ namespace Zeyrixon
         }
     };
 
-    struct MaterialComponent
+    /* One material. A mesh with several materials (an OBJ with several "usemtl") is split into
+       submeshes, and each slot says which submesh it is drawn on. */
+    struct MaterialSlot
     {
+        std::string Name;           // The .mtl material name; used to match submeshes on import
+        int SubmeshIndex = -1;      // -1 = every submesh that has no slot of its own
+
         glm::vec3 Albedo{ 1.f };    // Tints the albedo map, or the color if there is none
         float Metallic = 0.f;       // Used only when there is no metallic map
         float Roughness = 0.5f;     // Used only when there is no roughness map
@@ -124,17 +131,41 @@ namespace Zeyrixon
         std::string RoughnessMap;
         std::string MetallicMap;
         std::string AOMap;
+    };
 
-        bool ApplyMTL(const std::string& mtlPath)
+    /* EnTT allows only one component of each type per entity, so the several materials live in
+       a list inside the one component. */
+    struct MaterialComponent
+    {
+        std::vector<MaterialSlot> Slots{ MaterialSlot{} };   // a new component starts with one
+
+        // The slot for this submesh: its own, else the first -1 slot, else null.
+        const MaterialSlot* FindSlot(int submeshIndex) const
+        {
+            const MaterialSlot* fallback = nullptr;
+            for (const MaterialSlot& slot : Slots)
+            {
+                if (slot.SubmeshIndex == submeshIndex)
+                    return &slot;
+                if (slot.SubmeshIndex < 0 && !fallback)
+                    fallback = &slot;
+            }
+            return fallback;
+        }
+
+        /* Reads every material in the .mtl and replaces the slots with the ones the mesh uses.
+           submeshMaterials[i] is the usemtl name of submesh i. Returns how many slots were made,
+           or -1 if the file couldn't be opened. */
+        int ApplyMTL(const std::string& mtlPath, const std::vector<std::string>& submeshMaterials)
         {
             std::ifstream file(mtlPath);
             if (!file)
-                return false;
+                return -1;
 
             const std::filesystem::path directory = std::filesystem::path(mtlPath).parent_path();
 
-            glm::vec3 diffuse(0.8f);
-            bool inMaterial = false;
+            std::vector<MaterialSlot> parsed;
+            MaterialSlot* current = nullptr;
 
             std::string line;
             while (std::getline(file, line))
@@ -145,13 +176,18 @@ namespace Zeyrixon
 
                 if (keyword == "newmtl")
                 {
-                    if (inMaterial)
-                        break;
-                    inMaterial = true;
+                    parsed.emplace_back();              // may reallocate, so take the pointer again
+                    current = &parsed.back();
+                    current->Albedo = glm::vec3(0.8f);
+                    stream >> current->Name;
+                }
+                else if (!current)
+                {
+                    continue;                           // a line before the first newmtl
                 }
                 else if (keyword == "Kd")
                 {
-                    stream >> diffuse.x >> diffuse.y >> diffuse.z;
+                    stream >> current->Albedo.x >> current->Albedo.y >> current->Albedo.z;
                 }
                 else if (keyword == "map_Kd" || keyword == "map_Pr" || keyword == "map_Pm"
                     || keyword == "map_Bump" || keyword == "bump" || keyword == "norm")
@@ -163,17 +199,45 @@ namespace Zeyrixon
                     if (last.empty())
                         continue;
 
+                    std::replace(last.begin(), last.end(), '\\', '/');   // .mtl files made on Windows
                     const std::string fullPath = (directory / last).string();
-                    if (keyword == "map_Kd")      AlbedoMap = fullPath;
-                    else if (keyword == "map_Pr") RoughnessMap = fullPath;
-                    else if (keyword == "map_Pm") MetallicMap = fullPath;
-                    else                          NormalMap = fullPath;
+                    if (keyword == "map_Kd")      current->AlbedoMap = fullPath;
+                    else if (keyword == "map_Pr") current->RoughnessMap = fullPath;
+                    else if (keyword == "map_Pm") current->MetallicMap = fullPath;
+                    else                          current->NormalMap = fullPath;
                 }
             }
 
             // The albedo map carries the colour, so don't also tint it with Kd.
-            Albedo = AlbedoMap.empty() ? diffuse : glm::vec3(1.0f);
-            return true;
+            for (MaterialSlot& material : parsed)
+                if (!material.AlbedoMap.empty())
+                    material.Albedo = glm::vec3(1.0f);
+
+            // One slot per submesh whose material name is in the file.
+            std::vector<MaterialSlot> result;
+            for (size_t i = 0; i < submeshMaterials.size(); ++i)
+            {
+                for (const MaterialSlot& material : parsed)
+                {
+                    if (material.Name != submeshMaterials[i])
+                        continue;
+
+                    MaterialSlot slot = material;
+                    slot.SubmeshIndex = static_cast<int>(i);
+                    result.push_back(std::move(slot));
+                    break;
+                }
+            }
+
+            // Nothing matched by name (a one-material mesh with no usemtl): behave as before,
+            // the first material on everything.
+            if (result.empty() && !parsed.empty())
+                result.push_back(parsed[0]);
+
+            const int count = static_cast<int>(result.size());
+            if (count > 0)
+                Slots = std::move(result);
+            return count;
         }
     };
 }

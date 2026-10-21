@@ -19,16 +19,26 @@ namespace Zeyrixon
         glm::vec2 TexCoord;
     };
 
+    /* A contiguous slice of a mesh's index buffer that uses one material. Comes from the OBJ's
+       "usemtl" lines; a mesh without any is a single submesh covering everything. */
+    struct Submesh
+    {
+        std::string MaterialName;   // the usemtl name; empty = none given
+        uint32_t IndexOffset = 0;   // first index, counted in indices (not bytes)
+        uint32_t IndexCount = 0;
+    };
+
     class Z_API Mesh
     {
     public:
-        Mesh(std::vector<MeshVertex> verticies, std::vector<uint32_t> indices);
+        Mesh(std::vector<MeshVertex> verticies, std::vector<uint32_t> indices, std::vector<Submesh> submeshes = {});
 
         const std::shared_ptr<OpenGLVertexArray>& GetVertexArray() const { return m_VertexArray; }
 
         // A CPU-side copy of the geometry, kept for picking, plus it's bounding box in the mesh's own space.
         const std::vector<MeshVertex>& GetVerticies() const { return m_Verticies; }
         const std::vector<uint32_t>& GetIndices() const { return m_Indices; }
+        const std::vector<Submesh>& GetSubmeshes() const { return m_Submeshes; }
         const glm::vec3& GetBoundsMin() const { return m_BoundsMin; }
         const glm::vec3& GetBoundsMax() const { return m_BoundsMax; }
 
@@ -36,6 +46,7 @@ namespace Zeyrixon
         std::shared_ptr<OpenGLVertexArray> m_VertexArray;
         std::vector<MeshVertex> m_Verticies;
         std::vector<uint32_t> m_Indices;
+        std::vector<Submesh> m_Submeshes;
         glm::vec3 m_BoundsMin{ 0.f };
         glm::vec3 m_BoundsMax{ 0.f };
     };
