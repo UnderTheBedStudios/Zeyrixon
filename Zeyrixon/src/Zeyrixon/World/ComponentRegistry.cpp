@@ -54,6 +54,7 @@ namespace Zeyrixon
             n.append_attribute("RoughnessMap") = s.RoughnessMap.c_str();
             n.append_attribute("MetallicMap") = s.MetallicMap.c_str();
             n.append_attribute("AOMap") = s.AOMap.c_str();
+            n.append_attribute("Packed") = s.PackedMetallicRoughness;
         }
 
         MaterialSlot ReadMaterialSlot(pugi::xml_node n)
@@ -70,6 +71,7 @@ namespace Zeyrixon
             s.RoughnessMap = n.attribute("RoughnessMap").as_string();
             s.MetallicMap = n.attribute("MetallicMap").as_string();
             s.AOMap = n.attribute("AOMap").as_string();
+            s.PackedMetallicRoughness = n.attribute("Packed").as_bool(false);   // missing (old files) = false
             return s;
         }
     }
@@ -190,6 +192,24 @@ namespace Zeyrixon
             auto& s = e.GetComponent<ScriptComponent>();
             s.ScriptPath = node.attribute("Path").as_string();
             s.ClassName = node.attribute("Class").as_string();
+        };
+
+        auto& animation = Register<AnimationComponent>("Animation");
+        animation.Serialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& a = e.GetComponent<AnimationComponent>();
+            node.append_attribute("Clip") = a.ClipIndex;
+            node.append_attribute("Speed") = a.Speed;
+            node.append_attribute("Loop") = a.Loop;
+            node.append_attribute("PlayOnStart") = a.PlayOnStart;
+        };
+        animation.Deserialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& a = e.GetComponent<AnimationComponent>();
+            a.ClipIndex = node.attribute("Clip").as_int(a.ClipIndex);
+            a.Speed = node.attribute("Speed").as_float(a.Speed);
+            a.Loop = node.attribute("Loop").as_bool(a.Loop);
+            a.PlayOnStart = node.attribute("PlayOnStart").as_bool(a.PlayOnStart);
         };
 
         auto& sprite = Register<SpriteComponent>("Sprite");

@@ -22,10 +22,15 @@ namespace Zeyrixon
             layout(location = 0) in vec3 a_Position;
             layout(location = 1) in vec3 a_Normal;
             layout(location = 2) in vec2 a_TexCoord;
+            layout(location = 3) in vec4 a_Joints;    // skinned meshes only: joint indices, stored as floats
+            layout(location = 4) in vec4 a_Weights;   // skinned meshes only: how much each joint pulls
 
             uniform mat4 u_ViewProjection;
             uniform mat4 u_Model;
             uniform mat3 u_NormalMatrix;
+
+            uniform int u_Skinned;                    // 1 = deform with u_JointMatrices first
+            uniform mat4 u_JointMatrices[128];        // keep in step with ModelData::MaxJoints
 
             out vec3 v_WorldPos;
             out vec3 v_Normal;
@@ -33,9 +38,23 @@ namespace Zeyrixon
 
             void main()
             {
-                vec4 world = u_Model * vec4(a_Position, 1.0);
+                vec4 localPosition = vec4(a_Position, 1.0);
+                vec3 localNormal = a_Normal;
+
+                if (u_Skinned != 0)
+                {
+                    // Blend the matrices of the (up to) four joints that hold this vertex.
+                    mat4 skin = a_Weights.x * u_JointMatrices[int(a_Joints.x + 0.5)]
+                              + a_Weights.y * u_JointMatrices[int(a_Joints.y + 0.5)]
+                              + a_Weights.z * u_JointMatrices[int(a_Joints.z + 0.5)]
+                              + a_Weights.w * u_JointMatrices[int(a_Joints.w + 0.5)];
+                    localPosition = skin * localPosition;
+                    localNormal = mat3(skin) * localNormal;
+                }
+
+                vec4 world = u_Model * localPosition;
                 v_WorldPos = world.xyz;
-                v_Normal = u_NormalMatrix * a_Normal;
+                v_Normal = u_NormalMatrix * localNormal;
                 v_TexCoord = a_TexCoord;
                 gl_Position = u_ViewProjection * world;
             }
@@ -67,6 +86,7 @@ namespace Zeyrixon
             uniform int u_HasRoughnessMap;
             uniform int u_HasMetallicMap;
             uniform int u_HasAOMap;
+            uniform int u_PackedMR;          // 1 = roughness (green) and metallic (blue) are both in u_RoughnessMap
 
             out vec4 o_Color;
 
@@ -130,9 +150,20 @@ namespace Zeyrixon
                 if (u_HasAlbedoMap != 0)
                     albedo *= texture(u_AlbedoMap, v_TexCoord).rgb;
 
-                float metallic  = (u_HasMetallicMap  != 0) ? texture(u_MetallicMap,  v_TexCoord).r : u_Metallic;
-                float roughness = (u_HasRoughnessMap != 0) ? texture(u_RoughnessMap, v_TexCoord).r : u_Roughness;
-                float ao        = (u_HasAOMap        != 0) ? texture(u_AOMap,        v_TexCoord).r : u_AO;
+                float metallic, roughness;
+                if (u_PackedMR != 0 && u_HasRoughnessMap != 0)
+                {
+                    // glTF: one texture, roughness in G, metallic in B; the factors scale it.
+                    vec3 packedMR = texture(u_RoughnessMap, v_TexCoord).rgb;
+                    roughness = u_Roughness * packedMR.g;
+                    metallic  = u_Metallic  * packedMR.b;
+                }
+                else
+                {
+                    metallic  = (u_HasMetallicMap  != 0) ? texture(u_MetallicMap,  v_TexCoord).r : u_Metallic;
+                    roughness = (u_HasRoughnessMap != 0) ? texture(u_RoughnessMap, v_TexCoord).r : u_Roughness;
+                }
+                float ao = (u_HasAOMap != 0) ? texture(u_AOMap, v_TexCoord).r : u_AO;
                 roughness = clamp(roughness, 0.04, 1.0);   // a perfectly smooth surface gives a degenerate highlight
 
                 vec3 N = GetNormal();
@@ -206,6 +237,7 @@ namespace Zeyrixon
             shader.SetFloat("u_Metallic", material.Metallic);
             shader.SetFloat("u_Roughness", material.Roughness);
             shader.SetFloat("u_AO", material.AO);
+            shader.SetInt("u_PackedMR", material.PackedMetallicRoughness ? 1 : 0);
 
             BindMap(shader, material.AlbedoMap,    true,  0, "u_HasAlbedoMap");
             BindMap(shader, material.NormalMap,    false, 1, "u_HasNormalMap");
@@ -451,20 +483,73 @@ namespace Zeyrixon
                 continue;
 
             const MaterialComponent* materials = registry.try_get<MaterialComponent>(entity);
+            const std::vector<MaterialSlot>& importedMaterials = meshData->GetImportedMaterials();
 
-            // The transform is the same for the whole entity, so it is set once.
+            /* glTF models: work out the pose to draw. With an Animation component that is the chosen clip at
+               its current time; without one it's the rest pose, which was computed when the model loaded. */
+            const ModelData* modelData = meshData->GetModel().get();
+            ModelPose animatedPose;
+            const ModelPose* pose = nullptr;
+            if (modelData)
+            {
+                const AnimationComponent* animation = registry.try_get<AnimationComponent>(entity);
+                if (animation && animation->ClipIndex >= 0 && animation->ClipIndex < static_cast<int>(modelData->Animations.size()))
+                {
+                    modelData->Evaluate(animation->ClipIndex, animation->Time, animatedPose);
+                    pose = &animatedPose;
+                }
+                else
+                {
+                    pose = &modelData->RestPose;
+                }
+            }
+
             const glm::mat4 model = transform.GetMatrix();
-            shader.SetMat4("u_Model", model);
-            shader.SetMat3("u_NormalMatrix", glm::transpose(glm::inverse(glm::mat3(model))));
+            int uploadedSkin = -1;   // which skin's joint matrices are currently in the shader (for this entity)
 
             // One draw call per submesh, each with its own material.
             const auto& submeshes = meshData->GetSubmeshes();
             for (size_t i = 0; i < submeshes.size(); ++i)
             {
+                const Submesh& submesh = submeshes[i];
+
+                // The Material component wins; otherwise the file's own material; otherwise plain grey.
                 const MaterialSlot* slot = materials ? materials->FindSlot(static_cast<int>(i)) : nullptr;
+                if (!slot && !materials && i < importedMaterials.size())
+                    slot = &importedMaterials[i];
                 ApplyMaterial(shader, slot ? *slot : DefaultMaterial());
 
-                OpenGLRender::DrawIndexed(meshData->GetVertexArray(), submeshes[i].IndexCount, submeshes[i].IndexOffset);
+                glm::mat4 submeshModel = model;
+                int skin = -1;
+                if (pose)
+                {
+                    if (submesh.SkinIndex >= 0 && submesh.SkinIndex < static_cast<int>(pose->JointMatrices.size()))
+                    {
+                        // Skinned: the joint matrices place the vertices, so the entity's own transform is all that's left.
+                        skin = submesh.SkinIndex;
+                    }
+                    else if (submesh.NodeIndex >= 0 && submesh.NodeIndex < static_cast<int>(pose->NodeMatrices.size()))
+                    {
+                        /* An animated rigid part: its vertices were baked at the node's REST position, so move
+                           them by how far the node has travelled from there. */
+                        submeshModel = model * pose->NodeMatrices[submesh.NodeIndex] * modelData->InverseRestMatrices[submesh.NodeIndex];
+                    }
+                }
+
+                shader.SetInt("u_Skinned", skin >= 0 ? 1 : 0);
+                if (skin >= 0 && skin != uploadedSkin)
+                {
+                    const auto& matrices = pose->JointMatrices[skin];
+                    const uint32_t count = static_cast<uint32_t>(std::min<size_t>(matrices.size(), ModelData::MaxJoints));
+                    if (count > 0)
+                        shader.SetMat4Array("u_JointMatrices", matrices.data(), count);
+                    uploadedSkin = skin;
+                }
+
+                shader.SetMat4("u_Model", submeshModel);
+                shader.SetMat3("u_NormalMatrix", glm::transpose(glm::inverse(glm::mat3(submeshModel))));
+
+                OpenGLRender::DrawIndexed(meshData->GetVertexArray(), submesh.IndexCount, submesh.IndexOffset);
             }
         }
     }

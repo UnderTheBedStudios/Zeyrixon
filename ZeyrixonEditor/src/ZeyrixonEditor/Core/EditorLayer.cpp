@@ -165,10 +165,62 @@ namespace
             ImGui::SameLine();
             if (ImGui::Button("Browse..."))
             {
-                const char* filterPatterns[1] = { "*.obj" };
-                const char* chosen = tinyfd_openFileDialog("Choose a mesh", nullptr, 1, filterPatterns, "OBJ model", 0);
+                const char* filterPatterns[3] = { "*.obj", "*.gltf", "*.glb" };
+                const char* chosen = tinyfd_openFileDialog("Choose a mesh", nullptr, 3, filterPatterns, "3D models (OBJ, glTF)", 0);
                 if (chosen)
                     mesh.MeshPath = chosen;
+            }
+        });
+
+        SetInspector("Animation", [](Zeyrixon::Entity entity)
+        {
+            auto& animation = entity.GetComponent<Zeyrixon::AnimationComponent>();
+
+            // The clips come from the mesh on the same entity; only glTF files carry any.
+            std::shared_ptr<Zeyrixon::Mesh> mesh;
+            if (entity.HasComponent<Zeyrixon::MeshComponent>())
+                mesh = Zeyrixon::MeshLibrary::Get(entity.GetComponent<Zeyrixon::MeshComponent>().MeshPath);
+
+            const Zeyrixon::ModelData* model = mesh ? mesh->GetModel().get() : nullptr;
+            if (!model || model->Animations.empty())
+            {
+                ImGui::TextDisabled("Needs a Mesh component with a .gltf / .glb that has animations.");
+                return;
+            }
+
+            const int clipCount = static_cast<int>(model->Animations.size());
+            auto clipLabel = [&](int index)
+            {
+                return model->Animations[index].Name.empty() ? "Animation " + std::to_string(index) : model->Animations[index].Name;
+            };
+
+            const bool validClip = animation.ClipIndex >= 0 && animation.ClipIndex < clipCount;
+            if (ImGui::BeginCombo("Clip", validClip ? clipLabel(animation.ClipIndex).c_str() : "(none - rest pose)"))
+            {
+                if (ImGui::Selectable("(none - rest pose)", !validClip))
+                    animation.ClipIndex = -1;
+
+                for (int i = 0; i < clipCount; ++i)
+                {
+                    ImGui::PushID(i);
+                    if (ImGui::Selectable(clipLabel(i).c_str(), animation.ClipIndex == i))
+                        animation.ClipIndex = i;
+                    ImGui::PopID();
+                }
+                ImGui::EndCombo();
+            }
+
+            ImGui::DragFloat("Speed", &animation.Speed, 0.01f, -10.0f, 10.0f);
+            ImGui::Checkbox("Loop", &animation.Loop);
+            ImGui::SameLine();
+            ImGui::Checkbox("Play On Start", &animation.PlayOnStart);
+
+            // Drag to preview any moment of the clip without pressing Play.
+            if (validClip)
+            {
+                const float duration = model->Animations[animation.ClipIndex].Duration;
+                ImGui::SliderFloat("Time", &animation.Time, 0.0f, duration > 0.0f ? duration : 1.0f, "%.2f s");
+                ImGui::TextDisabled("Length: %.2f s", duration);
             }
         });
 
@@ -278,6 +330,9 @@ namespace
                     DrawTextureSlot("Roughness Map", slot.RoughnessMap);
                     DrawTextureSlot("Metallic Map", slot.MetallicMap);
                     DrawTextureSlot("AO Map", slot.AOMap);
+                    ImGui::Checkbox("Roughness map is packed (glTF)", &slot.PackedMetallicRoughness);
+                    if (slot.PackedMetallicRoughness)
+                        ImGui::TextDisabled("Roughness = G, Metallic = B of the Roughness Map; the sliders scale them. Metallic Map is ignored.");
 
                     if (material.Slots.size() > 1 && ImGui::Button("Remove Slot"))
                         removeIndex = i;   // erased after the loop, so the vector isn't changed mid-iteration
@@ -307,6 +362,18 @@ namespace
                 const char* chosen = tinyfd_openFileDialog("Choose a material file", nullptr, 1, filterPatterns, "MTL file", 0);
                 if (chosen)
                     material.ApplyMTL(chosen, submeshNames);
+            }
+
+            // glTF files carry their own materials: copy them into editable slots.
+            ImGui::SameLine();
+            if (ImGui::Button("Import from model"))
+            {
+                if (entity.HasComponent<Zeyrixon::MeshComponent>())
+                {
+                    auto mesh = Zeyrixon::MeshLibrary::Get(entity.GetComponent<Zeyrixon::MeshComponent>().MeshPath);
+                    if (mesh && !mesh->GetImportedMaterials().empty())
+                        material.Slots = mesh->GetImportedMaterials();
+                }
             }
         });
     }

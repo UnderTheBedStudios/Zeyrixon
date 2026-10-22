@@ -3,9 +3,12 @@
 #include <Zeyrixon/World/World.h>
 #include <Zeyrixon/World/Entity.h>
 #include <Zeyrixon/World/Components.h>
+#include <Zeyrixon/Renderer/Mesh.h>
 #include <Zeyrixon/World/ComponentRegistry.h>
 #include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/Scripting/ScriptEngine.h>
+
+#include <cmath>
 
 #include <pugixml.hpp>
 #include <glm/glm.hpp>
@@ -65,6 +68,15 @@ namespace Zeyrixon
             return false;
         }
 
+        // Animations start from the top (when they're set to play on start); the editor's time is put back on Stop.
+        m_AnimationTimeSnapshot.clear();
+        for (auto [handle, id, animation] : m_Registry.view<IDComponent, AnimationComponent>().each())
+        {
+            m_AnimationTimeSnapshot[id.ID] = animation.Time;
+            animation.Time = 0.0f;
+            animation.Playing = animation.PlayOnStart;
+        }
+
         m_Running = true;
         return true;
     }
@@ -89,13 +101,63 @@ namespace Zeyrixon
         }
 
         m_RuntimeSnapshot.clear();
+
+        for (auto [handle, id, animation] : m_Registry.view<IDComponent, AnimationComponent>().each())
+        {
+            animation.Playing = false;
+            auto saved = m_AnimationTimeSnapshot.find(id.ID);
+            animation.Time = saved != m_AnimationTimeSnapshot.end() ? saved->second : 0.0f;
+        }
+        m_AnimationTimeSnapshot.clear();
+
         m_Running = false;
     }
 
     void World::OnUpdate(DeltaTime dt)
     {
-        if (m_Running)
-            ScriptEngine::OnRuntimeUpdate(*this, dt);
+        if (!m_Running)
+            return;
+
+        ScriptEngine::OnRuntimeUpdate(*this, dt);
+        UpdateAnimations(dt);
+    }
+
+    void World::UpdateAnimations(DeltaTime dt)
+    {
+        for (auto [handle, mesh, animation] : m_Registry.view<MeshComponent, AnimationComponent>().each())
+        {
+            if (!animation.Playing)
+                continue;
+
+            std::shared_ptr<Mesh> meshData = MeshLibrary::Get(mesh.MeshPath);
+            const ModelData* model = meshData ? meshData->GetModel().get() : nullptr;
+            if (!model || animation.ClipIndex < 0 || animation.ClipIndex >= static_cast<int>(model->Animations.size()))
+                continue;
+
+            const float duration = model->Animations[animation.ClipIndex].Duration;
+            animation.Time += dt.GetSeconds() * animation.Speed;
+
+            if (duration <= 0.0f)
+            {
+                animation.Time = 0.0f;
+            }
+            else if (animation.Loop)
+            {
+                animation.Time = std::fmod(animation.Time, duration);
+                if (animation.Time < 0.0f)
+                    animation.Time += duration;   // fmod keeps the sign: wrap backwards playback too
+            }
+            else if (animation.Time >= duration)
+            {
+                animation.Time = duration;        // hold the last frame
+                animation.Playing = false;
+            }
+            else if (animation.Time < 0.0f)
+            {
+                animation.Time = 0.0f;
+                animation.Playing = false;
+            }
+        }
     }
 
     std::shared_ptr<World> World::New(const std::string& name)

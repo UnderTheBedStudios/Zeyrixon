@@ -1,9 +1,12 @@
 #include <pch.h>
 
 #include <Zeyrixon/Renderer/Mesh.h>
+#include <Zeyrixon/Renderer/GLTFLoader.h>
 #include <Zeyrixon/Core/Log.h>
 
+#include <cctype>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -13,19 +16,11 @@ namespace Zeyrixon
 {
     static_assert(sizeof(MeshVertex) == 8 * sizeof(float), "MeshVertex must be tightly packed");
 
-    Mesh::Mesh(std::vector<MeshVertex> vertices, std::vector<uint32_t> indices, std::vector<Submesh> submeshes)
-        : m_Verticies(std::move(vertices)), m_Indices(std::move(indices)), m_Submeshes(std::move(submeshes))
+    Mesh::Mesh(std::vector<MeshVertex> vertices, std::vector<uint32_t> indices, std::vector<Submesh> submeshes,
+               std::vector<SkinVertex> skinVertices, std::shared_ptr<ModelData> model, std::vector<MaterialSlot> materials)
+        : m_Verticies(std::move(vertices)), m_Indices(std::move(indices)), m_Submeshes(std::move(submeshes)),
+          m_Model(std::move(model)), m_ImportedMaterials(std::move(materials))
     {
-        if (!m_Verticies.empty())
-        {
-            m_BoundsMin = m_BoundsMax = m_Verticies[0].Position;
-            for (const MeshVertex& vertex : m_Verticies)
-            {
-                m_BoundsMin = glm::min(m_BoundsMin, vertex.Position);
-                m_BoundsMax = glm::max(m_BoundsMax, vertex.Position);
-            }
-        }
-
         // A mesh with no material info (the built-in cube) is one submesh covering everything.
         if (m_Submeshes.empty())
             m_Submeshes.push_back({ "", 0, static_cast<uint32_t>(m_Indices.size()) });
@@ -42,9 +37,66 @@ namespace Zeyrixon
         });
         m_VertexArray->AddVertexBuffer(vertexBuffer);
 
+        /* The skin data goes in a second buffer. The vertex array hands out attribute locations in
+           the order the elements are added, so these become locations 3 and 4 (after position,
+           normal and uv), which is what the vertex shader expects. */
+        if (skinVertices.size() == m_Verticies.size() && !skinVertices.empty())
+        {
+            auto skinBuffer = std::make_shared<OpenGLVertexBuffer>(
+                reinterpret_cast<float*>(skinVertices.data()),
+                static_cast<uint32_t>(skinVertices.size() * sizeof(SkinVertex)));
+            skinBuffer->SetLayout({
+                { ShaderDataType::Float4, "a_Joints" },
+                { ShaderDataType::Float4, "a_Weights" }
+            });
+            m_VertexArray->AddVertexBuffer(skinBuffer);
+        }
+
         auto indexBuffer = std::make_shared<OpenGLIndexBuffer>(
             m_Indices.data(), static_cast<uint32_t>(m_Indices.size()));
         m_VertexArray->SetIndexBuffer(indexBuffer);
+
+        /* Everything is on the GPU now. The CPU copy of the vertices is only for picking and bounds, and
+           for a skinned model the bind pose it holds can be far from what's drawn (a model authored Z-up
+           is stood up by its joints, for instance). So pose that copy into the rest pose, the way the
+           vertex shader will. Skinned parts only; the GPU buffer is not touched. */
+        if (m_Model && skinVertices.size() == m_Verticies.size())
+        {
+            std::vector<char> posed(m_Verticies.size(), 0);
+            for (const Submesh& submesh : m_Submeshes)
+            {
+                if (submesh.SkinIndex < 0 || submesh.SkinIndex >= static_cast<int>(m_Model->RestPose.JointMatrices.size()))
+                    continue;
+
+                const std::vector<glm::mat4>& joints = m_Model->RestPose.JointMatrices[submesh.SkinIndex];
+                for (uint32_t i = submesh.IndexOffset; i < submesh.IndexOffset + submesh.IndexCount; ++i)
+                {
+                    const uint32_t v = m_Indices[i];
+                    if (posed[v])
+                        continue;
+                    posed[v] = 1;
+
+                    glm::mat4 skin(0.0f);
+                    for (int k = 0; k < 4; ++k)
+                    {
+                        const size_t joint = static_cast<size_t>(skinVertices[v].Joints[k]);
+                        if (joint < joints.size())
+                            skin += skinVertices[v].Weights[k] * joints[joint];
+                    }
+                    m_Verticies[v].Position = glm::vec3(skin * glm::vec4(m_Verticies[v].Position, 1.0f));
+                }
+            }
+        }
+
+        if (!m_Verticies.empty())
+        {
+            m_BoundsMin = m_BoundsMax = m_Verticies[0].Position;
+            for (const MeshVertex& vertex : m_Verticies)
+            {
+                m_BoundsMin = glm::min(m_BoundsMin, vertex.Position);
+                m_BoundsMax = glm::max(m_BoundsMax, vertex.Position);
+            }
+        }
     }
 
     namespace
@@ -55,6 +107,14 @@ namespace Zeyrixon
         {
             static auto* cache = new std::unordered_map<std::string, std::shared_ptr<Mesh>>();
             return *cache;
+        }
+
+        bool IsGLTFPath(const std::string& path)
+        {
+            std::string extension = std::filesystem::path(path).extension().string();
+            std::transform(extension.begin(), extension.end(), extension.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            return extension == ".gltf" || extension == ".glb";
         }
 
         std::shared_ptr<Mesh> CreateCube()
@@ -279,7 +339,13 @@ namespace Zeyrixon
         if (found != cache.end())
             return found->second;   // may be null: a path that already failed isn't retried or logged again
 
-        std::shared_ptr<Mesh> mesh = (path == "builtin:cube") ? CreateCube() : LoadOBJ(path);
+        std::shared_ptr<Mesh> mesh;
+        if (path == "builtin:cube")
+            mesh = CreateCube();
+        else if (IsGLTFPath(path))
+            mesh = GLTFLoader::Load(path);
+        else
+            mesh = LoadOBJ(path);
         cache[path] = mesh;
         return mesh;
     }

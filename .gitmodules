@@ -29,3 +29,6 @@
 [submodule "Zeyrixon/vendor/AngelScript"]
 	path = Zeyrixon/vendor/AngelScript
 	url = https://github.com/UnderTheBedStudios/angelscript-mirror-premake.git
+[submodule "Zeyrixon/vendor/cgltf"]
+	path = Zeyrixon/vendor/cgltf
+	url = https://github.com/jkuhlmann/cgltf.git

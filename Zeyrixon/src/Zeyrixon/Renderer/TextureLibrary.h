@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace Zeyrixon
 {
@@ -15,5 +16,10 @@ namespace Zeyrixon
     {
     public:
         static std::shared_ptr<OpenGLTexture2D> Get(const std::string& path, bool srgb);
+
+        /* Gives the library the still-encoded bytes (PNG/JPG) of a texture that has no file of its own,
+           such as an image packed inside a .glb. After this, Get(key, ...) decodes and uploads it on
+           first use. glTF images use keys like "gltf:Models/Robot.glb#3". */
+        static void RegisterEncoded(const std::string& key, std::vector<unsigned char> bytes);
     };
 }

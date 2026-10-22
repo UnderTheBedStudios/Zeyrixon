@@ -54,9 +54,13 @@ namespace Zeyrixon
 
         entt::registry m_Registry;
 
+        // Moves every playing Animation component forward by dt (looping or stopping at the end).
+        void UpdateAnimations(DeltaTime dt);
+
         bool m_Running = false;
 
         struct TransformSnapshot { glm::vec3 Position, Rotation, Scale; };
         std::unordered_map<uint64_t, TransformSnapshot> m_RuntimeSnapshot;   // keyed by IDComponent::ID
+        std::unordered_map<uint64_t, float> m_AnimationTimeSnapshot;         // same key: Animation time before Play
     };
 }

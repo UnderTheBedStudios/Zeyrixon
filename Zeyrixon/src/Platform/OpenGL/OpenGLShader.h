@@ -30,6 +30,8 @@ namespace Zeyrixon
         void SetFloat4(const std::string& name, const glm::vec4& value);
         void SetMat3(const std::string& name, const glm::mat3& value);
         void SetMat4(const std::string& name, const glm::mat4& value);
+        // For a "uniform mat4 name[N]" array: uploads `count` matrices in one call.
+        void SetMat4Array(const std::string& name, const glm::mat4* values, uint32_t count);
 
         const std::string& GetName() const { return m_Name; }
 

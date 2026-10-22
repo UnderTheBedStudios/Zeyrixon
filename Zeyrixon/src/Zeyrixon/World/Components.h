@@ -99,6 +99,20 @@ namespace Zeyrixon
         int SortingOrder = 0;               // higher draws on top
     };
 
+    /* Plays one of the animations of a glTF mesh on the same entity (it does nothing for an OBJ or the
+       built-in cube). The clip is chosen by its position in the file's animation list. */
+    struct AnimationComponent
+    {
+        int ClipIndex = 0;          // -1 = none: the model stays in its rest pose
+        float Speed = 1.0f;         // 1 = normal; negative plays backwards
+        bool Loop = true;
+        bool PlayOnStart = true;    // starts playing when Play is pressed
+
+        // Runtime state; not saved. Time is also what the Time slider in the inspector scrubs.
+        float Time = 0.0f;          // seconds into the clip
+        bool Playing = false;
+    };
+
     struct ScriptComponent
     {
         std::string ScriptPath;
@@ -131,6 +145,11 @@ namespace Zeyrixon
         std::string RoughnessMap;
         std::string MetallicMap;
         std::string AOMap;
+
+        /* glTF stores roughness (green channel) and metallic (blue channel) in ONE texture. When this is
+           set, RoughnessMap holds that texture, MetallicMap is ignored, and Roughness / Metallic above
+           multiply what the texture says instead of being replaced by it. */
+        bool PackedMetallicRoughness = false;
     };
 
     /* EnTT allows only one component of each type per entity, so the several materials live in

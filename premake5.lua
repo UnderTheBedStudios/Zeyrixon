@@ -16,6 +16,7 @@ IncludeDir["GLFW"] = "Zeyrixon/vendor/GLFW/include"
 IncludeDir["Glad"] = "Zeyrixon/vendor/GLAD/include"
 IncludeDir["ImGui"] = "ZeyrixonEditor/vendor/imgui"
 IncludeDir["stb"] = "Zeyrixon/vendor/stb"
+IncludeDir["cgltf"] = "Zeyrixon/vendor/cgltf"
 IncludeDir["TinyFileDialogs"] = "ZeyrixonEditor/vendor/tinyfiledialogs"
 IncludeDir["glm"] = "Zeyrixon/vendor/glm"
 IncludeDir["pugixml"] = "Zeyrixon/vendor/pugixml/src"
@@ -67,6 +68,7 @@ project("Zeyrixon")
 		"%{IncludeDir.Glad}",
 		"%{IncludeDir.ImGui}",
 		"%{IncludeDir.stb}",
+		"%{IncludeDir.cgltf}",
 		"%{IncludeDir.glm}",
 		"%{IncludeDir.pugixml}",
 		"%{IncludeDir.entt}",

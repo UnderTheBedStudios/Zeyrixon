@@ -229,4 +229,10 @@ namespace Zeyrixon
     {
         glUniformMatrix4fv(GetUniformLocation(name), 1, GL_FALSE, glm::value_ptr(value));
     }
+
+    void OpenGLShader::SetMat4Array(const std::string& name, const glm::mat4* values, uint32_t count)
+    {
+        // The location of "name" is the location of element 0; the elements that follow are consecutive.
+        glUniformMatrix4fv(GetUniformLocation(name), (GLsizei)count, GL_FALSE, glm::value_ptr(values[0]));
+    }
 }
