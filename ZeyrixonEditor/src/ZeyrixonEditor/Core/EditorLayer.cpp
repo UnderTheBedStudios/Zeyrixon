@@ -150,6 +150,35 @@ namespace
             ImGui::DragFloat("Far", &camera.Far, 1.0f, 1.0f, 100000.0f);
         });
 
+        SetInspector("Light", [](Zeyrixon::Entity entity)
+        {
+            auto& light = entity.GetComponent<Zeyrixon::LightComponent>();
+
+            const char* typeNames[] = { "Directional", "Point", "Spot" };
+            int type = static_cast<int>(light.Type);
+            if (ImGui::Combo("Type", &type, typeNames, IM_ARRAYSIZE(typeNames)))
+                light.Type = static_cast<Zeyrixon::LightType>(type);
+
+            ImGui::ColorEdit3("Color", &light.Color.x);
+            ImGui::DragFloat("Intensity", &light.Intensity, 0.1f, 0.0f, 1000.0f);
+
+            // A directional light has no position and never fades, so range only matters for the others.
+            if (light.Type != Zeyrixon::LightType::Directional)
+                ImGui::DragFloat("Range", &light.Range, 0.1f, 0.01f, 10000.0f);
+
+            if (light.Type == Zeyrixon::LightType::Spot)
+            {
+                // Inner can never be wider than outer, so each drag clamps against the other.
+                ImGui::DragFloat("Outer Angle", &light.OuterConeAngle, 0.2f, 1.0f, 89.0f, "%.1f deg");
+                if (ImGui::DragFloat("Inner Angle", &light.InnerConeAngle, 0.2f, 0.0f, 89.0f, "%.1f deg"))
+                    light.InnerConeAngle = std::min(light.InnerConeAngle, light.OuterConeAngle);
+                light.InnerConeAngle = std::min(light.InnerConeAngle, light.OuterConeAngle);
+            }
+
+            if (light.Type != Zeyrixon::LightType::Point)
+                ImGui::TextDisabled("Shines along the entity's -Z axis (rotate it to aim).");
+        });
+
         SetInspector("Mesh", [](Zeyrixon::Entity entity)
         {
             auto& mesh = entity.GetComponent<Zeyrixon::MeshComponent>();
@@ -944,6 +973,46 @@ namespace Editor
                 m_SelectedEntity = sprite;
             }
 
+            if (ImGui::BeginMenu("Create Light"))
+            {
+                // Each light type gets sensible starting values: a sun is ~3, a bulb ~10, a torch ~30
+                // (point and spot lights fade with distance, so they need more to look comparable).
+                if (ImGui::MenuItem("Directional Light"))
+                {
+                    Zeyrixon::Entity entity = m_ActiveWorld->CreateEntity("Directional Light");
+                    auto& light = entity.AddComponent<Zeyrixon::LightComponent>();
+                    light.Type = Zeyrixon::LightType::Directional;
+                    light.Intensity = 3.0f;
+                    // Pitched down 50 degrees and turned 30, so it shines down and forward.
+                    entity.GetComponent<Zeyrixon::TransformComponent>().Rotation = glm::radians(glm::vec3(-50.0f, 30.0f, 0.0f));
+                    m_SelectedEntity = entity;
+                }
+
+                if (ImGui::MenuItem("Point Light"))
+                {
+                    Zeyrixon::Entity entity = m_ActiveWorld->CreateEntity("Point Light");
+                    auto& light = entity.AddComponent<Zeyrixon::LightComponent>();
+                    light.Type = Zeyrixon::LightType::Point;
+                    light.Intensity = 10.0f;
+                    entity.GetComponent<Zeyrixon::TransformComponent>().Position = glm::vec3(0.0f, 3.0f, 0.0f);
+                    m_SelectedEntity = entity;
+                }
+
+                if (ImGui::MenuItem("Spot Light"))
+                {
+                    Zeyrixon::Entity entity = m_ActiveWorld->CreateEntity("Spot Light");
+                    auto& light = entity.AddComponent<Zeyrixon::LightComponent>();
+                    light.Type = Zeyrixon::LightType::Spot;
+                    light.Intensity = 30.0f;
+                    auto& transform = entity.GetComponent<Zeyrixon::TransformComponent>();
+                    transform.Position = glm::vec3(0.0f, 4.0f, 0.0f);
+                    transform.Rotation = glm::radians(glm::vec3(-90.0f, 0.0f, 0.0f));   // straight down
+                    m_SelectedEntity = entity;
+                }
+
+                ImGui::EndMenu();
+            }
+
             ImGui::EndPopup();
         }
 
@@ -959,7 +1028,18 @@ namespace Editor
 
         if (!m_SelectedEntity)
         {
-            ImGui::TextDisabled("Nothing selected.");
+            // With nothing selected, show the settings of the world itself.
+            if (m_ActiveWorld)
+            {
+                ImGui::SeparatorText("World");
+                float ambient = m_ActiveWorld->GetAmbientIntensity();
+                if (ImGui::SliderFloat("Ambient Light", &ambient, 0.0f, 1.0f))
+                    m_ActiveWorld->SetAmbientIntensity(ambient);
+                ImGui::TextDisabled("0 = only lights light the scene.");
+            }
+            else
+                ImGui::TextDisabled("Nothing selected.");
+
             ImGui::End();
             return;
         }

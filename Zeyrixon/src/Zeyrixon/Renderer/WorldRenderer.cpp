@@ -7,10 +7,13 @@
 
 #include <Platform/OpenGL/OpenGLRender.h>
 #include <Platform/OpenGL/OpenGLShader.h>
+#include <Platform/OpenGL/OpenGLUniformBuffer.h>
+#include <Zeyrixon/Core/Log.h>
 
 #include <glad/glad.h>
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 namespace Zeyrixon
@@ -67,8 +70,24 @@ namespace Zeyrixon
             in vec2 v_TexCoord;
 
             uniform vec3 u_CameraPosition;
-            uniform vec3 u_LightDirection;   // direction towards the light
-            uniform vec3 u_LightColor;
+            uniform float u_AmbientIntensity;   // 0 = no ambient light at all
+
+            // Keep MAX_LIGHTS and the layout in step with WorldRenderer's GPULight / LightBlock.
+            // Every member is a vec4 so std140 padding never gets in the way.
+            #define MAX_LIGHTS 64
+            struct Light
+            {
+                vec4 PositionRange;    // xyz = world position, w = range
+                vec4 DirectionType;    // xyz = direction the light travels, w = 0 directional / 1 point / 2 spot
+                vec4 ColorIntensity;   // rgb = colour * intensity (already multiplied on the CPU)
+                vec4 SpotCones;        // x = cos(inner angle), y = cos(outer angle)
+            };
+
+            layout(std140, binding = 0) uniform LightBlock
+            {
+                ivec4 u_LightCounts;   // x = how many entries of u_Lights are in use
+                Light u_Lights[MAX_LIGHTS];
+            };
 
             uniform vec3 u_Albedo;
             uniform float u_Metallic;
@@ -144,6 +163,59 @@ namespace Zeyrixon
                 return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
             }
 
+            // The light that arrives at this pixel from ONE light, run through Cook-Torrance
+            // specular + Lambert diffuse. Called once per light and the results are added up.
+            vec3 EvaluateLight(Light light, vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, vec3 F0)
+            {
+                int type = int(light.DirectionType.w + 0.5);
+
+                vec3 L;                  // from the pixel towards the light
+                float attenuation = 1.0; // how much of the light's strength survives to get here
+
+                if (type == 0)
+                {
+                    // Directional: the same direction everywhere, and it never fades.
+                    L = normalize(-light.DirectionType.xyz);
+                }
+                else
+                {
+                    vec3 toLight = light.PositionRange.xyz - v_WorldPos;
+                    float dist2 = max(dot(toLight, toLight), 1e-4);
+                    float dist = sqrt(dist2);
+                    L = toLight / dist;
+
+                    // Inverse-square falloff, times a window that eases it to exactly zero at
+                    // the light's range (so the light has a finite reach we can cull by).
+                    float range = light.PositionRange.w;
+                    float window = clamp(1.0 - pow(dist / range, 4.0), 0.0, 1.0);
+                    attenuation = (window * window) / (dist2 + 1.0);
+
+                    if (type == 2)
+                    {
+                        // Spot: 1 inside the inner cone, 0 outside the outer one, smooth in between.
+                        float cosAngle = dot(-L, normalize(light.DirectionType.xyz));
+                        float t = clamp((cosAngle - light.SpotCones.y) / max(light.SpotCones.x - light.SpotCones.y, 1e-4), 0.0, 1.0);
+                        attenuation *= t * t;
+                    }
+                }
+
+                float NdotL = max(dot(N, L), 0.0);
+                if (attenuation <= 0.0 || NdotL <= 0.0)
+                    return vec3(0.0);
+
+                vec3 H = normalize(V + L);
+                float NDF = DistributionGGX(N, H, roughness);
+                float G = GeometrySmith(N, V, L, roughness);
+                vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
+
+                vec3 specular = (NDF * G * F)
+                              / (4.0 * max(dot(N, V), 0.0) * NdotL + 0.0001);
+                vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
+
+                vec3 radiance = light.ColorIntensity.rgb * attenuation;
+                return (kD * albedo / PI + specular) * radiance * NdotL;
+            }
+
             void main()
             {
                 vec3 albedo = u_Albedo;
@@ -168,27 +240,19 @@ namespace Zeyrixon
 
                 vec3 N = GetNormal();
                 vec3 V = normalize(u_CameraPosition - v_WorldPos);
-                vec3 L = normalize(u_LightDirection);
-                vec3 H = normalize(V + L);
 
                 vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
-                // Cook-Torrance specular + Lambert diffuse for the directional light.
-                float NDF = DistributionGGX(N, H, roughness);
-                float G = GeometrySmith(N, V, L, roughness);
-                vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
-
-                vec3 specular = (NDF * G * F)
-                              / (4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001);
-                vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
-
-                float NdotL = max(dot(N, L), 0.0);
-                vec3 Lo = (kD * albedo / PI + specular) * u_LightColor * NdotL;
+                // Every light adds its own contribution; light is additive, so a plain sum is right.
+                vec3 Lo = vec3(0.0);
+                int lightCount = min(u_LightCounts.x, MAX_LIGHTS);
+                for (int i = 0; i < lightCount; ++i)
+                    Lo += EvaluateLight(u_Lights[i], N, V, albedo, metallic, roughness, F0);
 
                 // Hemisphere ambient: a stand-in until image-based lighting exists.
                 vec3 hemisphere = mix(vec3(0.15, 0.13, 0.12), vec3(0.45, 0.55, 0.70), N.y * 0.5 + 0.5);
                 vec3 ambient = ((1.0 - metallic) * albedo * hemisphere
-                              + F0 * hemisphere * (1.0 - roughness)) * ao;
+                              + F0 * hemisphere * (1.0 - roughness)) * ao * u_AmbientIntensity;
 
                 vec3 color = ambient + Lo;
 
@@ -197,6 +261,114 @@ namespace Zeyrixon
                 o_Color = vec4(color, 1.0);
             }
         )";
+
+        // ---- Lights -------------------------------------------------------------------------
+
+        constexpr int k_MaxLights = 64;   // keep in step with MAX_LIGHTS in the fragment shader
+
+        // These two structs must match the shader's std140 block byte for byte. Everything is a
+        // vec4 (16 bytes), so there is no hidden padding to get wrong.
+        struct GPULight
+        {
+            glm::vec4 PositionRange;    // xyz position, w range
+            glm::vec4 DirectionType;    // xyz travel direction, w type
+            glm::vec4 ColorIntensity;   // rgb = colour * intensity
+            glm::vec4 SpotCones;        // x cos(inner), y cos(outer)
+        };
+
+        struct LightBlock
+        {
+            glm::ivec4 Counts;          // x = light count
+            GPULight Lights[k_MaxLights];
+        };
+
+        static_assert(sizeof(GPULight) == 64, "GPULight must be 64 bytes to match std140");
+        static_assert(sizeof(LightBlock) == 16 + 64 * k_MaxLights, "LightBlock must match the shader's std140 block");
+
+        // Created on first use (needs the GL context) and never freed, like the shaders.
+        OpenGLUniformBuffer& GetLightBuffer()
+        {
+            static OpenGLUniformBuffer* buffer = new OpenGLUniformBuffer(sizeof(LightBlock), 0);   // binding 0
+            return *buffer;
+        }
+
+        GPULight MakeGPULight(const LightComponent& light, const TransformComponent& transform)
+        {
+            GPULight gpu{};
+            const float range = std::max(light.Range, 0.01f);
+
+            // Cone angles are edited in degrees. The shader compares cosines, which is cheaper than
+            // taking an acos per pixel. Keep inner <= outer and below 90 degrees.
+            const float outer = glm::clamp(light.OuterConeAngle, 1.0f, 89.0f);
+            const float inner = glm::clamp(light.InnerConeAngle, 0.0f, outer);
+
+            gpu.PositionRange  = glm::vec4(transform.Position, range);
+            gpu.DirectionType  = glm::vec4(LightComponent::GetDirection(transform), static_cast<float>(light.Type));
+            gpu.ColorIntensity = glm::vec4(light.Color * std::max(light.Intensity, 0.0f), 0.0f);
+            gpu.SpotCones      = glm::vec4(std::cos(glm::radians(inner)), std::cos(glm::radians(outer)), 0.0f, 0.0f);
+            return gpu;
+        }
+
+        /* Collects every Light component of the world into the uniform buffer (binding 0).
+           Forward rendering: all lights go to the GPU once per frame and every pixel loops over them.
+           If the world has more than k_MaxLights, directional lights win, then the nearest ones. */
+        void UploadLights(World& world, const glm::vec3& cameraPosition)
+        {
+            struct Candidate
+            {
+                GPULight Light;
+                bool Directional;
+                float DistanceSquared;   // to the camera; used only when there are too many lights
+            };
+
+            std::vector<Candidate> candidates;
+            auto lights = world.GetRegistry().view<TransformComponent, LightComponent>();
+            for (auto [entity, transform, light] : lights.each())
+            {
+                const glm::vec3 offset = transform.Position - cameraPosition;
+                candidates.push_back({ MakeGPULight(light, transform),
+                                       light.Type == LightType::Directional,
+                                       glm::dot(offset, offset) });
+            }
+
+            // A world with no lights would be black, so give it a default sun. It disappears as soon
+            // as the first Light component is added.
+            if (candidates.empty())
+            {
+                GPULight sun{};
+                sun.PositionRange  = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+                sun.DirectionType  = glm::vec4(-glm::normalize(glm::vec3(0.4f, 0.8f, 0.6f)), 0.0f);
+                sun.ColorIntensity = glm::vec4(3.0f, 2.9f, 2.7f, 0.0f);
+                candidates.push_back({ sun, true, 0.0f });
+            }
+
+            if (candidates.size() > static_cast<size_t>(k_MaxLights))
+            {
+                static bool warned = false;
+                if (!warned)
+                {
+                    Z_CORE_WARN("World has {0} lights; only {1} are used (directional first, then nearest to the camera)",
+                                candidates.size(), k_MaxLights);
+                    warned = true;
+                }
+
+                std::stable_sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b)
+                {
+                    if (a.Directional != b.Directional)
+                        return a.Directional;
+                    return a.DistanceSquared < b.DistanceSquared;
+                });
+                candidates.resize(k_MaxLights);
+            }
+
+            LightBlock block{};
+            block.Counts = glm::ivec4(static_cast<int>(candidates.size()), 0, 0, 0);
+            for (size_t i = 0; i < candidates.size(); ++i)
+                block.Lights[i] = candidates[i].Light;
+
+            // Only the used part is sent: the header plus `count` lights.
+            GetLightBuffer().SetData(&block, static_cast<uint32_t>(sizeof(glm::ivec4) + candidates.size() * sizeof(GPULight)));
+        }
 
         // Created on first use (the GL context exists by then) and deliberately never freed,
         // for the same reason as the mesh cache.
@@ -465,8 +637,10 @@ namespace Zeyrixon
 
         shader.SetMat4("u_ViewProjection", projection * view);
         shader.SetFloat3("u_CameraPosition", cameraPosition);
-        shader.SetFloat3("u_LightDirection", glm::normalize(glm::vec3(0.4f, 0.8f, 0.6f)));
-        shader.SetFloat3("u_LightColor", glm::vec3(3.0f, 2.9f, 2.7f));
+
+        // All lights of the world go to the GPU once; every mesh below is lit by all of them.
+        UploadLights(world, cameraPosition);
+        shader.SetFloat("u_AmbientIntensity", world.GetAmbientIntensity());
 
         shader.SetInt("u_AlbedoMap", 0);
         shader.SetInt("u_NormalMap", 1);

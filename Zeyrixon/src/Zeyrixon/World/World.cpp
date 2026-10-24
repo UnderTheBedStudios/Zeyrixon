@@ -186,6 +186,7 @@ namespace Zeyrixon
 
         auto world = std::shared_ptr<World>(new World());
         world->m_Name = root.attribute("Name").as_string("Untitled");
+        world->SetAmbientIntensity(root.attribute("Ambient").as_float(world->GetAmbientIntensity()));   // old files: default
         world->m_WorldPath = worldPath;
 
         for (pugi::xml_node node : root.children("Entity"))
@@ -240,6 +241,7 @@ namespace Zeyrixon
         pugi::xml_document doc;
         auto root = doc.append_child("World");
         root.append_attribute("Name") = m_Name.c_str();
+        root.append_attribute("Ambient") = m_AmbientIntensity;
 
         // Views iterate newest-first, so collect the handles and write them in
         // reverse. That keeps the file in creation order.

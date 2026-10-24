@@ -82,6 +82,36 @@ namespace Zeyrixon
         }
     };
 
+    enum class LightType : int
+    {
+        Directional = 0,   // the sun: parallel rays, no position, no falloff
+        Point       = 1,   // a bulb: shines in every direction from its position
+        Spot        = 2    // a torch: a point light squeezed into a cone
+    };
+
+    /* A light source. Where it is and which way it faces come from the entity's Transform:
+       the position is Transform.Position, and the light shines down its own local -Z axis
+       (the same convention cameras use). Scale is ignored. */
+    struct LightComponent
+    {
+        LightType Type = LightType::Point;
+        glm::vec3 Color{ 1.0f };
+        float Intensity = 10.0f;        // multiplies Color. Directional lights want ~3, point lights ~10, spots ~30
+        float Range = 15.0f;            // world units at which a point/spot light has faded to nothing
+        float InnerConeAngle = 20.0f;   // degrees; spot only: full brightness inside this angle...
+        float OuterConeAngle = 30.0f;   // degrees; spot only: ...fading to nothing at this one
+
+        // The direction this light travels (local -Z, rotated by the transform's rotation).
+        static glm::vec3 GetDirection(const TransformComponent& transform)
+        {
+            const glm::mat4 identity(1.f);
+            const glm::mat4 rotation = glm::rotate(identity, transform.Rotation.z, glm::vec3(0.f, 0.f, 1.f))
+                * glm::rotate(identity, transform.Rotation.y, glm::vec3(0.f, 1.f, 0.f))
+                * glm::rotate(identity, transform.Rotation.x, glm::vec3(1.f, 0.f, 0.f));
+            return glm::normalize(glm::vec3(rotation * glm::vec4(0.f, 0.f, -1.f, 0.f)));
+        }
+    };
+
     struct MeshComponent
     {
         // "builtin:cube", or the path of an .obj file.

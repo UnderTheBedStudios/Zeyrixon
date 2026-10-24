@@ -48,9 +48,15 @@ namespace Zeyrixon
 
         entt::registry& GetRegistry() { return m_Registry; }
 
+        /* How strong the flat background light is, 0 = none (only real lights light things), 1 = the
+           old fixed brightness. Saved with the world. */
+        float GetAmbientIntensity() const { return m_AmbientIntensity; }
+        void SetAmbientIntensity(float value) { m_AmbientIntensity = value < 0.0f ? 0.0f : value; }
+
     private:
         std::string m_Name;
         std::string m_WorldPath;
+        float m_AmbientIntensity = 0.1f;
 
         entt::registry m_Registry;
 

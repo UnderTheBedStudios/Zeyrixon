@@ -144,6 +144,29 @@ namespace Zeyrixon
             c.Primary = node.attribute("Primary").as_bool(c.Primary);
         };
 
+        auto& light = Register<LightComponent>("Light");
+        light.Serialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& l = e.GetComponent<LightComponent>();
+            node.append_attribute("Type") = static_cast<int>(l.Type);
+            node.append_attribute("Color") = Vec3ToString(l.Color).c_str();
+            node.append_attribute("Intensity") = l.Intensity;
+            node.append_attribute("Range") = l.Range;
+            node.append_attribute("InnerCone") = l.InnerConeAngle;
+            node.append_attribute("OuterCone") = l.OuterConeAngle;
+        };
+        light.Deserialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& l = e.GetComponent<LightComponent>();
+            const int type = node.attribute("Type").as_int(static_cast<int>(l.Type));
+            l.Type = (type >= 0 && type <= 2) ? static_cast<LightType>(type) : LightType::Point;
+            l.Color = StringToVec3(node.attribute("Color").as_string(""), l.Color);
+            l.Intensity = node.attribute("Intensity").as_float(l.Intensity);
+            l.Range = node.attribute("Range").as_float(l.Range);
+            l.InnerConeAngle = node.attribute("InnerCone").as_float(l.InnerConeAngle);
+            l.OuterConeAngle = node.attribute("OuterCone").as_float(l.OuterConeAngle);
+        };
+
         auto& mesh = Register<MeshComponent>("Mesh");
         mesh.Serialize = [](Entity e, pugi::xml_node node)
         {
