@@ -154,6 +154,10 @@ namespace Zeyrixon
             node.append_attribute("Range") = l.Range;
             node.append_attribute("InnerCone") = l.InnerConeAngle;
             node.append_attribute("OuterCone") = l.OuterConeAngle;
+            node.append_attribute("CastShadows") = l.CastShadows;
+            node.append_attribute("ShadowDistance") = l.ShadowDistance;
+            node.append_attribute("ShadowBias") = l.ShadowBias;
+            node.append_attribute("ShadowNormalBias") = l.ShadowNormalBias;
         };
         light.Deserialize = [](Entity e, pugi::xml_node node)
         {
@@ -165,6 +169,10 @@ namespace Zeyrixon
             l.Range = node.attribute("Range").as_float(l.Range);
             l.InnerConeAngle = node.attribute("InnerCone").as_float(l.InnerConeAngle);
             l.OuterConeAngle = node.attribute("OuterCone").as_float(l.OuterConeAngle);
+            l.CastShadows = node.attribute("CastShadows").as_bool(l.CastShadows);
+            l.ShadowDistance = node.attribute("ShadowDistance").as_float(l.ShadowDistance);
+            l.ShadowBias = node.attribute("ShadowBias").as_float(l.ShadowBias);
+            l.ShadowNormalBias = node.attribute("ShadowNormalBias").as_float(l.ShadowNormalBias);
         };
 
         auto& mesh = Register<MeshComponent>("Mesh");

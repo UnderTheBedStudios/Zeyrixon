@@ -72,6 +72,12 @@ namespace Zeyrixon
             uniform vec3 u_CameraPosition;
             uniform float u_AmbientIntensity;   // 0 = no ambient light at all
 
+            // Shadows: one depth map, rendered from the shadow-casting directional light.
+            uniform sampler2DShadow u_ShadowMap;
+            uniform mat4 u_ShadowMatrix;        // world space -> shadow-map UV + depth (all 0..1)
+            uniform vec4 u_ShadowParams;        // x = world size of one texel, y = depth range, z = depth bias (world), w = normal offset (texels)
+            uniform int u_ShadowLightIndex;     // which entry of u_Lights casts the shadow, -1 = none
+
             // Keep MAX_LIGHTS and the layout in step with WorldRenderer's GPULight / LightBlock.
             // Every member is a vec4 so std140 padding never gets in the way.
             #define MAX_LIGHTS 64
@@ -163,9 +169,37 @@ namespace Zeyrixon
                 return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
             }
 
+            // 1 = fully lit, 0 = fully in shadow, for the shadow-casting directional light.
+            float ShadowFactor(vec3 N, vec3 L)
+            {
+                float NdotL = clamp(dot(N, L), 0.0, 1.0);
+
+                // Normal offset: slide the lookup point off the surface, more the more edge-on the
+                // surface is to the light. This is what stops a surface shadowing itself.
+                vec3 position = v_WorldPos + N * (u_ShadowParams.x * u_ShadowParams.w * (1.0 - NdotL));
+
+                vec4 shadowCoord = u_ShadowMatrix * vec4(position, 1.0);
+                vec3 p = shadowCoord.xyz / shadowCoord.w;
+
+                // Outside the shadow map there is no information, so treat it as lit.
+                if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0 || p.z > 1.0)
+                    return 1.0;
+
+                float reference = p.z - u_ShadowParams.z / u_ShadowParams.y;   // the bias, converted to depth units
+
+                // 3x3 percentage-closer filtering. Each texture() call on a sampler2DShadow compares
+                // the reference to the stored depth in hardware (and bilinearly blends 2x2 of them).
+                vec2 texel = 1.0 / vec2(textureSize(u_ShadowMap, 0));
+                float lit = 0.0;
+                for (int x = -1; x <= 1; ++x)
+                    for (int y = -1; y <= 1; ++y)
+                        lit += texture(u_ShadowMap, vec3(p.xy + vec2(x, y) * texel, reference));
+                return lit / 9.0;
+            }
+
             // The light that arrives at this pixel from ONE light, run through Cook-Torrance
             // specular + Lambert diffuse. Called once per light and the results are added up.
-            vec3 EvaluateLight(Light light, vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, vec3 F0)
+            vec3 EvaluateLight(Light light, float shadow, vec3 N, vec3 V, vec3 albedo, float metallic, float roughness, vec3 F0)
             {
                 int type = int(light.DirectionType.w + 0.5);
 
@@ -212,7 +246,7 @@ namespace Zeyrixon
                               / (4.0 * max(dot(N, V), 0.0) * NdotL + 0.0001);
                 vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
 
-                vec3 radiance = light.ColorIntensity.rgb * attenuation;
+                vec3 radiance = light.ColorIntensity.rgb * attenuation * shadow;
                 return (kD * albedo / PI + specular) * radiance * NdotL;
             }
 
@@ -247,7 +281,12 @@ namespace Zeyrixon
                 vec3 Lo = vec3(0.0);
                 int lightCount = min(u_LightCounts.x, MAX_LIGHTS);
                 for (int i = 0; i < lightCount; ++i)
-                    Lo += EvaluateLight(u_Lights[i], N, V, albedo, metallic, roughness, F0);
+                {
+                    float shadow = 1.0;
+                    if (i == u_ShadowLightIndex)
+                        shadow = ShadowFactor(N, normalize(-u_Lights[i].DirectionType.xyz));
+                    Lo += EvaluateLight(u_Lights[i], shadow, N, V, albedo, metallic, roughness, F0);
+                }
 
                 // Hemisphere ambient: a stand-in until image-based lighting exists.
                 vec3 hemisphere = mix(vec3(0.15, 0.13, 0.12), vec3(0.45, 0.55, 0.70), N.y * 0.5 + 0.5);
@@ -292,6 +331,17 @@ namespace Zeyrixon
             return *buffer;
         }
 
+        // What UploadLights found out about the light that should cast the shadow (if any).
+        struct ShadowCaster
+        {
+            bool Valid = false;
+            int LightIndex = -1;          // position in the uploaded light array
+            glm::vec3 Direction{ 0.f, -1.f, 0.f };
+            float Distance = 50.0f;
+            float Bias = 0.05f;
+            float NormalBias = 1.5f;
+        };
+
         GPULight MakeGPULight(const LightComponent& light, const TransformComponent& transform)
         {
             GPULight gpu{};
@@ -312,13 +362,15 @@ namespace Zeyrixon
         /* Collects every Light component of the world into the uniform buffer (binding 0).
            Forward rendering: all lights go to the GPU once per frame and every pixel loops over them.
            If the world has more than k_MaxLights, directional lights win, then the nearest ones. */
-        void UploadLights(World& world, const glm::vec3& cameraPosition)
+        ShadowCaster UploadLights(World& world, const glm::vec3& cameraPosition)
         {
             struct Candidate
             {
                 GPULight Light;
                 bool Directional;
                 float DistanceSquared;   // to the camera; used only when there are too many lights
+                const LightComponent* Source;   // null for the built-in sun
+                glm::vec3 Direction;
             };
 
             std::vector<Candidate> candidates;
@@ -328,7 +380,9 @@ namespace Zeyrixon
                 const glm::vec3 offset = transform.Position - cameraPosition;
                 candidates.push_back({ MakeGPULight(light, transform),
                                        light.Type == LightType::Directional,
-                                       glm::dot(offset, offset) });
+                                       glm::dot(offset, offset),
+                                       &light,
+                                       LightComponent::GetDirection(transform) });
             }
 
             // A world with no lights would be black, so give it a default sun. It disappears as soon
@@ -339,7 +393,7 @@ namespace Zeyrixon
                 sun.PositionRange  = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
                 sun.DirectionType  = glm::vec4(-glm::normalize(glm::vec3(0.4f, 0.8f, 0.6f)), 0.0f);
                 sun.ColorIntensity = glm::vec4(3.0f, 2.9f, 2.7f, 0.0f);
-                candidates.push_back({ sun, true, 0.0f });
+                candidates.push_back({ sun, true, 0.0f, nullptr, glm::vec3(sun.DirectionType) });
             }
 
             if (candidates.size() > static_cast<size_t>(k_MaxLights))
@@ -368,6 +422,24 @@ namespace Zeyrixon
 
             // Only the used part is sent: the header plus `count` lights.
             GetLightBuffer().SetData(&block, static_cast<uint32_t>(sizeof(glm::ivec4) + candidates.size() * sizeof(GPULight)));
+
+            // The first directional light with CastShadows on is the one that casts the shadow.
+            ShadowCaster caster;
+            for (size_t i = 0; i < candidates.size(); ++i)
+            {
+                const Candidate& c = candidates[i];
+                if (c.Source && c.Directional && c.Source->CastShadows)
+                {
+                    caster.Valid = true;
+                    caster.LightIndex = static_cast<int>(i);
+                    caster.Direction = c.Direction;
+                    caster.Distance = std::max(c.Source->ShadowDistance, 1.0f);
+                    caster.Bias = std::max(c.Source->ShadowBias, 0.0f);
+                    caster.NormalBias = std::max(c.Source->ShadowNormalBias, 0.0f);
+                    break;
+                }
+            }
+            return caster;
         }
 
         // Created on first use (the GL context exists by then) and deliberately never freed,
@@ -629,25 +701,95 @@ namespace Zeyrixon
         return samplers[pixelArt ? 1 : 0];
     }
 
-    void WorldRenderer::RenderWorld(World& world, const glm::mat4& view, const glm::mat4& projection,
-                                    const glm::vec3& cameraPosition)
+    namespace
     {
-        OpenGLShader& shader = GetShader();
-        shader.Bind();
+        // ---- Shadow map ---------------------------------------------------------------------
 
-        shader.SetMat4("u_ViewProjection", projection * view);
-        shader.SetFloat3("u_CameraPosition", cameraPosition);
+        constexpr int k_ShadowMapSize = 2048;   // texels per side. 4096 is sharper but 4x the memory and fill cost
+        constexpr int k_ShadowTextureSlot = 5;  // texture units 0-4 are the material maps
 
-        // All lights of the world go to the GPU once; every mesh below is lit by all of them.
-        UploadLights(world, cameraPosition);
-        shader.SetFloat("u_AmbientIntensity", world.GetAmbientIntensity());
+        // Depth only: the same position and skinning as the PBR vertex shader, no colour output at all.
+        const char* k_ShadowVertexSource = R"(
+            #version 450 core
+            layout(location = 0) in vec3 a_Position;
+            layout(location = 3) in vec4 a_Joints;
+            layout(location = 4) in vec4 a_Weights;
 
-        shader.SetInt("u_AlbedoMap", 0);
-        shader.SetInt("u_NormalMap", 1);
-        shader.SetInt("u_RoughnessMap", 2);
-        shader.SetInt("u_MetallicMap", 3);
-        shader.SetInt("u_AOMap", 4);
+            uniform mat4 u_LightViewProjection;
+            uniform mat4 u_Model;
+            uniform int u_Skinned;
+            uniform mat4 u_JointMatrices[128];   // keep in step with ModelData::MaxJoints
 
+            void main()
+            {
+                vec4 localPosition = vec4(a_Position, 1.0);
+                if (u_Skinned != 0)
+                {
+                    mat4 skin = a_Weights.x * u_JointMatrices[int(a_Joints.x + 0.5)]
+                              + a_Weights.y * u_JointMatrices[int(a_Joints.y + 0.5)]
+                              + a_Weights.z * u_JointMatrices[int(a_Joints.z + 0.5)]
+                              + a_Weights.w * u_JointMatrices[int(a_Joints.w + 0.5)];
+                    localPosition = skin * localPosition;
+                }
+                gl_Position = u_LightViewProjection * u_Model * localPosition;
+            }
+        )";
+
+        const char* k_ShadowFragmentSource = R"(
+            #version 450 core
+            void main() {}   // depth is written automatically
+        )";
+
+        OpenGLShader& GetShadowShader()
+        {
+            static OpenGLShader* shader = new OpenGLShader("Shadow", k_ShadowVertexSource, k_ShadowFragmentSource);
+            return *shader;
+        }
+
+        struct ShadowResources
+        {
+            GLuint Framebuffer = 0;
+            GLuint DepthTexture = 0;
+        };
+
+        // Created on first use (needs the GL context) and never freed, like the other GL statics.
+        ShadowResources& GetShadowResources()
+        {
+            static ShadowResources* resources = []
+            {
+                auto* r = new ShadowResources();
+
+                glCreateTextures(GL_TEXTURE_2D, 1, &r->DepthTexture);
+                glTextureStorage2D(r->DepthTexture, 1, GL_DEPTH_COMPONENT32F, k_ShadowMapSize, k_ShadowMapSize);
+                glTextureParameteri(r->DepthTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTextureParameteri(r->DepthTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                glTextureParameteri(r->DepthTexture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+                glTextureParameteri(r->DepthTexture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+                const float border[4] = { 1.0f, 1.0f, 1.0f, 1.0f };   // outside the map = "nothing in the way" = lit
+                glTextureParameterfv(r->DepthTexture, GL_TEXTURE_BORDER_COLOR, border);
+
+                // Makes the sampler2DShadow in the PBR shader compare for us instead of returning raw depth.
+                glTextureParameteri(r->DepthTexture, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+                glTextureParameteri(r->DepthTexture, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+
+                glCreateFramebuffers(1, &r->Framebuffer);
+                glNamedFramebufferTexture(r->Framebuffer, GL_DEPTH_ATTACHMENT, r->DepthTexture, 0);
+                glNamedFramebufferDrawBuffer(r->Framebuffer, GL_NONE);   // no colour attachment
+                glNamedFramebufferReadBuffer(r->Framebuffer, GL_NONE);
+
+                if (glCheckNamedFramebufferStatus(r->Framebuffer, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+                    Z_CORE_ERROR("Shadow map framebuffer is incomplete");
+
+                return r;
+            }();
+            return *resources;
+        }
+
+        /* Draws every mesh with the given shader. depthOnly = true is the shadow pass: no materials,
+           no normal matrix, just positions (and skinning). Shared so both passes pose animated models
+           exactly the same way. */
+        void DrawMeshes(World& world, OpenGLShader& shader, bool depthOnly)
+        {
         auto& registry = world.GetRegistry();
         auto entities = registry.view<TransformComponent, MeshComponent>();
         for (auto [entity, transform, mesh] : entities.each())
@@ -688,10 +830,14 @@ namespace Zeyrixon
                 const Submesh& submesh = submeshes[i];
 
                 // The Material component wins; otherwise the file's own material; otherwise plain grey.
-                const MaterialSlot* slot = materials ? materials->FindSlot(static_cast<int>(i)) : nullptr;
-                if (!slot && !materials && i < importedMaterials.size())
-                    slot = &importedMaterials[i];
-                ApplyMaterial(shader, slot ? *slot : DefaultMaterial());
+                // The shadow pass only needs shapes, so it skips materials.
+                if (!depthOnly)
+                {
+                    const MaterialSlot* slot = materials ? materials->FindSlot(static_cast<int>(i)) : nullptr;
+                    if (!slot && !materials && i < importedMaterials.size())
+                        slot = &importedMaterials[i];
+                    ApplyMaterial(shader, slot ? *slot : DefaultMaterial());
+                }
 
                 glm::mat4 submeshModel = model;
                 int skin = -1;
@@ -721,11 +867,115 @@ namespace Zeyrixon
                 }
 
                 shader.SetMat4("u_Model", submeshModel);
-                shader.SetMat3("u_NormalMatrix", glm::transpose(glm::inverse(glm::mat3(submeshModel))));
+                if (!depthOnly)
+                    shader.SetMat3("u_NormalMatrix", glm::transpose(glm::inverse(glm::mat3(submeshModel))));
 
                 OpenGLRender::DrawIndexed(meshData->GetVertexArray(), submesh.IndexCount, submesh.IndexOffset);
             }
         }
+        }
+
+        /* Renders the scene's depth as seen by the shadow-casting light into the shadow map.
+           Returns the matrix that takes a world position to shadow-map UV + depth (all 0..1).
+           Restores the framebuffer, viewport and GL state it changed, so the caller carries on as before. */
+        glm::mat4 RenderShadowMap(World& world, const ShadowCaster& caster, const glm::vec3& cameraPosition)
+        {
+            ShadowResources& resources = GetShadowResources();
+
+            // ---- Where the light's "camera" goes ----
+            // An orthographic box (a sun's rays are parallel) around the camera, R units to each side.
+            const float R = caster.Distance;
+            const glm::vec3 direction = glm::normalize(caster.Direction);
+            const glm::vec3 up = std::abs(direction.y) > 0.99f ? glm::vec3(0.f, 0.f, 1.f) : glm::vec3(0.f, 1.f, 0.f);
+
+            // View = rotate the world so the light looks down -Z, then slide so the box is centred.
+            const glm::mat4 lightRotation = glm::lookAt(glm::vec3(0.f), direction, up);
+
+            /* Snap the box's centre to whole texels. Without this the shadow map shifts by fractions of a
+               texel as the camera moves, and every shadow edge shimmers. */
+            glm::vec3 center = glm::vec3(lightRotation * glm::vec4(cameraPosition, 1.0f));
+            const float texelSize = (2.0f * R) / static_cast<float>(k_ShadowMapSize);
+            center.x = std::floor(center.x / texelSize) * texelSize;
+            center.y = std::floor(center.y / texelSize) * texelSize;
+
+            // The "eye" sits R behind the centre; the box reaches R behind the eye's far side too.
+            const glm::mat4 lightView = glm::translate(glm::mat4(1.0f), -glm::vec3(center.x, center.y, center.z + R)) * lightRotation;
+            const glm::mat4 lightProjection = glm::ortho(-R, R, -R, R, 0.0f, 2.0f * R);
+            const glm::mat4 lightViewProjection = lightProjection * lightView;
+
+            // ---- Remember what to restore ----
+            GLint previousFramebuffer = 0;
+            GLint previousViewport[4] = {};
+            glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &previousFramebuffer);
+            glGetIntegerv(GL_VIEWPORT, previousViewport);
+            const GLboolean cullWasEnabled = glIsEnabled(GL_CULL_FACE);
+
+            glBindFramebuffer(GL_FRAMEBUFFER, resources.Framebuffer);
+            glViewport(0, 0, k_ShadowMapSize, k_ShadowMapSize);
+            glDepthMask(GL_TRUE);
+            glClear(GL_DEPTH_BUFFER_BIT);
+
+            glDisable(GL_CULL_FACE);              // thin walls and foliage have no "back" worth skipping
+            glEnable(GL_DEPTH_CLAMP);             // things between the light and the box still cast, instead of being clipped away
+            glEnable(GL_POLYGON_OFFSET_FILL);     // pushes stored depth slightly back so surfaces don't shadow themselves
+            glPolygonOffset(2.0f, 4.0f);
+
+            OpenGLShader& shader = GetShadowShader();
+            shader.Bind();
+            shader.SetMat4("u_LightViewProjection", lightViewProjection);
+            DrawMeshes(world, shader, true);
+
+            // ---- Put everything back ----
+            glDisable(GL_POLYGON_OFFSET_FILL);
+            glDisable(GL_DEPTH_CLAMP);
+            if (cullWasEnabled)
+                glEnable(GL_CULL_FACE);
+            glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previousFramebuffer));
+            glViewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
+
+            // NDC is -1..1; texture coordinates and stored depth are 0..1. This maps one to the other.
+            const glm::mat4 toTextureSpace = glm::translate(glm::mat4(1.0f), glm::vec3(0.5f)) * glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
+            return toTextureSpace * lightViewProjection;
+        }
+    }
+
+    void WorldRenderer::RenderWorld(World& world, const glm::mat4& view, const glm::mat4& projection,
+                                    const glm::vec3& cameraPosition)
+    {
+        // All lights of the world go to the GPU once; every mesh below is lit by all of them.
+        const ShadowCaster caster = UploadLights(world, cameraPosition);
+
+        // The shadow pass comes first: it draws the scene from the light into its own depth texture,
+        // then hands the framebuffer back exactly as it found it.
+        glm::mat4 shadowMatrix(1.0f);
+        if (caster.Valid)
+            shadowMatrix = RenderShadowMap(world, caster, cameraPosition);
+
+        OpenGLShader& shader = GetShader();
+        shader.Bind();
+
+        shader.SetMat4("u_ViewProjection", projection * view);
+        shader.SetFloat3("u_CameraPosition", cameraPosition);
+        shader.SetFloat("u_AmbientIntensity", world.GetAmbientIntensity());
+
+        // The shadow map lives on its own texture unit; the materials use 0-4.
+        shader.SetInt("u_ShadowMap", k_ShadowTextureSlot);
+        shader.SetInt("u_ShadowLightIndex", caster.Valid ? caster.LightIndex : -1);
+        if (caster.Valid)
+        {
+            const float texelWorldSize = (2.0f * caster.Distance) / static_cast<float>(k_ShadowMapSize);
+            shader.SetMat4("u_ShadowMatrix", shadowMatrix);
+            shader.SetFloat4("u_ShadowParams", glm::vec4(texelWorldSize, 2.0f * caster.Distance, caster.Bias, caster.NormalBias));
+            glBindTextureUnit(k_ShadowTextureSlot, GetShadowResources().DepthTexture);
+        }
+
+        shader.SetInt("u_AlbedoMap", 0);
+        shader.SetInt("u_NormalMap", 1);
+        shader.SetInt("u_RoughnessMap", 2);
+        shader.SetInt("u_MetallicMap", 3);
+        shader.SetInt("u_AOMap", 4);
+
+        DrawMeshes(world, shader, false);
     }
 
     void WorldRenderer::RenderGrid(const glm::mat4& view, const glm::mat4& projection,

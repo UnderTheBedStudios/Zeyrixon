@@ -14,6 +14,7 @@
 
 #include <glad/glad.h>
 
+#include <glm/gtc/constants.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include <tinyfiledialogs.h>
@@ -177,6 +178,21 @@ namespace
 
             if (light.Type != Zeyrixon::LightType::Point)
                 ImGui::TextDisabled("Shines along the entity's -Z axis (rotate it to aim).");
+
+            if (light.Type == Zeyrixon::LightType::Directional)
+            {
+                ImGui::SeparatorText("Shadows");
+                ImGui::Checkbox("Cast Shadows", &light.CastShadows);
+                if (light.CastShadows)
+                {
+                    ImGui::DragFloat("Shadow Distance", &light.ShadowDistance, 0.5f, 1.0f, 1000.0f);
+                    ImGui::DragFloat("Depth Bias", &light.ShadowBias, 0.005f, 0.0f, 2.0f, "%.3f");
+                    ImGui::DragFloat("Normal Bias", &light.ShadowNormalBias, 0.05f, 0.0f, 10.0f, "%.2f");
+                    ImGui::TextDisabled("Only the first shadow-casting directional light is used.");
+                }
+            }
+            else
+                ImGui::TextDisabled("Shadows: directional lights only for now.");
         });
 
         SetInspector("Mesh", [](Zeyrixon::Entity entity)
@@ -423,6 +439,11 @@ namespace Editor
         m_FolderClosedIcon = std::make_shared<Zeyrixon::OpenGLTexture2D>(E::FolderClosedPng, E::FolderClosedPngSize);
         m_FolderOpenIcon   = std::make_shared<Zeyrixon::OpenGLTexture2D>(E::FolderOpenPng, E::FolderOpenPngSize);
         m_FileIcon         = std::make_shared<Zeyrixon::OpenGLTexture2D>(E::FilePng, E::FilePngSize);
+
+        // Light gizmos drawn over each Light entity in the viewport.
+        m_DirectionalLightIcon = std::make_shared<Zeyrixon::OpenGLTexture2D>(E::DirectionalLightPng, E::DirectionalLightPngSize);
+        m_PointLightIcon       = std::make_shared<Zeyrixon::OpenGLTexture2D>(E::PointLightPng, E::PointLightPngSize);
+        m_SpotLightIcon        = std::make_shared<Zeyrixon::OpenGLTexture2D>(E::SpotLightPng, E::SpotLightPngSize);
     }
 
     EditorLayer::~EditorLayer()
@@ -469,6 +490,223 @@ namespace Editor
             transform.Position = position;
             transform.Rotation = glm::radians(rotation);
             transform.Scale = scale;
+        }
+    }
+
+    void EditorLayer::DrawLightGizmos()
+    {
+        m_HoveredLightGizmo = Zeyrixon::Entity{};
+
+        // Lights don't affect sprites, so there is nothing to show in the 2D view or the game view.
+        if (m_ShowGameView || m_EditorCamera.Is2D() || !m_ActiveWorld)
+            return;
+
+        const glm::mat4 viewProjection = m_EditorCamera.GetProjection() * m_EditorCamera.GetView();
+
+        // World position -> pixel position on screen. False when the point is behind the camera.
+        auto project = [&](const glm::vec3& world, ImVec2& screen) -> bool
+        {
+            const glm::vec4 clip = viewProjection * glm::vec4(world, 1.0f);
+            if (clip.w <= 0.0001f)
+                return false;
+
+            const glm::vec3 ndc = glm::vec3(clip) / clip.w;
+            if (ndc.z < -1.0f || ndc.z > 1.0f)
+                return false;
+
+            screen = ImVec2(m_ViewportMin.x + (ndc.x * 0.5f + 0.5f) * m_ViewportSize.x,
+                            m_ViewportMin.y + (1.0f - (ndc.y * 0.5f + 0.5f)) * m_ViewportSize.y);
+            return true;
+        };
+
+        // A line between two world points; skipped if either end can't be projected.
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        auto line = [&](const glm::vec3& a, const glm::vec3& b, ImU32 color, float thickness)
+        {
+            ImVec2 sa, sb;
+            if (project(a, sa) && project(b, sb))
+                drawList->AddLine(sa, sb, color, thickness);
+        };
+
+        // A circle lying in the plane spanned by `axisA` and `axisB`, drawn as a ring of short lines.
+        auto circle = [&](const glm::vec3& center, const glm::vec3& axisA, const glm::vec3& axisB,
+                          float radius, ImU32 color, float thickness)
+        {
+            constexpr int segments = 48;
+            glm::vec3 previous = center + axisA * radius;
+            for (int i = 1; i <= segments; ++i)
+            {
+                const float angle = glm::two_pi<float>() * static_cast<float>(i) / static_cast<float>(segments);
+                const glm::vec3 point = center + (axisA * std::cos(angle) + axisB * std::sin(angle)) * radius;
+                line(previous, point, color, thickness);
+                previous = point;
+            }
+        };
+
+        /* Is something solid between the camera and this point? The scene's depth buffer still holds this
+           frame's picture, so read the depth under the point's pixel and compare it to the point's own
+           distance. Both are measured along the camera's view direction, so this works for perspective and
+           orthographic views alike. One-pixel read per light per frame is cheap. */
+        const glm::mat4 view = m_EditorCamera.GetView();
+        const glm::mat4 inverseViewProjection = glm::inverse(viewProjection);
+        auto isOccluded = [&](const glm::vec3& world, const ImVec2& screen) -> bool
+        {
+            const int pixelX = static_cast<int>(screen.x - m_ViewportMin.x);
+            const int pixelY = static_cast<int>(m_ViewportSize.y - (screen.y - m_ViewportMin.y));   // GL's origin is bottom-left
+            if (pixelX < 0 || pixelY < 0 || pixelX >= static_cast<int>(m_ViewportSize.x) || pixelY >= static_cast<int>(m_ViewportSize.y))
+                return false;
+
+            GLint previousReadFramebuffer = 0;
+            glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &previousReadFramebuffer);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, m_Framebuffer->GetRendererID());
+
+            float storedDepth = 1.0f;   // 1 = nothing drawn there
+            glReadPixels(pixelX, pixelY, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &storedDepth);
+
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(previousReadFramebuffer));
+
+            // Stored depth is 0..1; undo the projection to find where that surface is in the world.
+            const glm::vec2 ndc((screen.x - m_ViewportMin.x) / m_ViewportSize.x * 2.0f - 1.0f,
+                                1.0f - (screen.y - m_ViewportMin.y) / m_ViewportSize.y * 2.0f);
+            glm::vec4 surface = inverseViewProjection * glm::vec4(ndc, storedDepth * 2.0f - 1.0f, 1.0f);
+            surface /= surface.w;
+
+            const float surfaceDistance = -(view * surface).z;
+            const float lightDistance = -(view * glm::vec4(world, 1.0f)).z;
+
+            // A little slack so a light sitting right on a surface doesn't count as hidden by it.
+            return surfaceDistance < lightDistance - std::max(0.1f, lightDistance * 0.01f);
+        };
+
+        const ImVec2 mouse = ImGui::GetMousePos();
+        const bool mouseInViewport = mouse.x >= m_ViewportMin.x && mouse.x <= m_ViewportMin.x + m_ViewportSize.x
+                                  && mouse.y >= m_ViewportMin.y && mouse.y <= m_ViewportMin.y + m_ViewportSize.y;
+
+        constexpr float iconSize = 32.0f;   // pixels; the same size at any distance, like most editors
+        constexpr float half = iconSize * 0.5f;
+        float closestMouseDistance = half;  // must be inside the icon to count as hovered
+
+        auto lights = m_ActiveWorld->GetRegistry().view<Zeyrixon::TransformComponent, Zeyrixon::LightComponent>();
+        for (auto [handle, transform, light] : lights.each())
+        {
+            ImVec2 center;
+            if (!project(transform.Position, center))
+                continue;
+
+            Zeyrixon::Entity entity(handle, m_ActiveWorld.get());
+            const bool selected = (entity == m_SelectedEntity);
+
+            const std::shared_ptr<Zeyrixon::OpenGLTexture2D>& icon =
+                light.Type == Zeyrixon::LightType::Directional ? m_DirectionalLightIcon
+              : light.Type == Zeyrixon::LightType::Spot        ? m_SpotLightIcon
+                                                               : m_PointLightIcon;
+            if (!icon || !icon->IsLoaded())
+                continue;
+
+            // Hover: the nearest icon centre to the mouse, inside the icon's radius.
+            if (mouseInViewport)
+            {
+                const float dx = mouse.x - center.x;
+                const float dy = mouse.y - center.y;
+                const float distance = std::sqrt(dx * dx + dy * dy);
+                if (distance < closestMouseDistance)
+                {
+                    closestMouseDistance = distance;
+                    m_HoveredLightGizmo = entity;
+                }
+            }
+            const bool hovered = (m_HoveredLightGizmo == entity);
+
+            // A pale disc behind the drawing keeps the black line art readable over dark parts of the scene
+            // (and gives the icon a clear click target).
+            // Behind a wall or other solid? Dim it (rather than hide it) so you can still find and click it.
+            const float visibility = isOccluded(transform.Position, center) ? 0.35f : 1.0f;
+
+            const float radius = half + 3.0f;
+            drawList->AddCircleFilled(center, radius, IM_COL32(235, 235, 235, static_cast<int>((hovered || selected ? 235 : 170) * visibility)), 32);
+            if (selected)
+                drawList->AddCircle(center, radius, IM_COL32(255, 175, 40, 255), 32, 2.5f);
+            else if (hovered)
+                drawList->AddCircle(center, radius, IM_COL32(90, 150, 255, 255), 32, 2.0f);
+
+            // The icons were loaded flipped (see the content browser icons), hence the swapped V coordinates.
+            drawList->AddImage((void*)(intptr_t)icon->GetRendererID(),
+                               ImVec2(center.x - half, center.y - half), ImVec2(center.x + half, center.y + half),
+                               ImVec2(0, 1), ImVec2(1, 0), IM_COL32(255, 255, 255, static_cast<int>(255 * visibility)));
+
+            // ---- Extra outlines for the selected light only ----
+            if (!selected)
+                continue;
+
+            const ImU32 outerColor = IM_COL32(255, 200, 70, 230);
+            const ImU32 innerColor = IM_COL32(255, 200, 70, 110);
+            const glm::vec3 position = transform.Position;
+            const glm::vec3 direction = Zeyrixon::LightComponent::GetDirection(transform);
+
+            // Two axes at right angles to the light's direction, for drawing circles around it.
+            const glm::vec3 helperUp = std::abs(direction.y) > 0.99f ? glm::vec3(0.f, 0.f, 1.f) : glm::vec3(0.f, 1.f, 0.f);
+            const glm::vec3 axisA = glm::normalize(glm::cross(direction, helperUp));
+            const glm::vec3 axisB = glm::cross(axisA, direction);
+
+            switch (light.Type)
+            {
+                case Zeyrixon::LightType::Directional:
+                {
+                    // Parallel rays: a bundle of equal arrows along the direction the light travels.
+                    constexpr float length = 3.0f;
+                    constexpr float spread = 0.6f;
+                    const glm::vec3 offsets[5] = { glm::vec3(0.f), axisA * spread, -axisA * spread, axisB * spread, -axisB * spread };
+                    for (const glm::vec3& offset : offsets)
+                        line(position + offset, position + offset + direction * length, outerColor, 1.5f);
+
+                    // Arrow head on the middle ray.
+                    const glm::vec3 tip = position + direction * length;
+                    line(tip, tip - direction * 0.4f + axisA * 0.2f, outerColor, 1.5f);
+                    line(tip, tip - direction * 0.4f - axisA * 0.2f, outerColor, 1.5f);
+                    line(tip, tip - direction * 0.4f + axisB * 0.2f, outerColor, 1.5f);
+                    line(tip, tip - direction * 0.4f - axisB * 0.2f, outerColor, 1.5f);
+                    break;
+                }
+
+                case Zeyrixon::LightType::Point:
+                {
+                    // Three rings make a sphere the size of the light's range.
+                    const glm::vec3 x(1.f, 0.f, 0.f), y(0.f, 1.f, 0.f), z(0.f, 0.f, 1.f);
+                    circle(position, x, y, light.Range, outerColor, 1.5f);
+                    circle(position, y, z, light.Range, outerColor, 1.5f);
+                    circle(position, x, z, light.Range, outerColor, 1.5f);
+                    break;
+                }
+
+                case Zeyrixon::LightType::Spot:
+                {
+                    // Same clamping the renderer applies, so the outline is what you actually get.
+                    const float outer = glm::clamp(light.OuterConeAngle, 1.0f, 89.0f);
+                    const float inner = glm::clamp(light.InnerConeAngle, 0.0f, outer);
+                    const float range = std::max(light.Range, 0.01f);
+
+                    // The cone's base sits where the edge of the beam meets the range.
+                    auto drawCone = [&](float angleDegrees, ImU32 color, bool drawEdges)
+                    {
+                        const float angle = glm::radians(angleDegrees);
+                        const glm::vec3 baseCenter = position + direction * (range * std::cos(angle));
+                        const float baseRadius = range * std::sin(angle);
+                        circle(baseCenter, axisA, axisB, baseRadius, color, 1.5f);
+
+                        if (drawEdges)
+                        {
+                            line(position, baseCenter + axisA * baseRadius, color, 1.5f);
+                            line(position, baseCenter - axisA * baseRadius, color, 1.5f);
+                            line(position, baseCenter + axisB * baseRadius, color, 1.5f);
+                            line(position, baseCenter - axisB * baseRadius, color, 1.5f);
+                        }
+                    };
+
+                    drawCone(outer, outerColor, true);
+                    drawCone(inner, innerColor, false);
+                    break;
+                }
+            }
         }
     }
 
@@ -789,6 +1027,8 @@ namespace Editor
 
         Zeyrixon::Application::Get().GetImGuiLayer()->BlockEvents(!m_ViewportHovered);
 
+        // Light icons first, so the move/rotate gizmo of a selected light is drawn on top of its icon.
+        DrawLightGizmos();
         DrawGizmo();
 
         // No deleting while in Game View (the selection isn't visible there).
@@ -910,8 +1150,12 @@ namespace Editor
             glm::vec3 origin, direction;
             m_EditorCamera.ScreenPointToRay(point, glm::vec2(m_ViewportSize.x, m_ViewportSize.y), origin, direction);
 
-            // An empty click gives an invalid entity, which also deselects.
-            m_SelectedEntity = Zeyrixon::Picking::PickEntity(*m_ActiveWorld, origin, direction);
+            // A light icon under the mouse wins over whatever mesh is behind it. An empty click gives an
+            // invalid entity, which also deselects.
+            if (m_HoveredLightGizmo)
+                m_SelectedEntity = m_HoveredLightGizmo;
+            else
+                m_SelectedEntity = Zeyrixon::Picking::PickEntity(*m_ActiveWorld, origin, direction);
         }
 
         ImGui::End();

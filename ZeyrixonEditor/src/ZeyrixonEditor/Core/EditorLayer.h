@@ -49,6 +49,7 @@ namespace Editor
         int m_GizmoOperation = 0; // 0 = select (no gizmo), otherwise, it will be ImGuizmo::OPERATION
 
         void DrawGizmo();
+        void DrawLightGizmos();   // icons at each light, plus range / direction outlines for the selected one
         void DeleteEntity(Zeyrixon::Entity entity);
 
         void BuildDefaultLayout(ImGuiID dockspaceId);
@@ -68,6 +69,12 @@ namespace Editor
         std::shared_ptr<Zeyrixon::OpenGLTexture2D> m_FolderClosedIcon;
         std::shared_ptr<Zeyrixon::OpenGLTexture2D> m_FolderOpenIcon;
         std::shared_ptr<Zeyrixon::OpenGLTexture2D> m_FileIcon;
+
+        // Viewport light gizmos, compiled into the binary like the icons above.
+        std::shared_ptr<Zeyrixon::OpenGLTexture2D> m_DirectionalLightIcon;
+        std::shared_ptr<Zeyrixon::OpenGLTexture2D> m_PointLightIcon;
+        std::shared_ptr<Zeyrixon::OpenGLTexture2D> m_SpotLightIcon;
+        Zeyrixon::Entity m_HoveredLightGizmo;   // the light icon under the mouse this frame, if any
 
         bool m_IsPlaying = false;
         bool m_ShowGameView = false;

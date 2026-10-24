@@ -24,8 +24,9 @@ namespace Zeyrixon
         void Resize(uint32_t width, uint32_t height);
 
         uint32_t GetColorAttachmentRenderID() const { return m_ColorAttachment; }
+        uint32_t GetRendererID() const { return m_RendererID; }   // the framebuffer object itself (e.g. to read its depth back)
         const FramebufferSpecification& GetSpecifacation() const { return m_Specifacation; }
-        
+
     private:
         void Invalidate();
 

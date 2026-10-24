@@ -18,4 +18,10 @@ namespace Zeyrixon::Embedded
     extern const unsigned long long FolderOpenPngSize;
     extern const unsigned char FilePng[];
     extern const unsigned long long FilePngSize;
+    extern const unsigned char DirectionalLightPng[];
+    extern const unsigned long long DirectionalLightPngSize;
+    extern const unsigned char PointLightPng[];
+    extern const unsigned long long PointLightPngSize;
+    extern const unsigned char SpotLightPng[];
+    extern const unsigned long long SpotLightPngSize;
 }

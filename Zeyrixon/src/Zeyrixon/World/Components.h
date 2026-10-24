@@ -101,6 +101,13 @@ namespace Zeyrixon
         float InnerConeAngle = 20.0f;   // degrees; spot only: full brightness inside this angle...
         float OuterConeAngle = 30.0f;   // degrees; spot only: ...fading to nothing at this one
 
+        /* Shadows. For now only directional lights cast them, and only ONE light does: the first
+           directional light in the world that has CastShadows on. */
+        bool CastShadows = true;
+        float ShadowDistance = 50.0f;   // radius (world units) around the camera that gets shadows. Smaller = sharper
+        float ShadowBias = 0.05f;       // world units; raise it if surfaces are speckled with shadow ("acne")
+        float ShadowNormalBias = 1.5f;  // in shadow-map texels; raise it if acne remains on slanted surfaces
+
         // The direction this light travels (local -Z, rotated by the transform's rotation).
         static glm::vec3 GetDirection(const TransformComponent& transform)
         {
