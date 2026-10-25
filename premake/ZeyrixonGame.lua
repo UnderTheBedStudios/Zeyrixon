@@ -29,6 +29,8 @@ local function libFolder(projectFolder, name)
 end
 
 function ZeyrixonLink()
+	makesettings { 'LDDEPS += "' .. ZEYRIXON_DIR .. '/bin/%{cfg.buildcfg}-linux-x86_64/Zeyrixon/libZeyrixon.a"' }
+
 	includedirs
 	{
 		engine("Zeyrixon/src"),
