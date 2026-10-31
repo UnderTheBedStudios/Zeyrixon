@@ -12,6 +12,9 @@ build/
 compile_commands/
 compile_commands.json
 
+*/EmbeddedFont.cpp
+*/EmbeddedImages.cpp
+
 .vscode/
 
 *.d
