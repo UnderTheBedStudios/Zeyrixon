@@ -100,7 +100,7 @@ Binaries are placed under `bin/Config-platform-architecture/` (for example `bin/
 
 ## Run
 
-After building, open the appropriate folder under `bin/` and run either `TestProj` or `ZeyrixonEditor`.
+After building, open the appropriate folder under `bin/<config>-<arch>` and run either `TestProj` or `ZeyrixonEditor`.
 
 ## Scripting (AngelScript)
 
