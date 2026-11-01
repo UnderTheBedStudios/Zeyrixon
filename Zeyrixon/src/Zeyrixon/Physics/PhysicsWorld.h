@@ -41,6 +41,22 @@ namespace Zeyrixon
         // Takes the entity's body out of the simulation. Safe to call for an entity that has none.
         void RemoveBody(entt::entity entity);
 
+        /* Moves a Kinematic (or Static) entity by `delta`, but never into a wall.
+
+           The collider's real shape is swept along the movement. If it would hit something solid it stops
+           just short, and what is left of the movement is slid along the surface it hit, up to a few times,
+           so walking into a wall at an angle slides along it instead of sticking, and a corner is handled.
+           It writes the resulting position into the entity's Transform.
+
+           What counts as solid: Static bodies only (colliders with no RigidBody, or a Static one). Dynamic
+           bodies don't block the mover; the simulation pushes them out of the way, as a kinematic body
+           should. Other kinematic bodies don't block it either.
+
+           Returns true if the movement was stopped or redirected by something. A script that moves straight
+           down each frame gets "am I standing on something" for free from that. Returns false (and does
+           nothing) for a Dynamic body, which the simulation owns, or an entity without a Collider. */
+        bool MoveAndSlide(entt::registry& registry, entt::entity entity, const glm::vec3& delta);
+
     private:
         struct Impl;
         std::unique_ptr<Impl> m_Impl;

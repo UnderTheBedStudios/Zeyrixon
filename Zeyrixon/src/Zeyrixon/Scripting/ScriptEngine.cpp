@@ -161,6 +161,20 @@ namespace Zeyrixon
             }
 
             // Scripts work in degrees (like the editor's Properties panel); the component stores radians.
+            /* Moves the entity by `delta`, stopping at (and sliding along) static colliders instead of passing
+               through them. For entities with a Collider and a Kinematic RigidBody. Returns true if something
+               got in the way. Unlike `position = ...`, which teleports. */
+            bool Move(const ScriptVec3& delta)
+            {
+                if (!IsValid())
+                {
+                    Z_ERROR("Script used 'Move' on an invalid Entity (is the 'Entity entity;' member "
+                            "declared, and was the entity deleted?)");
+                    return false;
+                }
+                return WorldPtr->MoveAndSlide(Handle, glm::vec3(delta));
+            }
+
             ScriptVec3 GetRotation() const
             {
                 auto* t = Get<TransformComponent>("rotation");
@@ -383,6 +397,7 @@ namespace Zeyrixon
             AS_REG(engine->RegisterObjectMethod("Entity", "void set_name(const string &in) property", WRAP_MFN(ScriptEntity, SetName), asCALL_GENERIC));
             AS_REG(engine->RegisterObjectMethod("Entity", "Vec3 get_position() const property", WRAP_MFN(ScriptEntity, GetPosition), asCALL_GENERIC));
             AS_REG(engine->RegisterObjectMethod("Entity", "void set_position(const Vec3 &in) property", WRAP_MFN(ScriptEntity, SetPosition), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Entity", "bool Move(const Vec3 &in)", WRAP_MFN(ScriptEntity, Move), asCALL_GENERIC));
             AS_REG(engine->RegisterObjectMethod("Entity", "Vec3 get_rotation() const property", WRAP_MFN(ScriptEntity, GetRotation), asCALL_GENERIC));
             AS_REG(engine->RegisterObjectMethod("Entity", "void set_rotation(const Vec3 &in) property", WRAP_MFN(ScriptEntity, SetRotation), asCALL_GENERIC));
             AS_REG(engine->RegisterObjectMethod("Entity", "Vec3 get_scale() const property", WRAP_MFN(ScriptEntity, GetScale), asCALL_GENERIC));

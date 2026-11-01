@@ -60,6 +60,11 @@ namespace Zeyrixon
         m_Registry.on_destroy<ColliderComponent>().disconnect<&World::OnColliderDestroyed>(this);
     }
 
+    bool World::MoveAndSlide(entt::entity entity, const glm::vec3& delta)
+    {
+        return m_Physics && m_Physics->MoveAndSlide(m_Registry, entity, delta);
+    }
+
     void World::OnColliderDestroyed(entt::registry&, entt::entity entity)
     {
         if (m_Physics)
@@ -75,8 +80,13 @@ namespace Zeyrixon
         for (auto [handle, id, transform] : m_Registry.view<IDComponent, TransformComponent>().each())
             m_RuntimeSnapshot[id.ID] = { transform.Position, transform.Rotation, transform.Scale };
 
+        // The simulation exists BEFORE the scripts' OnCreate so a script can already call Entity.Move there.
+        // It starts empty: bodies are created further down, once OnCreate has had its say about positions.
+        m_Physics = std::make_unique<PhysicsWorld>(m_Gravity);
+
         if (!ScriptEngine::OnRuntimeStart(*this))
         {
+            m_Physics.reset();
             m_RuntimeSnapshot.clear();
             return false;
         }
@@ -90,7 +100,7 @@ namespace Zeyrixon
             animation.Playing = animation.PlayOnStart;
         }
 
-        // Physics starts AFTER the scripts' OnCreate, so a script that places things in OnCreate gets the
+        // Bodies are created AFTER the scripts' OnCreate, so a script that places things in OnCreate gets the
         // bodies created where it put them.
         for (auto [handle, body] : m_Registry.view<RigidBodyComponent>().each())
         {
@@ -99,7 +109,6 @@ namespace Zeyrixon
                             m_Registry.all_of<TagComponent>(handle) ? m_Registry.get<TagComponent>(handle).Tag : std::string("?"));
         }
 
-        m_Physics = std::make_unique<PhysicsWorld>(m_Gravity);
         m_Physics->AdoptNewBodies(m_Registry);
 
         m_Running = true;

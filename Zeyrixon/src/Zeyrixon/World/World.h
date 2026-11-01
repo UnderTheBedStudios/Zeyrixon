@@ -56,6 +56,11 @@ namespace Zeyrixon
 
         /* Gravity in world units per second squared; (0, -9.81, 0) is Earth. Saved with the world. It is read
            when Play starts, so changing it while playing has no effect until the next Play. */
+        /* Moves an entity by `delta` without letting it pass through static colliders; see
+           PhysicsWorld::MoveAndSlide for the rules. Only meaningful while playing; returns false otherwise,
+           and for entities that aren't Kinematic/Static bodies. This is what a script's Entity.Move calls. */
+        bool MoveAndSlide(entt::entity entity, const glm::vec3& delta);
+
         const glm::vec3& GetGravity() const { return m_Gravity; }
         void SetGravity(const glm::vec3& gravity) { m_Gravity = gravity; }
 

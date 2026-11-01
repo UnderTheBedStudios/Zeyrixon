@@ -129,7 +129,7 @@ What scripts can use:
 
 | Name | What it is |
 |---|---|
-| `Entity` | `name`, `position`, `rotation` (degrees), `scale`, `id`, `IsValid()`, `Forward()`, `Right()`, `Up()` |
+| `Entity` | `name`, `position`, `rotation` (degrees), `scale`, `id`, `IsValid()`, `Forward()`, `Right()`, `Up()`, `Move(Vec3)` |
 | `FindEntity("Name")` | Looks an entity up by its name |
 | `Vec3` | `x y z`, `+ - * /`, `Length()`, `Normalized()`, `Dot()`, `Cross()`, `Distance()` |
 | `Log::Info/Warn/Error/Trace`, `Print` | Writes to the Logger panel |
@@ -150,6 +150,8 @@ Two components drive it, both in **Add Component**:
 | `RigidBody` | Makes the collider move: **Dynamic** (gravity, collisions), **Kinematic** (you move it, it pushes others) or **Static**. Mass, friction, bounciness, damping, gravity and rotation lock. |
 
 Gravity is a world setting (select nothing, look at **Properties**). Dynamic bodies write their result into the entity's Transform, so scripts and the renderer need no changes; if a script moves an entity, its body follows.
+
+**Moving things that must not go through walls.** `entity.position = ...` teleports. `entity.Move(Vec3)` is the safe version for entities with a Collider and a **Kinematic** RigidBody: it sweeps the collider's real shape along the movement, stops just short of the first static collider, and slides the rest of the movement along the surface. It returns `true` if something got in the way, so moving straight down each frame doubles as a "standing on the floor" check. Only static colliders (no RigidBody, or a Static one) block it; dynamic bodies are pushed out of the way instead, so a crate pinned between a Kinematic body and a wall gets squeezed into the wall. See `examples/Walker.as` for a complete example (WASD, gravity, jumping).
 
 In the viewport, the **Colliders** checkbox draws every collider as a wireframe (blue = static, green = dynamic, yellow = kinematic; the selected one is brighter). Tick **Edit Collider in Viewport** in the Collider inspector to get drag handles that resize it, or use **Fit to Mesh**. Sizes are multiplied by the entity's Scale.
 

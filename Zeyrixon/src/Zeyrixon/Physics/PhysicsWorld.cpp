@@ -21,6 +21,31 @@ namespace Zeyrixon
         glm::vec3 ToGlm(const btVector3& v) { return glm::vec3(v.x(), v.y(), v.z()); }
         glm::quat ToGlm(const btQuaternion& q) { return glm::quat(q.w(), q.x(), q.y(), q.z()); }   // glm's constructor is (w, x, y, z)
 
+        /* What a swept shape is allowed to hit. A sweep reports the closest thing in its way; this callback
+           decides what counts as "in its way". Only the mover's own body and non-static things are excluded:
+           walls and floors block it, crates and other movers do not. */
+        struct SolidSweepCallback : btCollisionWorld::ClosestConvexResultCallback
+        {
+            const btCollisionObject* Self;
+
+            SolidSweepCallback(const btVector3& from, const btVector3& to, const btCollisionObject* self)
+                : ClosestConvexResultCallback(from, to), Self(self)
+            {
+                // Static bodies live in the StaticFilter group. (Kinematic ones do too, which is why
+                // needsCollision below still has to rule them out by hand.)
+                m_collisionFilterGroup = btBroadphaseProxy::DefaultFilter;
+                m_collisionFilterMask = btBroadphaseProxy::StaticFilter;
+            }
+
+            bool needsCollision(btBroadphaseProxy* proxy) const override
+            {
+                const auto* object = static_cast<const btCollisionObject*>(proxy->m_clientObject);
+                if (object == Self || object->isKinematicObject())
+                    return false;
+                return ClosestConvexResultCallback::needsCollision(proxy);
+            }
+        };
+
         std::unique_ptr<btCollisionShape> MakeShape(ColliderShape type, const Physics::ColliderShapeWorld& s)
         {
             switch (type)
@@ -48,6 +73,7 @@ namespace Zeyrixon
         struct Body
         {
             std::unique_ptr<btCollisionShape> Shape;
+            btConvexShape* Convex = nullptr;   // the same object as Shape; the sweep test needs the convex interface
             std::unique_ptr<btDefaultMotionState> MotionState;
             std::unique_ptr<btRigidBody> RigidBody;
 
@@ -84,6 +110,7 @@ namespace Zeyrixon
 
             Body body;
             body.Shape = MakeShape(collider.Shape, shape);
+            body.Convex = static_cast<btConvexShape*>(body.Shape.get());   // box, sphere and capsule are all convex
 
             // A collider with no RigidBody is simply a static obstacle (floors, walls).
             const RigidBodyComponent* settings = registry.all_of<RigidBodyComponent>(entity)
@@ -203,6 +230,82 @@ namespace Zeyrixon
 
         m_Impl->World.removeRigidBody(it->second.RigidBody.get());
         m_Impl->Bodies.erase(it);
+    }
+
+    bool PhysicsWorld::MoveAndSlide(entt::registry& registry, entt::entity entity, const glm::vec3& delta)
+    {
+        if (!registry.valid(entity) || !registry.all_of<TransformComponent, ColliderComponent>(entity))
+            return false;
+
+        AdoptNewBodies(registry);   // an entity created this frame has no body yet, but needs a shape to sweep
+
+        auto it = m_Impl->Bodies.find(entity);
+        if (it == m_Impl->Bodies.end() || it->second.Dynamic)
+            return false;
+
+        Impl::Body& body = it->second;
+        auto& transform = registry.get<TransformComponent>(entity);
+        const auto& collider = registry.get<ColliderComponent>(entity);
+
+        // Sweep from where the ENTITY is, not from where the body last was: a script may have moved it already.
+        const Physics::ColliderShapeWorld shape = Physics::ComputeWorldShape(collider, transform);
+        glm::vec3 center = shape.Center;
+        glm::vec3 remaining = delta;
+        bool blocked = false;
+
+        constexpr int maxSlides = 4;     // enough for a corner (two walls) with one to spare
+        constexpr float skin = 0.01f;    // stay this far off every surface so we never end up touching it
+
+        for (int pass = 0; pass < maxSlides; ++pass)
+        {
+            const float length = glm::length(remaining);
+            if (length < 1e-5f)
+                break;
+            const glm::vec3 direction = remaining / length;
+
+            btTransform from, to;
+            from.setIdentity();
+            to.setIdentity();
+            from.setRotation(ToBullet(shape.Rotation));
+            to.setRotation(ToBullet(shape.Rotation));
+            from.setOrigin(ToBullet(center));
+            to.setOrigin(ToBullet(center + remaining));
+
+            SolidSweepCallback hit(from.getOrigin(), to.getOrigin(), body.RigidBody.get());
+            m_Impl->World.convexSweepTest(body.Convex, from, to, hit);
+
+            if (!hit.hasHit())
+            {
+                center += remaining;   // nothing in the way: the whole remaining move happens
+                remaining = glm::vec3(0.0f);
+                break;
+            }
+
+            blocked = true;
+
+            /* The sweep says "you can go `fraction` of the way before touching something". Go that far, minus
+               the skin (but never backwards, so being already within the skin doesn't push us around). */
+            const float fraction = hit.m_closestHitFraction;
+            center += direction * std::max(length * fraction - skin, 0.0f);
+
+            /* The part of the movement we didn't get to make, minus the part that points INTO the surface,
+               is the part that runs along it. That is the slide. The normal must face against our motion
+               (a sweep can report it either way round), so flip it if it doesn't. */
+            glm::vec3 normal = ToGlm(hit.m_hitNormalWorld);
+            if (glm::dot(normal, direction) > 0.0f)
+                normal = -normal;
+
+            glm::vec3 leftover = remaining * (1.0f - fraction);
+            leftover -= normal * glm::dot(leftover, normal);
+            remaining = leftover;
+        }
+
+        // The sweep worked on the collider's centre; the entity's origin is that minus the collider's offset.
+        transform.Position = center - shape.Rotation * (collider.Offset * transform.Scale);
+
+        // The body itself catches up on the next Step (it sees the transform changed and moves there), and
+        // for a kinematic body that is also what gives it the velocity it uses to push dynamic bodies.
+        return blocked;
     }
 
     void PhysicsWorld::Step(entt::registry& registry, float dt)
