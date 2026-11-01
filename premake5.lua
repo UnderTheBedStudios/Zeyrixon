@@ -24,11 +24,13 @@ IncludeDir["entt"] = "Zeyrixon/vendor/entt/include"
 IncludeDir["ImGuizmo"] = "ZeyrixonEditor/vendor/ImGizmo/ImGuizmo/src"
 IncludeDir["AngelScript"] = "Zeyrixon/vendor/AngelScript/sdk/angelscript/include"
 IncludeDir["AngelScriptAddOn"] = "Zeyrixon/vendor/AngelScript/sdk/add_on"
+IncludeDir["Bullet"] = "Zeyrixon/vendor/Bullet/bullet3/src"
 
 include "Zeyrixon/vendor/GLFW"
 include "Zeyrixon/vendor/GLAD"
 include "ZeyrixonEditor/vendor/imgui"
 include "Zeyrixon/vendor/AngelScript"
+include "Zeyrixon/vendor/Bullet"
 
 project("Zeyrixon")
 	location("Zeyrixon")
@@ -74,6 +76,7 @@ project("Zeyrixon")
 		"%{IncludeDir.entt}",
 		"%{IncludeDir.AngelScript}",
 		"%{IncludeDir.AngelScriptAddOn}",
+		"%{IncludeDir.Bullet}",
 	})
 
 	links({
@@ -81,6 +84,7 @@ project("Zeyrixon")
 		"Glad",
 		"ImGui",
 		"AngelScript",
+		"Bullet",
 	})
 
 	filter("system:windows")
@@ -165,6 +169,7 @@ project("TestProj")
 		"GLFW",
 		"Glad",
 		"AngelScript",
+		"Bullet",
 	})
 
 	filter("system:windows")
@@ -251,6 +256,7 @@ project("ZeyrixonEditor")
 		"GLFW",
 		"Glad",
 		"AngelScript",
+		"Bullet",
 	})
 
 	filter("system:windows")

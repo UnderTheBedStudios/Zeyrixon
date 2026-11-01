@@ -125,6 +125,48 @@ namespace Zeyrixon
         std::string MeshPath = "builtin:cube";
     };
 
+    enum class ColliderShape : int
+    {
+        Box     = 0,
+        Sphere  = 1,
+        Capsule = 2    // upright along the entity's local Y axis, like a pill
+    };
+
+    /* The SHAPE of a physical object. On its own it is a static obstacle (a floor, a wall); add a RigidBody
+       to make it move. Everything is in the entity's local space, so the entity's Transform (including
+       Scale) is applied on top: a half-extent of 0.5 on an entity with scale 2 is a box 2 units wide.
+       See Physics/Collider.h for how this becomes a world-space shape. */
+    struct ColliderComponent
+    {
+        ColliderShape Shape = ColliderShape::Box;
+
+        glm::vec3 Offset{ 0.0f };        // centre of the collider relative to the entity's origin
+        glm::vec3 HalfExtents{ 0.5f };   // Box: half the size along X, Y, Z. (0.5 matches builtin:cube)
+        float Radius = 0.5f;             // Sphere and Capsule
+        float Height = 2.0f;             // Capsule: tip to tip, including both caps. Never less than 2 * Radius
+    };
+
+    enum class BodyType : int
+    {
+        Static    = 0,   // never moves (same as having no RigidBody at all)
+        Dynamic   = 1,   // moved by the simulation: gravity, collisions, forces
+        Kinematic = 2    // moved by YOU (scripts / animation), pushes dynamic bodies out of the way
+    };
+
+    /* How a Collider behaves. A RigidBody without a Collider does nothing (it has no shape to collide
+       with); the engine logs a warning when Play starts. */
+    struct RigidBodyComponent
+    {
+        BodyType Type = BodyType::Dynamic;
+        float Mass = 1.0f;              // Dynamic only. Heavier bodies are harder to push, they do NOT fall faster
+        float Friction = 0.5f;          // 0 = ice, 1 = rubber-on-concrete. Bullet multiplies the two surfaces' values
+        float Restitution = 0.0f;       // bounciness: 0 = dead stop, 1 = loses no energy
+        float LinearDamping = 0.0f;     // air resistance on movement (0..1 per second-ish)
+        float AngularDamping = 0.05f;   // air resistance on spinning; a little keeps things from spinning forever
+        bool UseGravity = true;
+        bool FixedRotation = false;     // can't tip over; handy for characters
+    };
+
     struct SpriteComponent
     {
         std::string TexturePath;            // empty = a flat coloured square

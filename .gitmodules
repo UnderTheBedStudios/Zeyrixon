@@ -32,3 +32,6 @@
 [submodule "Zeyrixon/vendor/cgltf"]
 	path = Zeyrixon/vendor/cgltf
 	url = https://github.com/jkuhlmann/cgltf.git
+[submodule "Zeyrixon/vendor/Bullet/bullet3"]
+	path = Zeyrixon/vendor/Bullet/bullet3
+	url = https://github.com/bulletphysics/bullet3

@@ -7,6 +7,7 @@
 #include <Zeyrixon/World/ComponentRegistry.h>
 #include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/Scripting/ScriptEngine.h>
+#include <Zeyrixon/Physics/PhysicsWorld.h>
 
 #include <cmath>
 
@@ -44,13 +45,25 @@ namespace Zeyrixon
 {
     World::World()
     {
-
+        /* Bodies hold no pointers into the registry, but the PhysicsWorld still has to be told when a
+           collider goes away (entity deleted, or the component removed), or Bullet keeps simulating a ghost.
+           EnTT calls this just BEFORE the component is destroyed. */
+        m_Registry.on_destroy<ColliderComponent>().connect<&World::OnColliderDestroyed>(this);
     }
 
     World::~World()
     {
         // Scripts hold handles into this world, so they must be gone before it is.
         OnRuntimeStop();
+
+        // The registry is destroyed after this body runs; make sure nothing calls back into a half-dead World.
+        m_Registry.on_destroy<ColliderComponent>().disconnect<&World::OnColliderDestroyed>(this);
+    }
+
+    void World::OnColliderDestroyed(entt::registry&, entt::entity entity)
+    {
+        if (m_Physics)
+            m_Physics->RemoveBody(entity);
     }
 
     bool World::OnRuntimeStart()
@@ -77,6 +90,18 @@ namespace Zeyrixon
             animation.Playing = animation.PlayOnStart;
         }
 
+        // Physics starts AFTER the scripts' OnCreate, so a script that places things in OnCreate gets the
+        // bodies created where it put them.
+        for (auto [handle, body] : m_Registry.view<RigidBodyComponent>().each())
+        {
+            if (!m_Registry.all_of<ColliderComponent>(handle))
+                Z_CORE_WARN("Entity '{0}' has a RigidBody but no Collider, so it has no shape and won't take part in physics.",
+                            m_Registry.all_of<TagComponent>(handle) ? m_Registry.get<TagComponent>(handle).Tag : std::string("?"));
+        }
+
+        m_Physics = std::make_unique<PhysicsWorld>(m_Gravity);
+        m_Physics->AdoptNewBodies(m_Registry);
+
         m_Running = true;
         return true;
     }
@@ -87,6 +112,10 @@ namespace Zeyrixon
             return;
 
         ScriptEngine::OnRuntimeStop(*this);
+
+        // Bodies are removed from Bullet before the transforms are restored below, so nothing can push a
+        // restored transform back into a body that is about to be thrown away.
+        m_Physics.reset();
 
         // Entities created while playing are not in the snapshot and are left as they are.
         for (auto [handle, id, transform] : m_Registry.view<IDComponent, TransformComponent>().each())
@@ -119,6 +148,11 @@ namespace Zeyrixon
             return;
 
         ScriptEngine::OnRuntimeUpdate(*this, dt);
+
+        // After the scripts, so a transform a script just changed is what the simulation starts from.
+        if (m_Physics)
+            m_Physics->Step(m_Registry, dt.GetSeconds());
+
         UpdateAnimations(dt);
     }
 
@@ -188,6 +222,7 @@ namespace Zeyrixon
         world->m_Name = root.attribute("Name").as_string("Untitled");
         world->SetAmbientIntensity(root.attribute("Ambient").as_float(world->GetAmbientIntensity()));   // old files: default
         world->m_WorldPath = worldPath;
+        world->m_Gravity = StringToVec3(root.attribute("Gravity").as_string(""), world->m_Gravity);   // old files: Earth
 
         for (pugi::xml_node node : root.children("Entity"))
         {
@@ -242,6 +277,7 @@ namespace Zeyrixon
         auto root = doc.append_child("World");
         root.append_attribute("Name") = m_Name.c_str();
         root.append_attribute("Ambient") = m_AmbientIntensity;
+        root.append_attribute("Gravity") = Vec3ToString(m_Gravity).c_str();
 
         // Views iterate newest-first, so collect the handles and write them in
         // reverse. That keeps the file in creation order.

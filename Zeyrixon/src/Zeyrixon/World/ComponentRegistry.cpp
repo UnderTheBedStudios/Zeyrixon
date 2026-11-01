@@ -243,6 +243,54 @@ namespace Zeyrixon
             a.PlayOnStart = node.attribute("PlayOnStart").as_bool(a.PlayOnStart);
         };
 
+        auto& collider = Register<ColliderComponent>("Collider");
+        collider.Serialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& c = e.GetComponent<ColliderComponent>();
+            node.append_attribute("Shape") = static_cast<int>(c.Shape);
+            node.append_attribute("Offset") = Vec3ToString(c.Offset).c_str();
+            node.append_attribute("HalfExtents") = Vec3ToString(c.HalfExtents).c_str();
+            node.append_attribute("Radius") = c.Radius;
+            node.append_attribute("Height") = c.Height;
+        };
+        collider.Deserialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& c = e.GetComponent<ColliderComponent>();
+            const int shape = node.attribute("Shape").as_int(static_cast<int>(c.Shape));
+            c.Shape = (shape >= 0 && shape <= 2) ? static_cast<ColliderShape>(shape) : ColliderShape::Box;
+            c.Offset = StringToVec3(node.attribute("Offset").as_string(""), c.Offset);
+            c.HalfExtents = StringToVec3(node.attribute("HalfExtents").as_string(""), c.HalfExtents);
+            c.Radius = node.attribute("Radius").as_float(c.Radius);
+            c.Height = node.attribute("Height").as_float(c.Height);
+        };
+
+        auto& rigidBody = Register<RigidBodyComponent>("RigidBody");
+        rigidBody.Serialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& r = e.GetComponent<RigidBodyComponent>();
+            node.append_attribute("Type") = static_cast<int>(r.Type);
+            node.append_attribute("Mass") = r.Mass;
+            node.append_attribute("Friction") = r.Friction;
+            node.append_attribute("Restitution") = r.Restitution;
+            node.append_attribute("LinearDamping") = r.LinearDamping;
+            node.append_attribute("AngularDamping") = r.AngularDamping;
+            node.append_attribute("UseGravity") = r.UseGravity;
+            node.append_attribute("FixedRotation") = r.FixedRotation;
+        };
+        rigidBody.Deserialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& r = e.GetComponent<RigidBodyComponent>();
+            const int type = node.attribute("Type").as_int(static_cast<int>(r.Type));
+            r.Type = (type >= 0 && type <= 2) ? static_cast<BodyType>(type) : BodyType::Dynamic;
+            r.Mass = node.attribute("Mass").as_float(r.Mass);
+            r.Friction = node.attribute("Friction").as_float(r.Friction);
+            r.Restitution = node.attribute("Restitution").as_float(r.Restitution);
+            r.LinearDamping = node.attribute("LinearDamping").as_float(r.LinearDamping);
+            r.AngularDamping = node.attribute("AngularDamping").as_float(r.AngularDamping);
+            r.UseGravity = node.attribute("UseGravity").as_bool(r.UseGravity);
+            r.FixedRotation = node.attribute("FixedRotation").as_bool(r.FixedRotation);
+        };
+
         auto& sprite = Register<SpriteComponent>("Sprite");
         sprite.Serialize = [](Entity e, pugi::xml_node node)
         {

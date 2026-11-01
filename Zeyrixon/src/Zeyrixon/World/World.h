@@ -14,6 +14,7 @@
 namespace Zeyrixon
 {
     class Entity;
+    class PhysicsWorld;
 
     class Z_API World
     {
@@ -53,12 +54,23 @@ namespace Zeyrixon
         float GetAmbientIntensity() const { return m_AmbientIntensity; }
         void SetAmbientIntensity(float value) { m_AmbientIntensity = value < 0.0f ? 0.0f : value; }
 
+        /* Gravity in world units per second squared; (0, -9.81, 0) is Earth. Saved with the world. It is read
+           when Play starts, so changing it while playing has no effect until the next Play. */
+        const glm::vec3& GetGravity() const { return m_Gravity; }
+        void SetGravity(const glm::vec3& gravity) { m_Gravity = gravity; }
+
     private:
         std::string m_Name;
         std::string m_WorldPath;
         float m_AmbientIntensity = 0.1f;
+        glm::vec3 m_Gravity{ 0.0f, -9.81f, 0.0f };
 
         entt::registry m_Registry;
+
+        /* The Bullet simulation. Exists only while playing. Declared AFTER the registry so it is destroyed
+           first, and World::OnColliderDestroyed (below) is how it hears about colliders going away. */
+        std::unique_ptr<PhysicsWorld> m_Physics;
+        void OnColliderDestroyed(entt::registry& registry, entt::entity entity);
 
         // Moves every playing Animation component forward by dt (looping or stopping at the end).
         void UpdateAnimations(DeltaTime dt);

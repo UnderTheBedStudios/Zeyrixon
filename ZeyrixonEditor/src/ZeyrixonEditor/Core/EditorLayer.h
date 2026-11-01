@@ -50,6 +50,7 @@ namespace Editor
 
         void DrawGizmo();
         void DrawLightGizmos();   // icons at each light, plus range / direction outlines for the selected one
+        void DrawColliderGizmo(); // drag handles that resize the selected entity's collider (see "Edit Collider")
         void DeleteEntity(Zeyrixon::Entity entity);
 
         void BuildDefaultLayout(ImGuiID dockspaceId);
@@ -75,6 +76,12 @@ namespace Editor
         std::shared_ptr<Zeyrixon::OpenGLTexture2D> m_PointLightIcon;
         std::shared_ptr<Zeyrixon::OpenGLTexture2D> m_SpotLightIcon;
         Zeyrixon::Entity m_HoveredLightGizmo;   // the light icon under the mouse this frame, if any
+
+        // Physics gizmos. Handle ids are axis * 2 + (0 for the + side, 1 for the - side); -1 = none.
+        bool m_ShowColliders = true;            // draw every collider as a wireframe in the viewport
+        int m_HoveredColliderHandle = -1;       // the resize handle under the mouse this frame
+        int m_ActiveColliderHandle = -1;        // the resize handle being dragged
+        float m_ColliderGrabOffset = 0.0f;      // how far from the handle's centre it was grabbed, so it doesn't jump
 
         bool m_IsPlaying = false;
         bool m_ShowGameView = false;

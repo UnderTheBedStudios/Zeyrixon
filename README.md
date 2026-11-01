@@ -138,6 +138,21 @@ What scripts can use:
 
 To offer your own C++ to scripts, register it on `Zeyrixon::ScriptEngine::GetEngine()` (see `Zeyrixon/src/Zeyrixon/Scripting/ScriptEngine.cpp` for how `Entity` and `Vec3` are done).
 
+## Physics (Bullet)
+
+Physics is [Bullet](https://github.com/bulletphysics/bullet3), vendored as a submodule in `Zeyrixon/vendor/Bullet/bullet3` (a premake wrapper sits beside it, like AngelScript). It is only alive while you press **Play**; editing never touches it.
+
+Two components drive it, both in **Add Component**:
+
+| Component | What it does |
+|---|---|
+| `Collider` | The shape: Box, Sphere or Capsule, with a centre offset. On its own it is a static obstacle (floor, wall). |
+| `RigidBody` | Makes the collider move: **Dynamic** (gravity, collisions), **Kinematic** (you move it, it pushes others) or **Static**. Mass, friction, bounciness, damping, gravity and rotation lock. |
+
+Gravity is a world setting (select nothing, look at **Properties**). Dynamic bodies write their result into the entity's Transform, so scripts and the renderer need no changes; if a script moves an entity, its body follows.
+
+In the viewport, the **Colliders** checkbox draws every collider as a wireframe (blue = static, green = dynamic, yellow = kinematic; the selected one is brighter). Tick **Edit Collider in Viewport** in the Collider inspector to get drag handles that resize it, or use **Fit to Mesh**. Sizes are multiplied by the entity's Scale.
+
 ## Making a game project
 
 **File -> New Project** in the editor creates a folder with:

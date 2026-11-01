@@ -53,11 +53,12 @@ function ZeyrixonLink()
 		libFolder("ZeyrixonEditor/vendor/imgui", "ImGui"),
 		libFolder("Zeyrixon/vendor/GLFW", "GLFW"),
 		libFolder("Zeyrixon/vendor/GLAD", "Glad"),
+		libFolder("Zeyrixon/vendor/Bullet", "Bullet"),
 	}
 
 	-- Order matters for static libraries on Linux: a library must come BEFORE the libraries
 	-- it uses. Zeyrixon uses all the others, and ImGui uses GLFW.
-	links { "Zeyrixon", "ImGui", "GLFW", "Glad", "AngelScript" }
+	links { "Zeyrixon", "ImGui", "GLFW", "Glad", "AngelScript", "Bullet" }
 
 	defines
 	{

@@ -8,6 +8,8 @@
 #include <Zeyrixon/Renderer/Picking.h>
 #include <Zeyrixon/Renderer/Mesh.h>
 #include <Zeyrixon/Scripting/ScriptEngine.h>
+#include <Zeyrixon/Renderer/DebugRenderer.h>
+#include <Zeyrixon/Physics/Collider.h>
 
 #include <imgui_internal.h>
 #include <ImGuizmo.h>
@@ -51,6 +53,12 @@ namespace
         std::sort(outDirs.begin(), outDirs.end(), byName);
         std::sort(outFiles.begin(), outFiles.end(), byName);
     }
+
+    /* "Edit Collider in Viewport" in the Collider inspector. It lives here, not in EditorLayer, because the
+       inspector lambdas are free functions with no access to the layer. Only one entity is selected at a
+       time, so one flag is enough. While it is on, the move/rotate/scale gizmo is hidden (both want the
+       mouse) and the collider's resize handles are shown instead. */
+    bool g_EditCollider = false;
 
     bool DeleteKeyPressed()
     {
@@ -193,6 +201,96 @@ namespace
             }
             else
                 ImGui::TextDisabled("Shadows: directional lights only for now.");
+        });
+
+        SetInspector("Collider", [](Zeyrixon::Entity entity)
+        {
+            auto& collider = entity.GetComponent<Zeyrixon::ColliderComponent>();
+
+            const char* shapeNames[] = { "Box", "Sphere", "Capsule" };
+            int shape = static_cast<int>(collider.Shape);
+            if (ImGui::Combo("Shape", &shape, shapeNames, IM_ARRAYSIZE(shapeNames)))
+                collider.Shape = static_cast<Zeyrixon::ColliderShape>(shape);
+
+            ImGui::DragFloat3("Center", &collider.Offset.x, 0.05f);
+
+            constexpr float minSize = 0.01f;
+            switch (collider.Shape)
+            {
+                case Zeyrixon::ColliderShape::Box:
+                    ImGui::DragFloat3("Half Extents", &collider.HalfExtents.x, 0.05f, minSize, 10000.0f);
+                    break;
+
+                case Zeyrixon::ColliderShape::Sphere:
+                    ImGui::DragFloat("Radius", &collider.Radius, 0.05f, minSize, 10000.0f);
+                    break;
+
+                case Zeyrixon::ColliderShape::Capsule:
+                    ImGui::DragFloat("Radius", &collider.Radius, 0.05f, minSize, 10000.0f);
+                    ImGui::DragFloat("Height", &collider.Height, 0.05f, minSize, 10000.0f);
+                    break;
+            }
+
+            // A capsule can't be shorter than the two caps stacked on each other.
+            if (collider.Shape == Zeyrixon::ColliderShape::Capsule)
+                collider.Height = std::max(collider.Height, 2.0f * collider.Radius);
+
+            // Sizes are in the entity's own space; the entity's Scale is applied on top.
+            ImGui::TextDisabled("Sizes are multiplied by the entity's Scale.");
+
+            if (entity.HasComponent<Zeyrixon::MeshComponent>() && ImGui::Button("Fit to Mesh"))
+            {
+                if (std::shared_ptr<Zeyrixon::Mesh> mesh = Zeyrixon::MeshLibrary::Get(entity.GetComponent<Zeyrixon::MeshComponent>().MeshPath))
+                {
+                    const glm::vec3 center = (mesh->GetBoundsMin() + mesh->GetBoundsMax()) * 0.5f;
+                    const glm::vec3 half = (mesh->GetBoundsMax() - mesh->GetBoundsMin()) * 0.5f;
+
+                    collider.Offset = center;
+                    switch (collider.Shape)
+                    {
+                        case Zeyrixon::ColliderShape::Box:
+                            collider.HalfExtents = glm::max(half, glm::vec3(minSize));
+                            break;
+                        case Zeyrixon::ColliderShape::Sphere:
+                            collider.Radius = std::max({ half.x, half.y, half.z, minSize });
+                            break;
+                        case Zeyrixon::ColliderShape::Capsule:
+                            collider.Radius = std::max({ half.x, half.z, minSize });
+                            collider.Height = std::max(half.y * 2.0f, collider.Radius * 2.0f);
+                            break;
+                    }
+                }
+            }
+
+            ImGui::Checkbox("Edit Collider in Viewport", &g_EditCollider);
+        });
+
+        SetInspector("RigidBody", [](Zeyrixon::Entity entity)
+        {
+            auto& body = entity.GetComponent<Zeyrixon::RigidBodyComponent>();
+
+            const char* typeNames[] = { "Static", "Dynamic", "Kinematic" };
+            int type = static_cast<int>(body.Type);
+            if (ImGui::Combo("Type", &type, typeNames, IM_ARRAYSIZE(typeNames)))
+                body.Type = static_cast<Zeyrixon::BodyType>(type);
+
+            if (body.Type == Zeyrixon::BodyType::Dynamic)
+            {
+                ImGui::DragFloat("Mass", &body.Mass, 0.05f, 0.001f, 100000.0f);
+                ImGui::SliderFloat("Friction", &body.Friction, 0.0f, 1.0f);
+                ImGui::SliderFloat("Bounciness", &body.Restitution, 0.0f, 1.0f);
+                ImGui::SliderFloat("Linear Damping", &body.LinearDamping, 0.0f, 1.0f);
+                ImGui::SliderFloat("Angular Damping", &body.AngularDamping, 0.0f, 1.0f);
+                ImGui::Checkbox("Use Gravity", &body.UseGravity);
+                ImGui::Checkbox("Freeze Rotation", &body.FixedRotation);
+            }
+            else if (body.Type == Zeyrixon::BodyType::Kinematic)
+                ImGui::TextDisabled("Moved by scripts / animation; pushes dynamic bodies.");
+            else
+                ImGui::TextDisabled("Never moves.");
+
+            if (!entity.HasComponent<Zeyrixon::ColliderComponent>())
+                ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Needs a Collider component to do anything.");
         });
 
         SetInspector("Mesh", [](Zeyrixon::Entity entity)
@@ -462,7 +560,11 @@ namespace Editor
         ImGuizmo::SetDrawlist();
         ImGuizmo::SetRect(m_ViewportMin.x, m_ViewportMin.y, m_ViewportSize.x, m_ViewportSize.y);
 
-        if (!m_SelectedEntity || m_GizmoOperation == 0
+        // While the collider's own resize handles are showing, the transform gizmo would fight them for the mouse.
+        const bool editingCollider = g_EditCollider && m_SelectedEntity
+            && m_SelectedEntity.HasComponent<Zeyrixon::ColliderComponent>();
+
+        if (!m_SelectedEntity || m_GizmoOperation == 0 || editingCollider
             || !m_SelectedEntity.HasComponent<Zeyrixon::TransformComponent>())
             return;
 
@@ -490,6 +592,229 @@ namespace Editor
             transform.Position = position;
             transform.Rotation = glm::radians(rotation);
             transform.Scale = scale;
+        }
+    }
+
+    void EditorLayer::DrawColliderGizmo()
+    {
+        m_HoveredColliderHandle = -1;
+
+        const bool canEdit = g_EditCollider && !m_ShowGameView && m_ActiveWorld && m_SelectedEntity
+            && m_SelectedEntity.HasComponent<Zeyrixon::TransformComponent>()
+            && m_SelectedEntity.HasComponent<Zeyrixon::ColliderComponent>();
+        if (!canEdit)
+        {
+            m_ActiveColliderHandle = -1;
+            return;
+        }
+
+        auto& transform = m_SelectedEntity.GetComponent<Zeyrixon::TransformComponent>();
+        auto& collider = m_SelectedEntity.GetComponent<Zeyrixon::ColliderComponent>();
+
+        // The shape exactly as the physics engine sees it, and its local axes as they point in the world.
+        const Zeyrixon::Physics::ColliderShapeWorld shape = Zeyrixon::Physics::ComputeWorldShape(collider, transform);
+        const glm::mat3 axes = glm::mat3_cast(shape.Rotation);   // column i = local axis i in world space
+
+        /* One handle on each side of each axis. A box and a sphere get all six; a capsule's X and Z handles
+           set the radius and its Y handles set the height. `Distance` is how far the handle sits from the
+           centre, in world units. */
+        struct Handle { int Id; int Axis; float Sign; float Distance; };
+        Handle handles[6];
+        int handleCount = 0;
+        auto addPair = [&](int axis, float distance)
+        {
+            handles[handleCount++] = { axis * 2,     axis,  1.0f, distance };
+            handles[handleCount++] = { axis * 2 + 1, axis, -1.0f, distance };
+        };
+
+        switch (collider.Shape)
+        {
+            case Zeyrixon::ColliderShape::Box:
+                addPair(0, shape.HalfExtents.x);
+                addPair(1, shape.HalfExtents.y);
+                addPair(2, shape.HalfExtents.z);
+                break;
+            case Zeyrixon::ColliderShape::Sphere:
+                addPair(0, shape.Radius);
+                addPair(1, shape.Radius);
+                addPair(2, shape.Radius);
+                break;
+            case Zeyrixon::ColliderShape::Capsule:
+                addPair(0, shape.Radius);
+                addPair(1, shape.HalfHeight);
+                addPair(2, shape.Radius);
+                break;
+        }
+
+        const glm::mat4 viewProjection = m_EditorCamera.GetProjection() * m_EditorCamera.GetView();
+
+        // World position -> pixel position on screen. False when the point is behind the camera.
+        auto project = [&](const glm::vec3& world, ImVec2& screen) -> bool
+        {
+            const glm::vec4 clip = viewProjection * glm::vec4(world, 1.0f);
+            if (clip.w <= 0.0001f)
+                return false;
+
+            const glm::vec3 ndc = glm::vec3(clip) / clip.w;
+            screen = ImVec2(m_ViewportMin.x + (ndc.x * 0.5f + 0.5f) * m_ViewportSize.x,
+                            m_ViewportMin.y + (1.0f - (ndc.y * 0.5f + 0.5f)) * m_ViewportSize.y);
+            return true;
+        };
+
+        const ImVec2 mouse = ImGui::GetMousePos();
+        glm::vec3 rayOrigin, rayDirection;
+        m_EditorCamera.ScreenPointToRay(glm::vec2(mouse.x - m_ViewportMin.x, mouse.y - m_ViewportMin.y),
+                                        glm::vec2(m_ViewportSize.x, m_ViewportSize.y), rayOrigin, rayDirection);
+
+        /* Where along a handle's axis (measured from the collider's centre) is the mouse pointing?
+           A mouse ray and an axis are two lines in 3D that almost never touch, so we take the point on the
+           axis that is CLOSEST to the ray. With the axis written P + s*A and the ray O + t*D (A and D unit
+           length), minimising the distance between them gives
+               s = (b*f - c) / (1 - b*b)     where  b = A.D,  c = A.(P-O),  f = D.(P-O)
+           When the ray is parallel to the axis (1 - b*b ~ 0) there is no single closest point, so we report
+           failure and the handle simply doesn't move that frame. */
+        auto distanceAlongAxis = [&](const glm::vec3& axis, float& out) -> bool
+        {
+            const glm::vec3 toCenter = shape.Center - rayOrigin;
+            const float b = glm::dot(axis, rayDirection);
+            const float c = glm::dot(axis, toCenter);
+            const float f = glm::dot(rayDirection, toCenter);
+            const float denominator = 1.0f - b * b;
+            if (denominator < 1e-4f)
+                return false;
+
+            out = (b * f - c) / denominator;
+            return true;
+        };
+
+        constexpr float pickRadius = 10.0f;   // pixels around a handle in which the mouse counts as on it
+        const bool altHeld = Zeyrixon::Input::IsKeyPressed(Z_KEY_LEFT_ALT);   // Alt + drag orbits the camera
+
+        if (m_ActiveColliderHandle < 0)
+        {
+            // Not dragging: find the handle nearest the mouse, if it is close enough.
+            if (m_ViewportHovered && !altHeld)
+            {
+                float closest = pickRadius;
+                for (int i = 0; i < handleCount; ++i)
+                {
+                    ImVec2 screen;
+                    if (!project(shape.Center + axes[handles[i].Axis] * handles[i].Sign * handles[i].Distance, screen))
+                        continue;
+
+                    const float dx = mouse.x - screen.x;
+                    const float dy = mouse.y - screen.y;
+                    const float distance = std::sqrt(dx * dx + dy * dy);
+                    if (distance < closest)
+                    {
+                        closest = distance;
+                        m_HoveredColliderHandle = handles[i].Id;
+                    }
+                }
+            }
+
+            if (m_HoveredColliderHandle >= 0 && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            {
+                m_ActiveColliderHandle = m_HoveredColliderHandle;
+
+                // Remember where on the handle we grabbed it; otherwise it would snap its centre to the cursor.
+                m_ColliderGrabOffset = 0.0f;
+                for (int i = 0; i < handleCount; ++i)
+                {
+                    float grabbed;
+                    if (handles[i].Id == m_ActiveColliderHandle
+                        && distanceAlongAxis(axes[handles[i].Axis] * handles[i].Sign, grabbed))
+                        m_ColliderGrabOffset = grabbed - handles[i].Distance;
+                }
+            }
+        }
+        else if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        {
+            // Dragging: turn "the mouse is this far along the axis" back into the collider's own units.
+            for (int i = 0; i < handleCount; ++i)
+            {
+                const Handle& handle = handles[i];
+                float along;
+                if (handle.Id != m_ActiveColliderHandle
+                    || !distanceAlongAxis(axes[handle.Axis] * handle.Sign, along))
+                    continue;
+
+                const float wanted = std::max(along - m_ColliderGrabOffset, 0.01f);   // world units from the centre
+
+                // The same clamp ComputeWorldShape uses; dividing by it undoes the entity's Scale.
+                const glm::vec3 scale = glm::max(glm::abs(transform.Scale), glm::vec3(0.001f));
+
+                switch (collider.Shape)
+                {
+                    case Zeyrixon::ColliderShape::Box:
+                        collider.HalfExtents[handle.Axis] = wanted / scale[handle.Axis];
+                        break;
+
+                    case Zeyrixon::ColliderShape::Sphere:
+                        collider.Radius = wanted / std::max({ scale.x, scale.y, scale.z });
+                        break;
+
+                    case Zeyrixon::ColliderShape::Capsule:
+                        if (handle.Axis == 1)
+                            collider.Height = std::max(2.0f * wanted / scale.y, 2.0f * collider.Radius);
+                        else
+                        {
+                            collider.Radius = wanted / std::max(scale.x, scale.z);
+                            collider.Height = std::max(collider.Height, 2.0f * collider.Radius);   // keep the caps from overlapping
+                        }
+                        break;
+                }
+            }
+        }
+        else
+        {
+            m_ActiveColliderHandle = -1;   // mouse released
+        }
+
+        // Draw the handles last, so they show the size the drag just produced.
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        for (int i = 0; i < handleCount; ++i)
+        {
+            const Handle& handle = handles[i];
+
+            // Recompute from the (possibly just changed) collider, not from the values gathered above.
+            const Zeyrixon::Physics::ColliderShapeWorld current = Zeyrixon::Physics::ComputeWorldShape(collider, transform);
+            float distance = 0.0f;
+            switch (collider.Shape)
+            {
+                case Zeyrixon::ColliderShape::Box:     distance = current.HalfExtents[handle.Axis]; break;
+                case Zeyrixon::ColliderShape::Sphere:  distance = current.Radius; break;
+                case Zeyrixon::ColliderShape::Capsule: distance = handle.Axis == 1 ? current.HalfHeight : current.Radius; break;
+            }
+
+            ImVec2 screen;
+            if (!project(current.Center + glm::mat3_cast(current.Rotation)[handle.Axis] * handle.Sign * distance, screen))
+                continue;
+
+            const bool hot = handle.Id == m_ActiveColliderHandle || handle.Id == m_HoveredColliderHandle;
+            const float radius = hot ? 7.0f : 5.0f;
+            drawList->AddCircleFilled(screen, radius, hot ? IM_COL32(255, 200, 60, 255) : IM_COL32(255, 255, 255, 235));
+            drawList->AddCircle(screen, radius, IM_COL32(20, 20, 20, 255), 0, 1.5f);
+        }
+
+        if (m_ActiveColliderHandle >= 0)
+        {
+            // A readout next to the cursor while dragging, in the collider's own units.
+            char text[96];
+            switch (collider.Shape)
+            {
+                case Zeyrixon::ColliderShape::Box:
+                    std::snprintf(text, sizeof(text), "Half extents %.2f  %.2f  %.2f",
+                                  collider.HalfExtents.x, collider.HalfExtents.y, collider.HalfExtents.z);
+                    break;
+                case Zeyrixon::ColliderShape::Sphere:
+                    std::snprintf(text, sizeof(text), "Radius %.2f", collider.Radius);
+                    break;
+                default:
+                    std::snprintf(text, sizeof(text), "Radius %.2f  Height %.2f", collider.Radius, collider.Height);
+                    break;
+            }
+            drawList->AddText(ImVec2(mouse.x + 14.0f, mouse.y + 10.0f), IM_COL32(255, 255, 255, 255), text);
         }
     }
 
@@ -933,6 +1258,34 @@ namespace Editor
 
             if (m_ActiveWorld)
                 Zeyrixon::WorldRenderer::RenderSprites(*m_ActiveWorld, view, projection);
+
+            // Physics wireframes, last so they sit on top. Colour tells the body type at a glance:
+            // blue = static (no RigidBody, or Static), green = dynamic, yellow = kinematic. The selected
+            // entity's collider is brighter.
+            if (m_ShowColliders && m_ActiveWorld)
+            {
+                auto& registry = m_ActiveWorld->GetRegistry();
+                for (auto [handle, transform, collider] : registry.view<Zeyrixon::TransformComponent, Zeyrixon::ColliderComponent>().each())
+                {
+                    glm::vec4 color(0.3f, 0.6f, 1.0f, 0.8f);
+                    if (registry.all_of<Zeyrixon::RigidBodyComponent>(handle))
+                    {
+                        switch (registry.get<Zeyrixon::RigidBodyComponent>(handle).Type)
+                        {
+                            case Zeyrixon::BodyType::Dynamic:   color = glm::vec4(0.2f, 0.9f, 0.3f, 0.8f); break;
+                            case Zeyrixon::BodyType::Kinematic: color = glm::vec4(1.0f, 0.85f, 0.2f, 0.8f); break;
+                            default: break;
+                        }
+                    }
+
+                    if (m_SelectedEntity && handle == m_SelectedEntity.Handle())
+                        color = glm::vec4(glm::mix(glm::vec3(color), glm::vec3(1.0f), 0.45f), 1.0f);
+
+                    Zeyrixon::Physics::DrawColliderWireframe(collider, transform, color);
+                }
+
+                Zeyrixon::DebugRenderer::Flush(view, projection);
+            }
         }
 
         m_Framebuffer->Unbind();
@@ -1029,6 +1382,7 @@ namespace Editor
 
         // Light icons first, so the move/rotate gizmo of a selected light is drawn on top of its icon.
         DrawLightGizmos();
+        DrawColliderGizmo();
         DrawGizmo();
 
         // No deleting while in Game View (the selection isn't visible there).
@@ -1053,6 +1407,8 @@ namespace Editor
                 if (ImGui::Button("\U000F0D98"))   { m_GizmoOperation = ImGuizmo::ROTATE; }
                 ImGui::SameLine();
                 if (ImGui::Button("\U000F0A68"))   { m_GizmoOperation = ImGuizmo::SCALE; }
+                ImGui::SameLine();
+                ImGui::Checkbox("Colliders", &m_ShowColliders);
 
                 ImGui::PopStyleVar();
                 ImGui::PopStyleColor();
@@ -1142,6 +1498,7 @@ namespace Editor
             && ImGui::IsMouseClicked(ImGuiMouseButton_Left)
             && !ImGui::IsAnyItemHovered()
             && !ImGuizmo::IsOver()
+            && m_HoveredColliderHandle < 0 && m_ActiveColliderHandle < 0   // clicking a resize handle is not a click on empty space
             && !Zeyrixon::Input::IsKeyPressed(Z_KEY_LEFT_ALT))
         {
             const ImVec2 mouse = ImGui::GetMousePos();
@@ -1280,6 +1637,11 @@ namespace Editor
                 if (ImGui::SliderFloat("Ambient Light", &ambient, 0.0f, 1.0f))
                     m_ActiveWorld->SetAmbientIntensity(ambient);
                 ImGui::TextDisabled("0 = only lights light the scene.");
+
+                glm::vec3 gravity = m_ActiveWorld->GetGravity();
+                if (ImGui::DragFloat3("Gravity", &gravity.x, 0.05f))
+                    m_ActiveWorld->SetGravity(gravity);
+                ImGui::TextDisabled("Units per second squared. Read when Play starts.");
             }
             else
                 ImGui::TextDisabled("Nothing selected.");
