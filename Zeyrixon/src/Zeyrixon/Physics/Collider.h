@@ -28,9 +28,17 @@ namespace Zeyrixon::Physics
     Z_API glm::quat EulerToQuat(const glm::vec3& radians);
     Z_API glm::vec3 QuatToEuler(const glm::quat& rotation);
 
-    Z_API ColliderShapeWorld ComputeWorldShape(const ColliderComponent& collider, const TransformComponent& transform);
+    // One slot of a collider, after the entity's transform has been applied.
+    Z_API ColliderShapeWorld ComputeWorldShape(const ColliderSlot& slot, const TransformComponent& transform);
 
-    // The wireframe of a collider, queued on the DebugRenderer. The caller flushes.
-    Z_API void DrawColliderWireframe(const ColliderComponent& collider, const TransformComponent& transform,
+    /* Where the whole collider balances, as an offset from the entity's origin in the entity's own space
+       (scale applied, rotation not). One slot: that slot's Offset. Several: the average of their centres
+       weighted by volume, so a big box with a small sphere on a stalk balances near the box instead of at the
+       entity's origin. The physics body is placed there, which is what makes a dynamic body with offset
+       shapes tip and roll the way you'd expect. */
+    Z_API glm::vec3 ComputeCenterOfMassOffset(const ColliderComponent& collider, const TransformComponent& transform);
+
+    // The wireframe of one slot, queued on the DebugRenderer. The caller flushes.
+    Z_API void DrawColliderWireframe(const ColliderSlot& slot, const TransformComponent& transform,
                                      const glm::vec4& color);
 }

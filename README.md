@@ -146,14 +146,14 @@ Two components drive it, both in **Add Component**:
 
 | Component | What it does |
 |---|---|
-| `Collider` | The shape: Box, Sphere or Capsule, with a centre offset. On its own it is a static obstacle (floor, wall). |
+| `Collider` | The shape(s). A list of **slots**, like a mesh's materials: each slot is a Box, Sphere or Capsule with its own centre offset, and several slots move together as one body (a capsule body plus a sphere head; a table top plus four legs). On its own it is a static obstacle (floor, wall). |
 | `RigidBody` | Makes the collider move: **Dynamic** (gravity, collisions), **Kinematic** (you move it, it pushes others) or **Static**. Mass, friction, bounciness, damping, gravity and rotation lock. |
 
 Gravity is a world setting (select nothing, look at **Properties**). Dynamic bodies write their result into the entity's Transform, so scripts and the renderer need no changes; if a script moves an entity, its body follows.
 
 **Moving things that must not go through walls.** `entity.position = ...` teleports. `entity.Move(Vec3)` is the safe version for entities with a Collider and a **Kinematic** RigidBody: it sweeps the collider's real shape along the movement, stops just short of the first static collider, and slides the rest of the movement along the surface. It returns `true` if something got in the way, so moving straight down each frame doubles as a "standing on the floor" check. Only static colliders (no RigidBody, or a Static one) block it; dynamic bodies are pushed out of the way instead, so a crate pinned between a Kinematic body and a wall gets squeezed into the wall. See `examples/Walker.as` for a complete example (WASD, gravity, jumping).
 
-In the viewport, the **Colliders** checkbox draws every collider as a wireframe (blue = static, green = dynamic, yellow = kinematic; the selected one is brighter). Tick **Edit Collider in Viewport** in the Collider inspector to get drag handles that resize it, or use **Fit to Mesh**. Sizes are multiplied by the entity's Scale.
+In the viewport, the **Colliders** checkbox draws every collider as a wireframe (blue = static, green = dynamic, yellow = kinematic; the selected one is brighter). Tick **Edit in Viewport** on a slot to get drag handles that resize it (one slot at a time; the one being edited is drawn brightest). **Fit to Mesh** wraps the slot around the whole mesh, or around one submesh if you set the slot's **Submesh Index**, and **One Slot per Submesh** makes a box around every part of a multi-part mesh. Adding or removing slots while playing takes effect on the next Play. Sizes are multiplied by the entity's Scale.
 
 ## Making a game project
 

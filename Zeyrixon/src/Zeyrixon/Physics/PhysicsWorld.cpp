@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 namespace Zeyrixon
 {
@@ -69,11 +70,19 @@ namespace Zeyrixon
     struct PhysicsWorld::Impl
     {
         /* One simulated entity. The members are declared in the order they must be DESTROYED in, reversed:
-           the body goes first, then the motion state and the shape it points to. */
+           the body goes first, then the motion state, the compound shape, and finally the shapes inside it. */
         struct Body
         {
-            std::unique_ptr<btCollisionShape> Shape;
-            btConvexShape* Convex = nullptr;   // the same object as Shape; the sweep test needs the convex interface
+            // One shape per collider slot. All of them are convex (box, sphere, capsule), which is what lets
+            // MoveAndSlide sweep them.
+            std::vector<std::unique_ptr<btCollisionShape>> Children;
+            std::vector<btConvexShape*> Convex;                // the same objects as Children, as convex shapes
+
+            // With 2+ slots the body's shape is a compound that holds the children; with one slot it is just
+            // that child, exactly as it was before slots existed.
+            std::unique_ptr<btCompoundShape> Compound;
+            btCollisionShape* Shape = nullptr;                 // what the rigid body actually uses
+
             std::unique_ptr<btDefaultMotionState> MotionState;
             std::unique_ptr<btRigidBody> RigidBody;
 
@@ -103,14 +112,47 @@ namespace Zeyrixon
             Bodies.clear();
         }
 
+        /* The body is placed at the collider's CENTRE OF MASS, not at the entity's origin, and each slot is
+           placed relative to that. For one slot the centre of mass is the slot's own centre, so the body sits
+           exactly on the shape; for several it is their volume-weighted average. The entity's position is
+           always `body position - rotation * centreOfMass`. */
+        glm::vec3 BodyOrigin(const ColliderComponent& collider, const TransformComponent& transform) const
+        {
+            const glm::quat rotation = Physics::EulerToQuat(transform.Rotation);
+            return transform.Position + rotation * Physics::ComputeCenterOfMassOffset(collider, transform);
+        }
+
         void CreateBody(entt::registry& registry, entt::entity entity,
                         const TransformComponent& transform, const ColliderComponent& collider)
         {
-            const Physics::ColliderShapeWorld shape = Physics::ComputeWorldShape(collider, transform);
-
             Body body;
-            body.Shape = MakeShape(collider.Shape, shape);
-            body.Convex = static_cast<btConvexShape*>(body.Shape.get());   // box, sphere and capsule are all convex
+
+            const glm::vec3 centerOfMass = Physics::ComputeCenterOfMassOffset(collider, transform);
+
+            for (const ColliderSlot& slot : collider.Slots)
+            {
+                body.Children.push_back(MakeShape(slot.Shape, Physics::ComputeWorldShape(slot, transform)));
+                body.Convex.push_back(static_cast<btConvexShape*>(body.Children.back().get()));   // box, sphere, capsule: all convex
+            }
+
+            if (body.Children.size() == 1)
+            {
+                body.Shape = body.Children[0].get();
+            }
+            else
+            {
+                body.Compound = std::make_unique<btCompoundShape>();
+                for (size_t i = 0; i < body.Children.size(); ++i)
+                {
+                    // Each child sits at its own centre, measured from the centre of mass. The body's rotation
+                    // is the entity's, so the entity's own axes are the body's axes and no rotation is needed here.
+                    btTransform local;
+                    local.setIdentity();
+                    local.setOrigin(ToBullet(collider.Slots[i].Offset * transform.Scale - centerOfMass));
+                    body.Compound->addChildShape(local, body.Children[i].get());
+                }
+                body.Shape = body.Compound.get();
+            }
 
             // A collider with no RigidBody is simply a static obstacle (floors, walls).
             const RigidBodyComponent* settings = registry.all_of<RigidBodyComponent>(entity)
@@ -128,11 +170,11 @@ namespace Zeyrixon
 
             btTransform start;
             start.setIdentity();
-            start.setOrigin(ToBullet(shape.Center));
-            start.setRotation(ToBullet(shape.Rotation));
+            start.setOrigin(ToBullet(BodyOrigin(collider, transform)));
+            start.setRotation(ToBullet(Physics::EulerToQuat(transform.Rotation)));
             body.MotionState = std::make_unique<btDefaultMotionState>(start);
 
-            btRigidBody::btRigidBodyConstructionInfo info(mass, body.MotionState.get(), body.Shape.get(), inertia);
+            btRigidBody::btRigidBodyConstructionInfo info(mass, body.MotionState.get(), body.Shape, inertia);
             if (settings)
             {
                 info.m_friction = settings->Friction;
@@ -174,12 +216,10 @@ namespace Zeyrixon
         // Teleports a body to where its entity's transform says it should be.
         void PushTransform(Body& body, const ColliderComponent& collider, const TransformComponent& transform)
         {
-            const Physics::ColliderShapeWorld shape = Physics::ComputeWorldShape(collider, transform);
-
             btTransform target;
             target.setIdentity();
-            target.setOrigin(ToBullet(shape.Center));
-            target.setRotation(ToBullet(shape.Rotation));
+            target.setOrigin(ToBullet(BodyOrigin(collider, transform)));
+            target.setRotation(ToBullet(Physics::EulerToQuat(transform.Rotation)));
 
             body.RigidBody->setWorldTransform(target);
             body.MotionState->setWorldTransform(target);
@@ -217,7 +257,8 @@ namespace Zeyrixon
     {
         for (auto [entity, transform, collider] : registry.view<TransformComponent, ColliderComponent>().each())
         {
-            if (!m_Impl->Bodies.contains(entity))
+            // A collider with no slots has no shape, so there is nothing to simulate.
+            if (!collider.Slots.empty() && !m_Impl->Bodies.contains(entity))
                 m_Impl->CreateBody(registry, entity, transform, collider);
         }
     }
@@ -247,9 +288,19 @@ namespace Zeyrixon
         auto& transform = registry.get<TransformComponent>(entity);
         const auto& collider = registry.get<ColliderComponent>(entity);
 
+        /* Every slot is swept, and the CLOSEST hit among them wins: a character whose head sphere would hit a
+           low ceiling stops there even though its capsule body would have fit. All slots move together, so a
+           single displacement describes where they all are. Slots added after Play started have no shape yet
+           and are skipped. */
+        const glm::quat rotation = Physics::EulerToQuat(transform.Rotation);
+        const size_t slotCount = std::min(body.Convex.size(), collider.Slots.size());
+
         // Sweep from where the ENTITY is, not from where the body last was: a script may have moved it already.
-        const Physics::ColliderShapeWorld shape = Physics::ComputeWorldShape(collider, transform);
-        glm::vec3 center = shape.Center;
+        std::vector<glm::vec3> startCenters(slotCount);
+        for (size_t i = 0; i < slotCount; ++i)
+            startCenters[i] = Physics::ComputeWorldShape(collider.Slots[i], transform).Center;
+
+        glm::vec3 displacement(0.0f);
         glm::vec3 remaining = delta;
         bool blocked = false;
 
@@ -263,20 +314,32 @@ namespace Zeyrixon
                 break;
             const glm::vec3 direction = remaining / length;
 
-            btTransform from, to;
-            from.setIdentity();
-            to.setIdentity();
-            from.setRotation(ToBullet(shape.Rotation));
-            to.setRotation(ToBullet(shape.Rotation));
-            from.setOrigin(ToBullet(center));
-            to.setOrigin(ToBullet(center + remaining));
-
-            SolidSweepCallback hit(from.getOrigin(), to.getOrigin(), body.RigidBody.get());
-            m_Impl->World.convexSweepTest(body.Convex, from, to, hit);
-
-            if (!hit.hasHit())
+            // The earliest thing any slot would run into.
+            float closestFraction = 2.0f;
+            glm::vec3 closestNormal(0.0f);
+            for (size_t i = 0; i < slotCount; ++i)
             {
-                center += remaining;   // nothing in the way: the whole remaining move happens
+                btTransform from, to;
+                from.setIdentity();
+                to.setIdentity();
+                from.setRotation(ToBullet(rotation));
+                to.setRotation(ToBullet(rotation));
+                from.setOrigin(ToBullet(startCenters[i] + displacement));
+                to.setOrigin(ToBullet(startCenters[i] + displacement + remaining));
+
+                SolidSweepCallback hit(from.getOrigin(), to.getOrigin(), body.RigidBody.get());
+                m_Impl->World.convexSweepTest(body.Convex[i], from, to, hit);
+
+                if (hit.hasHit() && hit.m_closestHitFraction < closestFraction)
+                {
+                    closestFraction = hit.m_closestHitFraction;
+                    closestNormal = ToGlm(hit.m_hitNormalWorld);
+                }
+            }
+
+            if (closestFraction > 1.0f)
+            {
+                displacement += remaining;   // nothing in the way: the whole remaining move happens
                 remaining = glm::vec3(0.0f);
                 break;
             }
@@ -285,23 +348,22 @@ namespace Zeyrixon
 
             /* The sweep says "you can go `fraction` of the way before touching something". Go that far, minus
                the skin (but never backwards, so being already within the skin doesn't push us around). */
-            const float fraction = hit.m_closestHitFraction;
-            center += direction * std::max(length * fraction - skin, 0.0f);
+            displacement += direction * std::max(length * closestFraction - skin, 0.0f);
 
             /* The part of the movement we didn't get to make, minus the part that points INTO the surface,
                is the part that runs along it. That is the slide. The normal must face against our motion
                (a sweep can report it either way round), so flip it if it doesn't. */
-            glm::vec3 normal = ToGlm(hit.m_hitNormalWorld);
+            glm::vec3 normal = closestNormal;
             if (glm::dot(normal, direction) > 0.0f)
                 normal = -normal;
 
-            glm::vec3 leftover = remaining * (1.0f - fraction);
+            glm::vec3 leftover = remaining * (1.0f - closestFraction);
             leftover -= normal * glm::dot(leftover, normal);
             remaining = leftover;
         }
 
-        // The sweep worked on the collider's centre; the entity's origin is that minus the collider's offset.
-        transform.Position = center - shape.Rotation * (collider.Offset * transform.Scale);
+        // Every slot moved by the same amount, so the entity did too.
+        transform.Position += displacement;
 
         // The body itself catches up on the next Step (it sees the transform changed and moves there), and
         // for a kinematic body that is also what gives it the velocity it uses to push dynamic bodies.
@@ -342,9 +404,9 @@ namespace Zeyrixon
             auto& transform = registry.get<TransformComponent>(entity);
             const auto& collider = registry.get<ColliderComponent>(entity);
 
-            // Bullet reports where the collider's CENTRE is; undo the collider's offset to get the entity.
+            // Bullet reports where the centre of mass is; undo that offset to get the entity's origin.
             transform.Rotation = Physics::QuatToEuler(rotation);
-            transform.Position = ToGlm(result.getOrigin()) - rotation * (collider.Offset * transform.Scale);
+            transform.Position = ToGlm(result.getOrigin()) - rotation * Physics::ComputeCenterOfMassOffset(collider, transform);
 
             // We wrote these ourselves, so they must not look like somebody else's edit next frame.
             body.LastPosition = transform.Position;

@@ -132,18 +132,32 @@ namespace Zeyrixon
         Capsule = 2    // upright along the entity's local Y axis, like a pill
     };
 
-    /* The SHAPE of a physical object. On its own it is a static obstacle (a floor, a wall); add a RigidBody
-       to make it move. Everything is in the entity's local space, so the entity's Transform (including
-       Scale) is applied on top: a half-extent of 0.5 on an entity with scale 2 is a box 2 units wide.
-       See Physics/Collider.h for how this becomes a world-space shape. */
-    struct ColliderComponent
+    /* One collision shape. An entity's collider is a LIST of these (see ColliderComponent), the same way a
+       mesh's materials are a list of MaterialSlots: a character can be a capsule for the body plus a sphere
+       for the head, a table a box for the top plus four thin boxes for the legs. Everything is in the
+       entity's local space, so the entity's Transform (including Scale) is applied on top: a half-extent of
+       0.5 on an entity with scale 2 is a box 2 units wide. See Physics/Collider.h for how a slot becomes a
+       world-space shape. */
+    struct ColliderSlot
     {
-        ColliderShape Shape = ColliderShape::Box;
+        std::string Name;                // free text for you ("Head", "Left leg"); shown in the inspector
+        int SubmeshIndex = -1;           // editor only: which submesh "Fit to Mesh" wraps. -1 = the whole mesh.
+                                         // Physics never reads it; a shape stays where you put it.
 
-        glm::vec3 Offset{ 0.0f };        // centre of the collider relative to the entity's origin
+        ColliderShape Shape = ColliderShape::Box;
+        glm::vec3 Offset{ 0.0f };        // centre of this shape relative to the entity's origin
         glm::vec3 HalfExtents{ 0.5f };   // Box: half the size along X, Y, Z. (0.5 matches builtin:cube)
         float Radius = 0.5f;             // Sphere and Capsule
         float Height = 2.0f;             // Capsule: tip to tip, including both caps. Never less than 2 * Radius
+    };
+
+    /* The SHAPE of a physical object. On its own it is a static obstacle (a floor, a wall); add a RigidBody
+       to make it move. EnTT allows only one component of each type per entity, so the several shapes live in
+       a list inside the one component, exactly like MaterialComponent. With several slots the shapes move as
+       one rigid body. */
+    struct ColliderComponent
+    {
+        std::vector<ColliderSlot> Slots{ ColliderSlot{} };   // a new component starts with one box
     };
 
     enum class BodyType : int

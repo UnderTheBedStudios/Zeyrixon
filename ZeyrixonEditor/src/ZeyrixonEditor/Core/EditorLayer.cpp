@@ -27,6 +27,7 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <limits>
 
 namespace fs = std::filesystem;
 
@@ -59,6 +60,74 @@ namespace
        time, so one flag is enough. While it is on, the move/rotate/scale gizmo is hidden (both want the
        mouse) and the collider's resize handles are shown instead. */
     bool g_EditCollider = false;
+    int g_EditColliderSlot = 0;   // which of the collider's slots the handles resize
+
+    // True while the viewport handles are editing a slot of THIS entity's collider (and that slot exists).
+    bool EditingColliderSlot(Zeyrixon::Entity entity)
+    {
+        return g_EditCollider && entity && entity.HasComponent<Zeyrixon::ColliderComponent>()
+            && g_EditColliderSlot >= 0
+            && g_EditColliderSlot < static_cast<int>(entity.GetComponent<Zeyrixon::ColliderComponent>().Slots.size());
+    }
+
+    /* The bounding box, in the mesh's own space, of one submesh; or of the whole mesh when submeshIndex is -1
+       (or isn't a submesh of this mesh). A submesh is just a range of the index buffer, so this walks that
+       range and takes the extremes of the vertices it uses. For skinned glTF parts this is the rest pose. */
+    void GetSubmeshBounds(const Zeyrixon::Mesh& mesh, int submeshIndex, glm::vec3& boundsMin, glm::vec3& boundsMax)
+    {
+        boundsMin = mesh.GetBoundsMin();
+        boundsMax = mesh.GetBoundsMax();
+
+        const auto& submeshes = mesh.GetSubmeshes();
+        if (submeshIndex < 0 || submeshIndex >= static_cast<int>(submeshes.size()))
+            return;
+
+        const auto& vertices = mesh.GetVerticies();
+        const auto& indices = mesh.GetIndices();
+        const Zeyrixon::Submesh& submesh = submeshes[submeshIndex];
+
+        glm::vec3 lo(std::numeric_limits<float>::max());
+        glm::vec3 hi(std::numeric_limits<float>::lowest());
+        bool any = false;
+        for (size_t i = submesh.IndexOffset; i < static_cast<size_t>(submesh.IndexOffset) + submesh.IndexCount && i < indices.size(); ++i)
+        {
+            if (indices[i] >= vertices.size())
+                continue;
+
+            lo = glm::min(lo, vertices[indices[i]].Position);
+            hi = glm::max(hi, vertices[indices[i]].Position);
+            any = true;
+        }
+
+        if (any)   // an empty submesh keeps the whole-mesh box rather than a nonsense one
+        {
+            boundsMin = lo;
+            boundsMax = hi;
+        }
+    }
+
+    // Moves and sizes one slot so its shape wraps the given box (in the entity's own space).
+    void FitSlotToBounds(Zeyrixon::ColliderSlot& slot, const glm::vec3& boundsMin, const glm::vec3& boundsMax)
+    {
+        constexpr float minSize = 0.01f;
+        const glm::vec3 center = (boundsMin + boundsMax) * 0.5f;
+        const glm::vec3 half = (boundsMax - boundsMin) * 0.5f;
+
+        slot.Offset = center;
+        switch (slot.Shape)
+        {
+            case Zeyrixon::ColliderShape::Box:
+                slot.HalfExtents = glm::max(half, glm::vec3(minSize));
+                break;
+            case Zeyrixon::ColliderShape::Sphere:
+                slot.Radius = std::max({ half.x, half.y, half.z, minSize });
+                break;
+            case Zeyrixon::ColliderShape::Capsule:
+                slot.Radius = std::max({ half.x, half.z, minSize });
+                slot.Height = std::max(half.y * 2.0f, slot.Radius * 2.0f);
+                break;
+        }
+    }
 
     bool DeleteKeyPressed()
     {
@@ -207,62 +276,136 @@ namespace
         {
             auto& collider = entity.GetComponent<Zeyrixon::ColliderComponent>();
 
-            const char* shapeNames[] = { "Box", "Sphere", "Capsule" };
-            int shape = static_cast<int>(collider.Shape);
-            if (ImGui::Combo("Shape", &shape, shapeNames, IM_ARRAYSIZE(shapeNames)))
-                collider.Shape = static_cast<Zeyrixon::ColliderShape>(shape);
-
-            ImGui::DragFloat3("Center", &collider.Offset.x, 0.05f);
+            // The mesh, if the entity has one: "Fit to Mesh" and "One Slot per Submesh" read its bounds.
+            std::shared_ptr<Zeyrixon::Mesh> mesh;
+            if (entity.HasComponent<Zeyrixon::MeshComponent>())
+                mesh = Zeyrixon::MeshLibrary::Get(entity.GetComponent<Zeyrixon::MeshComponent>().MeshPath);
+            const int submeshCount = mesh ? static_cast<int>(mesh->GetSubmeshes().size()) : 0;
 
             constexpr float minSize = 0.01f;
-            switch (collider.Shape)
+
+            int removeIndex = -1;
+            for (int i = 0; i < static_cast<int>(collider.Slots.size()); ++i)
             {
-                case Zeyrixon::ColliderShape::Box:
-                    ImGui::DragFloat3("Half Extents", &collider.HalfExtents.x, 0.05f, minSize, 10000.0f);
-                    break;
+                auto& slot = collider.Slots[i];
 
-                case Zeyrixon::ColliderShape::Sphere:
-                    ImGui::DragFloat("Radius", &collider.Radius, 0.05f, minSize, 10000.0f);
-                    break;
+                // Without this, every slot's "Shape" combo, "Fit to Mesh" button, ... would share one ImGui ID.
+                ImGui::PushID(i);
 
-                case Zeyrixon::ColliderShape::Capsule:
-                    ImGui::DragFloat("Radius", &collider.Radius, 0.05f, minSize, 10000.0f);
-                    ImGui::DragFloat("Height", &collider.Height, 0.05f, minSize, 10000.0f);
-                    break;
-            }
+                std::string label = "Slot " + std::to_string(i);
+                if (!slot.Name.empty())
+                    label += " - " + slot.Name;
 
-            // A capsule can't be shorter than the two caps stacked on each other.
-            if (collider.Shape == Zeyrixon::ColliderShape::Capsule)
-                collider.Height = std::max(collider.Height, 2.0f * collider.Radius);
-
-            // Sizes are in the entity's own space; the entity's Scale is applied on top.
-            ImGui::TextDisabled("Sizes are multiplied by the entity's Scale.");
-
-            if (entity.HasComponent<Zeyrixon::MeshComponent>() && ImGui::Button("Fit to Mesh"))
-            {
-                if (std::shared_ptr<Zeyrixon::Mesh> mesh = Zeyrixon::MeshLibrary::Get(entity.GetComponent<Zeyrixon::MeshComponent>().MeshPath))
+                if (ImGui::TreeNodeEx(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                 {
-                    const glm::vec3 center = (mesh->GetBoundsMin() + mesh->GetBoundsMax()) * 0.5f;
-                    const glm::vec3 half = (mesh->GetBoundsMax() - mesh->GetBoundsMin()) * 0.5f;
+                    char name[64];
+                    std::snprintf(name, sizeof(name), "%s", slot.Name.c_str());
+                    if (ImGui::InputText("Name", name, sizeof(name)))
+                        slot.Name = name;
 
-                    collider.Offset = center;
-                    switch (collider.Shape)
+                    const char* shapeNames[] = { "Box", "Sphere", "Capsule" };
+                    int shape = static_cast<int>(slot.Shape);
+                    if (ImGui::Combo("Shape", &shape, shapeNames, IM_ARRAYSIZE(shapeNames)))
+                        slot.Shape = static_cast<Zeyrixon::ColliderShape>(shape);
+
+                    ImGui::DragFloat3("Center", &slot.Offset.x, 0.05f);
+
+                    switch (slot.Shape)
                     {
                         case Zeyrixon::ColliderShape::Box:
-                            collider.HalfExtents = glm::max(half, glm::vec3(minSize));
+                            ImGui::DragFloat3("Half Extents", &slot.HalfExtents.x, 0.05f, minSize, 10000.0f);
                             break;
+
                         case Zeyrixon::ColliderShape::Sphere:
-                            collider.Radius = std::max({ half.x, half.y, half.z, minSize });
+                            ImGui::DragFloat("Radius", &slot.Radius, 0.05f, minSize, 10000.0f);
                             break;
+
                         case Zeyrixon::ColliderShape::Capsule:
-                            collider.Radius = std::max({ half.x, half.z, minSize });
-                            collider.Height = std::max(half.y * 2.0f, collider.Radius * 2.0f);
+                            ImGui::DragFloat("Radius", &slot.Radius, 0.05f, minSize, 10000.0f);
+                            ImGui::DragFloat("Height", &slot.Height, 0.05f, minSize, 10000.0f);
                             break;
                     }
+
+                    // A capsule can't be shorter than the two caps stacked on each other.
+                    if (slot.Shape == Zeyrixon::ColliderShape::Capsule)
+                        slot.Height = std::max(slot.Height, 2.0f * slot.Radius);
+
+                    // Which part of the mesh "Fit to Mesh" wraps. Physics itself never reads this.
+                    ImGui::DragInt("Submesh Index", &slot.SubmeshIndex, 0.1f, -1, std::max(0, submeshCount - 1));
+                    if (slot.SubmeshIndex < 0)
+                        ImGui::TextDisabled("Fit to Mesh wraps the whole mesh");
+                    else if (slot.SubmeshIndex < submeshCount)
+                        ImGui::TextDisabled("Fit to Mesh wraps: %s", mesh->GetSubmeshes()[slot.SubmeshIndex].MaterialName.empty()
+                                            ? "(unnamed)" : mesh->GetSubmeshes()[slot.SubmeshIndex].MaterialName.c_str());
+
+                    if (mesh && ImGui::Button("Fit to Mesh"))
+                    {
+                        glm::vec3 boundsMin, boundsMax;
+                        GetSubmeshBounds(*mesh, slot.SubmeshIndex, boundsMin, boundsMax);
+                        FitSlotToBounds(slot, boundsMin, boundsMax);
+                    }
+
+                    // Only one slot at a time has handles, so ticking this on one slot moves them from another.
+                    bool editing = g_EditCollider && g_EditColliderSlot == i;
+                    if (ImGui::Checkbox("Edit in Viewport", &editing))
+                    {
+                        g_EditCollider = editing;
+                        g_EditColliderSlot = i;
+                    }
+
+                    if (collider.Slots.size() > 1 && ImGui::Button("Remove Slot"))
+                        removeIndex = i;   // erased after the loop, so the vector isn't changed mid-iteration
+
+                    ImGui::TreePop();
+                }
+
+                ImGui::PopID();
+            }
+
+            if (removeIndex >= 0)
+            {
+                collider.Slots.erase(collider.Slots.begin() + removeIndex);
+
+                // Keep the viewport handles on the same shape, or stop if that shape is the one that went.
+                if (g_EditColliderSlot == removeIndex)
+                    g_EditCollider = false;
+                else if (g_EditColliderSlot > removeIndex)
+                    --g_EditColliderSlot;
+            }
+
+            ImGui::Separator();
+            if (ImGui::Button("Add Slot"))
+            {
+                Zeyrixon::ColliderSlot slot;
+                slot.SubmeshIndex = static_cast<int>(collider.Slots.size()) < submeshCount
+                    ? static_cast<int>(collider.Slots.size()) : -1;
+                collider.Slots.push_back(slot);
+            }
+
+            // The collider equivalent of "Load from .mtl": one box around each part of the mesh.
+            if (submeshCount > 1)
+            {
+                ImGui::SameLine();
+                if (ImGui::Button("One Slot per Submesh"))
+                {
+                    collider.Slots.clear();
+                    for (int i = 0; i < submeshCount; ++i)
+                    {
+                        Zeyrixon::ColliderSlot slot;
+                        slot.Name = mesh->GetSubmeshes()[i].MaterialName;
+                        slot.SubmeshIndex = i;
+
+                        glm::vec3 boundsMin, boundsMax;
+                        GetSubmeshBounds(*mesh, i, boundsMin, boundsMax);
+                        FitSlotToBounds(slot, boundsMin, boundsMax);
+                        collider.Slots.push_back(slot);
+                    }
+                    g_EditCollider = false;   // the slot the handles pointed at is gone
                 }
             }
 
-            ImGui::Checkbox("Edit Collider in Viewport", &g_EditCollider);
+            // Sizes are in the entity's own space; the entity's Scale is applied on top.
+            ImGui::TextDisabled("Sizes are multiplied by the entity's Scale. Several slots move as one body.");
         });
 
         SetInspector("RigidBody", [](Zeyrixon::Entity entity)
@@ -561,8 +704,7 @@ namespace Editor
         ImGuizmo::SetRect(m_ViewportMin.x, m_ViewportMin.y, m_ViewportSize.x, m_ViewportSize.y);
 
         // While the collider's own resize handles are showing, the transform gizmo would fight them for the mouse.
-        const bool editingCollider = g_EditCollider && m_SelectedEntity
-            && m_SelectedEntity.HasComponent<Zeyrixon::ColliderComponent>();
+        const bool editingCollider = EditingColliderSlot(m_SelectedEntity);
 
         if (!m_SelectedEntity || m_GizmoOperation == 0 || editingCollider
             || !m_SelectedEntity.HasComponent<Zeyrixon::TransformComponent>())
@@ -599,9 +741,8 @@ namespace Editor
     {
         m_HoveredColliderHandle = -1;
 
-        const bool canEdit = g_EditCollider && !m_ShowGameView && m_ActiveWorld && m_SelectedEntity
-            && m_SelectedEntity.HasComponent<Zeyrixon::TransformComponent>()
-            && m_SelectedEntity.HasComponent<Zeyrixon::ColliderComponent>();
+        const bool canEdit = !m_ShowGameView && m_ActiveWorld && EditingColliderSlot(m_SelectedEntity)
+            && m_SelectedEntity.HasComponent<Zeyrixon::TransformComponent>();
         if (!canEdit)
         {
             m_ActiveColliderHandle = -1;
@@ -609,7 +750,10 @@ namespace Editor
         }
 
         auto& transform = m_SelectedEntity.GetComponent<Zeyrixon::TransformComponent>();
-        auto& collider = m_SelectedEntity.GetComponent<Zeyrixon::ColliderComponent>();
+
+        // From here on `collider` is the ONE slot the handles resize (the rest of this function only ever
+        // deals with a single shape).
+        auto& collider = m_SelectedEntity.GetComponent<Zeyrixon::ColliderComponent>().Slots[g_EditColliderSlot];
 
         // The shape exactly as the physics engine sees it, and its local axes as they point in the world.
         const Zeyrixon::Physics::ColliderShapeWorld shape = Zeyrixon::Physics::ComputeWorldShape(collider, transform);
@@ -1278,10 +1422,20 @@ namespace Editor
                         }
                     }
 
-                    if (m_SelectedEntity && handle == m_SelectedEntity.Handle())
-                        color = glm::vec4(glm::mix(glm::vec3(color), glm::vec3(1.0f), 0.45f), 1.0f);
+                    const bool selected = m_SelectedEntity && handle == m_SelectedEntity.Handle();
 
-                    Zeyrixon::Physics::DrawColliderWireframe(collider, transform, color);
+                    for (int i = 0; i < static_cast<int>(collider.Slots.size()); ++i)
+                    {
+                        glm::vec4 slotColor = color;
+                        if (selected)
+                        {
+                            // The slot whose handles are showing is brighter still, so you can tell which is which.
+                            const float brighten = (g_EditCollider && g_EditColliderSlot == i) ? 0.8f : 0.45f;
+                            slotColor = glm::vec4(glm::mix(glm::vec3(color), glm::vec3(1.0f), brighten), 1.0f);
+                        }
+
+                        Zeyrixon::Physics::DrawColliderWireframe(collider.Slots[i], transform, slotColor);
+                    }
                 }
 
                 Zeyrixon::DebugRenderer::Flush(view, projection);

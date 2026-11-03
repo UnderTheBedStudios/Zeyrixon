@@ -57,6 +57,31 @@ namespace Zeyrixon
             n.append_attribute("Packed") = s.PackedMetallicRoughness;
         }
 
+        void WriteColliderSlot(const ColliderSlot& s, pugi::xml_node n)
+        {
+            n.append_attribute("Name") = s.Name.c_str();
+            n.append_attribute("Index") = s.SubmeshIndex;
+            n.append_attribute("Shape") = static_cast<int>(s.Shape);
+            n.append_attribute("Offset") = Vec3ToString(s.Offset).c_str();
+            n.append_attribute("HalfExtents") = Vec3ToString(s.HalfExtents).c_str();
+            n.append_attribute("Radius") = s.Radius;
+            n.append_attribute("Height") = s.Height;
+        }
+
+        ColliderSlot ReadColliderSlot(pugi::xml_node n)
+        {
+            ColliderSlot s;
+            s.Name = n.attribute("Name").as_string();
+            s.SubmeshIndex = n.attribute("Index").as_int(-1);
+            const int shape = n.attribute("Shape").as_int(static_cast<int>(s.Shape));
+            s.Shape = (shape >= 0 && shape <= 2) ? static_cast<ColliderShape>(shape) : ColliderShape::Box;
+            s.Offset = StringToVec3(n.attribute("Offset").as_string(""), s.Offset);
+            s.HalfExtents = StringToVec3(n.attribute("HalfExtents").as_string(""), s.HalfExtents);
+            s.Radius = n.attribute("Radius").as_float(s.Radius);
+            s.Height = n.attribute("Height").as_float(s.Height);
+            return s;
+        }
+
         MaterialSlot ReadMaterialSlot(pugi::xml_node n)
         {
             MaterialSlot s;
@@ -246,22 +271,24 @@ namespace Zeyrixon
         auto& collider = Register<ColliderComponent>("Collider");
         collider.Serialize = [](Entity e, pugi::xml_node node)
         {
-            auto& c = e.GetComponent<ColliderComponent>();
-            node.append_attribute("Shape") = static_cast<int>(c.Shape);
-            node.append_attribute("Offset") = Vec3ToString(c.Offset).c_str();
-            node.append_attribute("HalfExtents") = Vec3ToString(c.HalfExtents).c_str();
-            node.append_attribute("Radius") = c.Radius;
-            node.append_attribute("Height") = c.Height;
+            for (const ColliderSlot& slot : e.GetComponent<ColliderComponent>().Slots)
+                WriteColliderSlot(slot, node.append_child("Slot"));
         };
         collider.Deserialize = [](Entity e, pugi::xml_node node)
         {
             auto& c = e.GetComponent<ColliderComponent>();
-            const int shape = node.attribute("Shape").as_int(static_cast<int>(c.Shape));
-            c.Shape = (shape >= 0 && shape <= 2) ? static_cast<ColliderShape>(shape) : ColliderShape::Box;
-            c.Offset = StringToVec3(node.attribute("Offset").as_string(""), c.Offset);
-            c.HalfExtents = StringToVec3(node.attribute("HalfExtents").as_string(""), c.HalfExtents);
-            c.Radius = node.attribute("Radius").as_float(c.Radius);
-            c.Height = node.attribute("Height").as_float(c.Height);
+            c.Slots.clear();
+
+            if (node.child("Slot"))
+            {
+                for (pugi::xml_node slotNode : node.children("Slot"))
+                    c.Slots.push_back(ReadColliderSlot(slotNode));
+            }
+            else
+            {
+                // The first format kept the attributes on <Collider> itself: one shape. Keep reading it.
+                c.Slots.push_back(ReadColliderSlot(node));
+            }
         };
 
         auto& rigidBody = Register<RigidBodyComponent>("RigidBody");

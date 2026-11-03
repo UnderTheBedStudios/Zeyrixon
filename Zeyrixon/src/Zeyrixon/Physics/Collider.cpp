@@ -69,7 +69,7 @@ namespace Zeyrixon::Physics
         return glm::vec3(x, y, z);
     }
 
-    ColliderShapeWorld ComputeWorldShape(const ColliderComponent& c, const TransformComponent& t)
+    ColliderShapeWorld ComputeWorldShape(const ColliderSlot& c, const TransformComponent& t)
     {
         ColliderShapeWorld s;
         s.Rotation = EulerToQuat(t.Rotation);
@@ -104,7 +104,41 @@ namespace Zeyrixon::Physics
         return s;
     }
 
-    void DrawColliderWireframe(const ColliderComponent& collider, const TransformComponent& transform,
+    glm::vec3 ComputeCenterOfMassOffset(const ColliderComponent& collider, const TransformComponent& transform)
+    {
+        if (collider.Slots.empty())
+            return glm::vec3(0.0f);
+
+        // Volume of each shape, from the same scaled sizes the physics engine builds them with.
+        auto volume = [](const ColliderShapeWorld& s, ColliderShape shape) -> float
+        {
+            constexpr float pi = glm::pi<float>();
+            switch (shape)
+            {
+                case ColliderShape::Sphere:  return 4.0f / 3.0f * pi * s.Radius * s.Radius * s.Radius;
+                case ColliderShape::Capsule: return pi * s.Radius * s.Radius * 2.0f * (s.HalfHeight - s.Radius)
+                                                  + 4.0f / 3.0f * pi * s.Radius * s.Radius * s.Radius;
+                default:                     return 8.0f * s.HalfExtents.x * s.HalfExtents.y * s.HalfExtents.z;
+            }
+        };
+
+        glm::vec3 weighted(0.0f);
+        glm::vec3 plain(0.0f);
+        float totalVolume = 0.0f;
+        for (const ColliderSlot& slot : collider.Slots)
+        {
+            const glm::vec3 center = slot.Offset * transform.Scale;   // signed scale: a mirrored entity mirrors its offsets
+            const float v = volume(ComputeWorldShape(slot, transform), slot.Shape);
+            weighted += center * v;
+            plain += center;
+            totalVolume += v;
+        }
+
+        // Volumes can't all be zero (sizes have a floor), but don't divide by zero if they ever are.
+        return totalVolume > 0.0f ? weighted / totalVolume : plain / static_cast<float>(collider.Slots.size());
+    }
+
+    void DrawColliderWireframe(const ColliderSlot& collider, const TransformComponent& transform,
                                const glm::vec4& color)
     {
         const ColliderShapeWorld s = ComputeWorldShape(collider, transform);
