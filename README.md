@@ -203,7 +203,7 @@ sequenceDiagram
 ```
 ## Examples
 ### Multi Material Meshes examples:
-![Sponza Example](./Readme%20Resources/Materials%20Example.png)
+![Sponza Example](./Readme%20Resources/Sponza%20Example.png)
 
 
 ## Troubleshooting
