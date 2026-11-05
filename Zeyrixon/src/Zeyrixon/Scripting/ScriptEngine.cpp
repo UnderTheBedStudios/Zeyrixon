@@ -238,10 +238,35 @@ namespace Zeyrixon
         int  InputGetMouseMode()                { return static_cast<int>(Input::GetCursorMode()); }
         void InputSetMouseMode(int mode)        { Input::SetCursorMode(static_cast<CursorMode>(mode)); }
 
+        ScriptVec3 GetGravity()
+        {
+            if (!s_CurrentWorld)
+            {
+                Z_WARN("Could not find the world, therefore we could not get the gravity");
+                return {};
+            }
+
+            return ScriptVec3(s_CurrentWorld->GetGravity());
+        }
+
+        void SetGravity(ScriptVec3 Vector)
+        {
+            if (!s_CurrentWorld)
+            {
+                Z_WARN("Could not find the world, therefore we could not set the gravity");
+                return;
+            }
+
+            s_CurrentWorld->SetGravity(glm::vec3(Vector));
+        }
+
         ScriptEntity FindEntity(const std::string& name)
         {
             if (!s_CurrentWorld)
+            {
+                Z_WARN("Scripting Engine could not find the currently opened world, So we couldn't find the Entity.");
                 return {};
+            }
 
             auto view = s_CurrentWorld->GetRegistry().view<TagComponent>();
             for (auto handle : view)
@@ -249,6 +274,8 @@ namespace Zeyrixon
                 if (view.get<TagComponent>(handle).Tag == name)
                     return { handle, s_CurrentWorld };
             }
+
+            Z_WARN("Could not find the Entity!");
             return {};
         }
 
@@ -452,6 +479,18 @@ namespace Zeyrixon
             return ok;
         }
 
+        bool RegisterWorld(asIScriptEngine* engine)
+        {
+            bool ok = true;
+        
+            AS_REG(engine->SetDefaultNamespace("World"));
+            AS_REG(engine->RegisterGlobalFunction("Vec3 GetGravity()", WRAP_FN(GetGravity), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("void SetGravity(const Vec3 &in)", WRAP_FN(SetGravity), asCALL_GENERIC));
+
+            AS_REG(engine->SetDefaultNamespace(""));
+            return ok;
+        }
+
         // ------------------------------------------------------------------------------------
         //  Running scripts
         // ------------------------------------------------------------------------------------
@@ -571,6 +610,7 @@ namespace Zeyrixon
         ok &= RegisterVec2(engine);
         ok &= RegisterEntity(engine);
         ok &= RegisterLogAndInput(engine);
+        ok &= RegisterWorld(engine);
         if (!ok)
             Z_CORE_ERROR("Some script API failed to register; see the errors above");
 
