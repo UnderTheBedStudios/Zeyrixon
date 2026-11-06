@@ -115,6 +115,7 @@ namespace
         WriteFromTemplate(templates / "gitignore.in", projectDirectory / ".gitignore", tokens);
         WriteFromTemplate(templates / "main.cpp.in", codeDirectory / "main.cpp", tokens);
         WriteFromTemplate(templates / "Example.as.in", assetDirectory / "Scripts" / "Example.as", tokens);
+        WriteFromTemplate(templates / "as.predefined.in", projectDirectory / "as.predefined", tokens);
     }
 }
 

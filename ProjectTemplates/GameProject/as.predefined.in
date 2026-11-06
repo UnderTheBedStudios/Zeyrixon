@@ -1,0 +1,159 @@
+class string {}
+
+/** This is a list of keys */
+enum Key
+{
+    Space = 32,
+    Apostrophe = 39,
+    Comma = 44,
+    Minus = 45,
+    Period = 46,
+    Slash = 47,
+    Num0 = 48, Num1, Num2, Num3, Num4, Num5, Num6, Num7, Num8, Num9,
+    Semicolon = 59,
+    Equal = 61,
+    A = 65, B, C, D, E, F, G, H, I, J, K, L, M,
+    N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+    LeftBracket = 91,
+    Backslash = 92,
+    RightBracket = 93,
+    GraveAccent = 96,
+    World1 = 161,
+    World2 = 162,
+    Escape = 256,
+    Enter, Tab, Backspace, Insert, Delete,
+    Right, Left, Down, Up,
+    PageUp, PageDown, Home, End,
+    CapsLock = 280,
+    ScrollLock, NumLock, PrintScreen, Pause,
+    F1 = 290, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
+    F13, F14, F15, F16, F17, F18, F19, F20, F21, F22, F23, F24, F25,
+    Keypad0 = 320, Keypad1, Keypad2, Keypad3, Keypad4,
+    Keypad5, Keypad6, Keypad7, Keypad8, Keypad9,
+    KeypadDecimal, KeypadDivide, KeypadMultiply,
+    KeypadSubtract, KeypadAdd, KeypadEnter, KeypadEqual,
+    LeftShift = 340, LeftControl, LeftAlt, LeftSuper,
+    RightShift, RightControl, RightAlt, RightSuper,
+    Menu
+}
+
+/** This is a list of different CursorModes the user can have */
+enum CursorMode
+{
+    Normal = 0,
+    Hidden =1,
+    Locked = 2
+}
+
+/** This is an object that can be transformed and be a bunch of different things. */
+class Entity
+{
+    /** This is the entity's name, obviously */
+    string name;
+    /** This is the entity's position, obviously */
+    Vec3 position;
+    /** This is the entity's rotation, obviously */
+    Vec3 rotation;
+    /** This is the entity's scale, obviously */
+    Vec3 scale;
+    /** This is the entity's identification number */
+    int id;
+
+    /** This checks in the entity actually exists */
+    bool IsValid();
+    /** This gets the vector of where the entity is facing when it comes to it's forward direction */
+    Vec3 Forward();
+    /** This gets the vector of where the entity is facing when it comes to it's right direction */
+    Vec3 Right();
+    /** This gets the vector of where the entity is facing when it comes to it's Up direction */
+    Vec3 Up();
+    /** This just moves the entity... what did you expect? */
+    void Move(const Vec3 &in delta);
+}
+
+/** This is a controller than can detect input */
+class Input
+{
+    /** This checks if a key is down on the keyboard, obviously */
+    bool IsKeyDown(Key key);
+    /** This sets the mouse mode */
+    void SetMouseMode(CursorMode mode);
+    /** This finds the mouse's X position */
+    float MouseX();
+    /** This finds the mouse's Y position */
+    float MouseY();
+}
+
+/** This is something that allows you to move, rotate, and scale things in 3D space */
+class Vec3
+{
+    float x; float y; float z;
+
+    Vec3();
+    Vec3(float x, float y, float z);
+
+    float Length() const;
+    Vec3 Normalized() const;
+    float Dot(const Vec3 &in other) const;
+    Vec3 Cross(const Vec3 &in other) const;
+
+    Vec3 opAdd(const Vec3 &in other) const;
+    Vec3 opSub(const Vec3 &in other) const;
+    Vec3 opMul(float s) const;      // Vec3 * float
+    Vec3 opMul_r(float s) const;    // float * Vec3
+    Vec3 opDiv(float s) const;
+    Vec3 opNeg() const;
+    Vec3 &opAddAssign(const Vec3 &in other);
+    Vec3 &opSubAssign(const Vec3 &in other);
+    Vec3 &opMulAssign(float s);
+    bool opEquals(const Vec3 &in other) const;
+}
+
+/** This is something that allows you to move, rotate, and scale things in 2D space */
+class Vec2
+{
+    float x; float y;
+
+    Vec2();
+    Vec2(float x, float y);
+
+    float Length() const;
+    Vec2 Normalized() const;
+    float Dot(const Vec2 &in other) const;
+
+    Vec2 opAdd(const Vec2 &in other) const;
+    Vec2 opSub(const Vec2 &in other) const;
+    Vec2 opMul(float s) const;
+    Vec2 opMul_r(float s) const;
+    Vec2 opDiv(float s) const;
+    Vec2 opNeg() const;
+    Vec2 &opAddAssign(const Vec2 &in other);
+    Vec2 &opSubAssign(const Vec2 &in other);
+    Vec2 &opMulAssign(float s);
+    bool opEquals(const Vec2 &in other) const;
+}
+
+/** This is what contains everything */
+class World
+{
+    /** This gets the gravity of the world... obviously */
+    Vec3 GetGravity();
+    /** This sets the gravity of the world... obviously */
+    void SetGravity(const Vec3 &in g);
+}
+
+/** This just allows you to write things into the terminal, nothing too special */
+class Log
+{
+    /** This is pretty much just you sending information over that can be useful */
+    void Info(const string &in msg);
+    /** This can be used for unwanted behaviors that could cause issues in the future */
+    void Warn(const string &in msg);
+    /** This can be used for things that plainly shouldn't happen */
+    void Error(const string &in msg);
+    /** This is the most neutral kind of logging you can do */
+    void Trace(const string &in msg);
+}
+
+/** This allows you to find an entity in the world based on the entity's name */
+Entity@ FindEntity(const string &in name);
