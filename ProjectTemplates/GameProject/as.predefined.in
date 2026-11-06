@@ -68,7 +68,7 @@ class Entity
     /** This gets the vector of where the entity is facing when it comes to it's Up direction */
     Vec3 Up();
     /** This just moves the entity... what did you expect? */
-    void Move(const Vec3 &in delta);
+    bool Move(const Vec3 &in delta);
 }
 
 /** This is a controller than can detect input */
