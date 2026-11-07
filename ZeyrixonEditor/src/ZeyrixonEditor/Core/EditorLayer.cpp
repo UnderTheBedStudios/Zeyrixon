@@ -2126,6 +2126,59 @@ namespace Editor
 
         ImGui::Columns(1);
 
+        if (ImGui::BeginPopupContextWindow(nullptr, ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+        {
+            if (ImGui::MenuItem("Create Folder"))
+            {
+                if (fs::create_directory(m_SelectedDirectory / "New Folder"))
+                    Z_EDITOR_TRACE("Created a folder at: '{0}'", m_SelectedDirectory.string());
+                else
+                    Z_EDITOR_WARN("Failed to create a folder at: '{0}'", m_SelectedDirectory.string());
+            }
+            if (ImGui::MenuItem("Create World"))
+            {
+                std::filesystem::path filePath =
+                    std::filesystem::path(m_SelectedDirectory) / "NewWorld.zworld";
+
+                std::ofstream newWorld(filePath);
+
+                if (!newWorld)
+                    Z_EDITOR_WARN("Failed to create World!");
+
+                newWorld << R"(<?xml version="1.0"?>)" << "\n";
+                newWorld << R"(<World Name="NewWorld" Ambient="0" Gravity="0 -9.81000042 0">)" << "\n";
+                newWorld << "</World>\n";
+            }
+            if (ImGui::MenuItem("Create Script"))
+            {
+                std::filesystem::path filePath =
+                    std::filesystem::path(m_SelectedDirectory) / "NewScript.as";
+
+                std::ofstream newScript(filePath);
+
+                if (!newScript)
+                    Z_EDITOR_WARN("Failed to create Script!");
+
+                newScript << "class NewScript\n";
+                newScript << R"({)" << "\n";
+                newScript << R"(    void OnCreate())" << "\n";
+                newScript << R"(    {)" << "\n";
+                newScript << R"(        Log::Trace("Hello World!");)" << "\n";
+                newScript << R"(    })" << "\n";
+                newScript << R"(    void OnUpdate(float dt))" << "\n";
+                newScript << R"(    {)" << "\n";
+                newScript << R"(        Log::Trace("Script Updated");)" << "\n";
+                newScript << R"(    })" << "\n";
+                newScript << R"(    void OnDestroy())" << "\n";
+                newScript << R"(    {)" << "\n";
+                newScript << R"(        Log::Trace("Script destroyed!");)" << "\n";
+                newScript << R"(    })" << "\n";
+                newScript << R"(})" << "\n";
+            }
+
+            ImGui::EndPopup();
+        }
+
         ImGui::End();
     }
 
@@ -2143,5 +2196,20 @@ namespace Editor
 
         if (!m_ActiveWorld)
             Z_EDITOR_ERROR("Failed to load startup world for project '{0}'", m_ActiveProject->GetName());
+    }
+
+    void EditorLayer::LoadWorld(std::string worldPath)
+    {
+        if (m_IsPlaying && m_ActiveWorld)
+            m_ActiveWorld->OnRuntimeStop();
+        m_IsPlaying = false;
+
+        Zeyrixon::ScriptEngine::SetAssetRoot(m_ActiveProject->GetAssetDirectory());
+
+        m_SelectedEntity = {};
+        m_ActiveWorld = Zeyrixon::World::Load(worldPath);
+
+        if (!m_ActiveWorld)
+            Z_EDITOR_ERROR("Failed to load world for project '{0}'", m_ActiveProject->GetName());
     }
 }

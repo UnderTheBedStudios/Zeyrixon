@@ -38,6 +38,7 @@ namespace Editor
         void OnDetach() override;
 
         void LoadStartupWorld();
+        void LoadWorld(std::string worldPath);
 
     private:
         std::shared_ptr<Zeyrixon::OpenGLFramebuffer> m_Framebuffer;
