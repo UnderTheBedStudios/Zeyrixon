@@ -135,6 +135,7 @@ What scripts can use:
 | `Log::Info/Warn/Error/Trace`, `Print` | Writes to the Logger panel |
 | `Input::IsKeyDown(Key::W)`, `Input::IsMouseDown(MouseButton::Left)`, `Input::MouseX()/MouseY()` | Input |
 | `string`, `array<T>`, `sin cos sqrt pow ...` | The standard AngelScript add-ons |
+| `World` | `GetGravity()`, `SetGravity(Vec3)`, `ChangeWorld(string worldName)` |
 
 To offer your own C++ to scripts, register it on `Zeyrixon::ScriptEngine::GetEngine()` (see `Zeyrixon/src/Zeyrixon/Scripting/ScriptEngine.cpp` for how `Entity` and `Vec3` are done).
 
