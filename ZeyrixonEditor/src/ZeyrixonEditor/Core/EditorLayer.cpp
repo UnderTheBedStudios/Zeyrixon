@@ -2108,6 +2108,13 @@ namespace Editor
             if (isDir && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 m_SelectedDirectory = path;
 
+            if (!isDir && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+            {
+                m_ContextAsset = path;
+                if (m_ContextAsset.extension() == ".zworld")
+                    LoadWorld(m_ContextAsset.string());
+            }
+
             // Right-click released over THIS cell: remember it and ask for the menu.
             if (ImGui::IsItemHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
             {
