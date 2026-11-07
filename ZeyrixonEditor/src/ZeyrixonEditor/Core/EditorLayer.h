@@ -67,6 +67,10 @@ namespace Editor
         void DrawFileLeaf(const std::filesystem::path& file);
 
         std::filesystem::path m_SelectedDirectory;
+        std::filesystem::path m_ContextAsset;   // the Assets-panel item the context menu was opened on
+        char m_RenameBuffer[256] = {};          // text in the Rename dialog
+        bool m_OpenRenamePopup = false;         // set by the context menu, consumed by the Assets panel
+        std::string m_RenameError;              // shown in the Rename dialog when a rename is rejected
 
         std::shared_ptr<Zeyrixon::OpenGLTexture2D> m_FolderClosedIcon;
         std::shared_ptr<Zeyrixon::OpenGLTexture2D> m_FolderOpenIcon;

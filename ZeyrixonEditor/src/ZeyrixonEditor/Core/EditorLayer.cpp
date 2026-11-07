@@ -24,6 +24,7 @@
 #include <filesystem>
 #include <functional>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <vector>
 #include <algorithm>
@@ -2083,6 +2084,9 @@ namespace Editor
 
         ImGui::Columns(columnCount, nullptr, false);
 
+        // Set by a cell when it is right-clicked; the single shared popup is opened after the grid is drawn.
+        bool openItemPopup = false;
+
         // One grid cell: icon button on top, name wrapped/centered underneath.
         auto drawCell = [&](const fs::path& path, bool isDir)
         {
@@ -2103,6 +2107,13 @@ namespace Editor
             // Double-click a folder to navigate into it.
             if (isDir && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 m_SelectedDirectory = path;
+
+            // Right-click released over THIS cell: remember it and ask for the menu.
+            if (ImGui::IsItemHovered() && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+            {
+                m_ContextAsset = path;
+                openItemPopup = true;
+            }
 
             std::string name = path.filename().string();
             float startX = ImGui::GetCursorPosX();
@@ -2125,6 +2136,98 @@ namespace Editor
             drawCell(entry.path(), false);
 
         ImGui::Columns(1);
+
+        // One popup for the whole panel, opened outside any PushID so OpenPopup/BeginPopup agree on the ID.
+        if (openItemPopup)
+            ImGui::OpenPopup("AssetItemPopup");
+
+        if (ImGui::BeginPopup("AssetItemPopup"))
+        {
+            ImGui::TextDisabled("%s", m_ContextAsset.filename().string().c_str());
+            ImGui::Separator();
+
+            if (ImGui::MenuItem("Rename"))
+            {
+                Z_EDITOR_TRACE("Rename clicked for '{0}'", m_ContextAsset.string());
+                const std::string currentName = m_ContextAsset.filename().string();
+                strncpy(m_RenameBuffer, currentName.c_str(), sizeof(m_RenameBuffer) - 1);
+                m_RenameBuffer[sizeof(m_RenameBuffer) - 1] = '\0';
+                m_RenameError.clear();
+                m_OpenRenamePopup = true;   // opened below, outside this popup
+            }
+
+            if (ImGui::MenuItem("Delete"))
+            {
+                std::error_code rmEc;
+                if (fs::is_directory(m_ContextAsset, rmEc))
+                    fs::remove_all(m_ContextAsset, rmEc);
+                else
+                    fs::remove(m_ContextAsset, rmEc);
+
+                if (rmEc)
+                    Z_EDITOR_WARN("Failed to remove '{0}': {1}", m_ContextAsset.string(), rmEc.message());
+                else
+                    Z_EDITOR_TRACE("Removed '{0}'", m_ContextAsset.string());
+
+                m_ContextAsset.clear();
+            }
+            ImGui::EndPopup();
+        }
+
+        // Rename dialog. OpenPopup runs here, at panel level, so its ID matches BeginPopupModal below.
+        if (m_OpenRenamePopup)
+        {
+            ImGui::OpenPopup("Rename Asset");
+            m_OpenRenamePopup = false;
+        }
+
+        if (ImGui::BeginPopupModal("Rename Asset", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            if (ImGui::IsWindowAppearing())
+                ImGui::SetKeyboardFocusHere();
+
+            bool confirm = ImGui::InputText("##rename", m_RenameBuffer, sizeof(m_RenameBuffer),
+                ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
+
+            if (!m_RenameError.empty())
+                ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "%s", m_RenameError.c_str());
+
+            if (ImGui::Button("OK"))
+                confirm = true;
+            ImGui::SameLine();
+            const bool cancel = ImGui::Button("Cancel");
+
+            if (confirm)
+            {
+                const fs::path newName = m_RenameBuffer;
+                const fs::path target = m_ContextAsset.parent_path() / newName;
+                std::error_code renameEc;
+
+                if (newName.empty() || newName.filename() != newName)
+                    m_RenameError = "Enter a plain file or folder name.";
+                else if (target == m_ContextAsset)
+                    ImGui::CloseCurrentPopup();   // name unchanged
+                else if (fs::exists(target, renameEc))
+                    m_RenameError = "Something with that name already exists.";
+                else
+                {
+                    fs::rename(m_ContextAsset, target, renameEc);
+                    if (renameEc)
+                        m_RenameError = renameEc.message();
+                    else
+                    {
+                        Z_EDITOR_TRACE("Renamed '{0}' to '{1}'", m_ContextAsset.string(), target.string());
+                        m_ContextAsset.clear();
+                        ImGui::CloseCurrentPopup();
+                    }
+                }
+            }
+
+            if (cancel)
+                ImGui::CloseCurrentPopup();
+
+            ImGui::EndPopup();
+        }
 
         if (ImGui::BeginPopupContextWindow(nullptr, ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
         {
