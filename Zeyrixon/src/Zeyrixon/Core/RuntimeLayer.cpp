@@ -52,6 +52,23 @@ namespace Zeyrixon
 
         m_World->OnUpdate(dt);
 
+        // A script called World::ChangeWorld. Done here, after the update has returned, so no script
+        // is on the call stack while the old world (and its scripts) is torn down.
+        std::string nextWorldPath;
+        if (ScriptEngine::ConsumeWorldChange(nextWorldPath))
+        {
+            std::shared_ptr<World> next = World::Load(nextWorldPath);
+            if (next)
+            {
+                m_World->OnRuntimeStop();
+                m_World = next;
+                if (!m_World->OnRuntimeStart())
+                    Z_CORE_ERROR("RuntimeLayer: the new world did not start (script errors?). Drawing it without scripts.");
+            }
+            else
+                Z_CORE_ERROR("RuntimeLayer: could not load world '{0}', staying in the current one", nextWorldPath);
+        }
+
         Entity camera = m_World->GetPrimaryCamera();
         if (!camera)
             return;

@@ -1355,7 +1355,30 @@ namespace Editor
         m_EditorCamera.OnUpdate(dt, m_ViewportHovered && !m_ShowGameView);
 
         if (m_IsPlaying && m_ActiveWorld)
+        {
             m_ActiveWorld->OnUpdate(dt);
+
+            // A script called World::ChangeWorld; swap now that the update (and its scripts) has returned.
+            std::string nextWorldPath;
+            if (Zeyrixon::ScriptEngine::ConsumeWorldChange(nextWorldPath))
+            {
+                std::shared_ptr<Zeyrixon::World> next = Zeyrixon::World::Load(nextWorldPath);
+                if (next)
+                {
+                    m_ActiveWorld->OnRuntimeStop();
+
+                    // Keep the first world of this Play session so Stop can bring it back.
+                    if (!m_WorldBeforePlaySwitch)
+                        m_WorldBeforePlaySwitch = m_ActiveWorld;
+
+                    m_SelectedEntity = {};
+                    m_ActiveWorld = next;
+                    m_IsPlaying = m_ActiveWorld->OnRuntimeStart();
+                }
+                else
+                    Z_EDITOR_ERROR("ChangeWorld: could not load '{0}', staying in the current world", nextWorldPath);
+            }
+        }
 
         m_Framebuffer->Bind();
 
@@ -1497,6 +1520,14 @@ namespace Editor
             {
                 m_ActiveWorld->OnRuntimeStop();
                 m_IsPlaying = false;
+
+                // Put back the world that was open before a script switched worlds.
+                if (m_WorldBeforePlaySwitch)
+                {
+                    m_SelectedEntity = {};
+                    m_ActiveWorld = std::move(m_WorldBeforePlaySwitch);
+                    m_WorldBeforePlaySwitch.reset();
+                }
             }
             else
             {
@@ -2298,6 +2329,7 @@ namespace Editor
         if (m_IsPlaying && m_ActiveWorld)
             m_ActiveWorld->OnRuntimeStop();
         m_IsPlaying = false;
+        m_WorldBeforePlaySwitch.reset();
 
         Zeyrixon::ScriptEngine::SetAssetRoot(m_ActiveProject->GetAssetDirectory());
 
@@ -2313,6 +2345,7 @@ namespace Editor
         if (m_IsPlaying && m_ActiveWorld)
             m_ActiveWorld->OnRuntimeStop();
         m_IsPlaying = false;
+        m_WorldBeforePlaySwitch.reset();
 
         Zeyrixon::ScriptEngine::SetAssetRoot(m_ActiveProject->GetAssetDirectory());
 

@@ -100,6 +100,9 @@ namespace Editor
         std::string m_StartupProjectPath;
 
         std::shared_ptr<Zeyrixon::World> m_ActiveWorld;
+        /* Set while a script has switched worlds during Play: the world that was open in the editor, put
+           back on Stop so playing never replaces what you were editing. */
+        std::shared_ptr<Zeyrixon::World> m_WorldBeforePlaySwitch;
         Zeyrixon::Entity m_SelectedEntity;
 
         std::vector<Zeyrixon::LogEntry> m_LogEntries;

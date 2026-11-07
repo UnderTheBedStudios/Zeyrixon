@@ -140,6 +140,8 @@ class World
     Vec3 GetGravity();
     /** This sets the gravity of the world... obviously */
     void SetGravity(const Vec3 &in g);
+    /** This just changes the world you're currently in... obviously */
+    void ChangeWorld(const string &worldPath);
 }
 
 /** This just allows you to write things into the terminal, nothing too special */

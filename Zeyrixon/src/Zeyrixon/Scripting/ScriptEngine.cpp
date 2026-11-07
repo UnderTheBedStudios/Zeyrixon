@@ -260,6 +260,15 @@ namespace Zeyrixon
             s_CurrentWorld->SetGravity(glm::vec3(Vector));
         }
 
+        // Filled by World::ChangeWorld, emptied by ScriptEngine::ConsumeWorldChange.
+        std::string s_PendingWorldPath;
+
+        void ChangeWorld(const std::string& worldPath)
+        {
+            const std::string fullPath = (std::filesystem::path(ScriptEngine::GetAssetRoot()) / worldPath).string();
+            ScriptEngine::RequestWorldChange(fullPath);
+        }
+
         ScriptEntity FindEntity(const std::string& name)
         {
             if (!s_CurrentWorld)
@@ -486,6 +495,7 @@ namespace Zeyrixon
             AS_REG(engine->SetDefaultNamespace("World"));
             AS_REG(engine->RegisterGlobalFunction("Vec3 GetGravity()", WRAP_FN(GetGravity), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("void SetGravity(const Vec3 &in)", WRAP_FN(SetGravity), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("void ChangeWorld(const string &in worldPath)", WRAP_FN(ChangeWorld), asCALL_GENERIC));
 
             AS_REG(engine->SetDefaultNamespace(""));
             return ok;
@@ -653,6 +663,21 @@ namespace Zeyrixon
     bool ScriptEngine::IsRunning()
     {
         return s_Data && s_Data->Running;
+    }
+
+    void ScriptEngine::RequestWorldChange(const std::string& fullPath)
+    {
+        s_PendingWorldPath = fullPath;
+    }
+
+    bool ScriptEngine::ConsumeWorldChange(std::string& outFullPath)
+    {
+        if (s_PendingWorldPath.empty())
+            return false;
+
+        outFullPath = std::move(s_PendingWorldPath);
+        s_PendingWorldPath.clear();
+        return true;
     }
 
     bool ScriptEngine::OnRuntimeStart(World& world)

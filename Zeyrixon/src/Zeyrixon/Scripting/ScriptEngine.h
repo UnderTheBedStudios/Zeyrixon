@@ -41,5 +41,13 @@ namespace Zeyrixon
         static void OnRuntimeStop(World& world);
 
         static bool IsRunning();
+
+        /* A script asked to switch worlds (World::ChangeWorld). The swap can't happen inside the script
+           call - destroying the old world would tear down the script that is still running - so the
+           request is only recorded here. Whoever owns the active world (RuntimeLayer, the editor) calls
+           ConsumeWorldChange() after World::OnUpdate returns and does the actual swap.
+           `fullPath` is already resolved against the asset root. */
+        static void RequestWorldChange(const std::string& fullPath);
+        static bool ConsumeWorldChange(std::string& outFullPath);   // true once per request
     };
 }
