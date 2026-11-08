@@ -19,6 +19,11 @@
 
 #include <Zeyrixon/Core/Project.h>
 
+#include <ZeyrixonEditor/Commands/CommandHistory.h>
+#include <ZeyrixonEditor/Commands/CommandsList.h>
+#include <optional>
+#include <string>
+
 namespace Editor
 {
     class EditorLayer : public Zeyrixon::Layer
@@ -110,5 +115,23 @@ namespace Editor
         bool m_LogAutoScroll = true;
         int m_LogMinLevelIndex = 0;
         ImGuiTextFilter m_LogFilter;
+
+        CommandHistory m_History;
+
+        void Undo();
+        void Redo();
+        void HandleUndoShortcuts();
+        void RecordCreated(Zeyrixon::Entity entity); // call AFTER the new entity is fully set up
+        void FlushPendingEdit();
+        void ResetHistory();
+
+        // A Properties-panel edit in progress (one drag, or one typing session = one undo step.)
+        struct PendingEdit {uint64_t EntityID = 0; std::string Component, Before, After; };
+        std::optional<PendingEdit> m_PendingEdit;
+
+        // A gizmo drag in progress.
+        bool m_GizmoWasUsing = false;
+        uint64_t m_GizmoEntityID = 0;
+        std::string m_GizmoBefore;
     };
 }

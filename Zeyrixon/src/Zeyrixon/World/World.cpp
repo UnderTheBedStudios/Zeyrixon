@@ -337,6 +337,32 @@ namespace Zeyrixon
         return entity;
     }
 
+    Entity World::CreateEntityWithID(uint64_t id, const std::string& name)
+    {
+        Entity entity{ m_Registry.create(), this };
+        entity.AddComponent<IDComponent>(id);
+
+        for (auto& info : ComponentRegistry::Get().GetAll())
+        {
+            if (info.Core && !info.Has(entity))
+                info.Add(entity);
+        }
+
+        entity.GetComponent<TagComponent>().Tag = name;
+        return entity;
+    }
+
+    Entity World::FindEntityByID(uint64_t id)
+    {
+        for (auto [handle, idComponent] : m_Registry.view<IDComponent>().each())
+        {
+            if (idComponent.ID == id)
+                return Entity{ handle, this };
+        }
+
+        return Entity{};
+    }
+
     void World::DestroyEntity(Entity entity)
     {
         if (!entity)

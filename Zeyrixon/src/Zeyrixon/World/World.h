@@ -19,71 +19,73 @@ namespace Zeyrixon
     class Z_API World
     {
     public:
-        World();
-        ~World();
+         World();
+         ~World();
 
-        /* Play mode. OnRuntimeStart remembers every entity's transform, compiles and starts the
-           scripts and returns false if a script fails to compile (the world then is not running).
-           OnRuntimeStop stops the scripts and puts the transforms back, so playing never changes
-           the world you were editing. OnUpdate runs the scripts, and does nothing when stopped. */
-        bool OnRuntimeStart();
-        void OnRuntimeStop();
-        bool IsRunning() const { return m_Running; }
+         /* Play mode. OnRuntimeStart remembers every entity's transform, compiles and starts the
+            scripts and returns false if a script fails to compile (the world then is not running).
+            OnRuntimeStop stops the scripts and puts the transforms back, so playing never changes
+            the world you were editing. OnUpdate runs the scripts, and does nothing when stopped. */
+         bool OnRuntimeStart();
+         void OnRuntimeStop();
+         bool IsRunning() const { return m_Running; }
 
-        void OnUpdate(DeltaTime dt);
+         void OnUpdate(DeltaTime dt);
 
-        static std::shared_ptr<World> New(const std::string& name = "Untitled");
-        static std::shared_ptr<World> Load(const std::string& worldPath);
+         static std::shared_ptr<World> New(const std::string& name = "Untitled");
+         static std::shared_ptr<World> Load(const std::string& worldPath);
 
-        bool Save();                          // save to m_WorldPath
-        bool SaveAs(const std::string& path); // save + update m_WorldPath
+         bool Save();                          // save to m_WorldPath
+         bool SaveAs(const std::string& path); // save + update m_WorldPath
 
-        Entity CreateEntity(const std::string& name = "Entity");
-        void DestroyEntity(Entity entity);
+         Entity CreateEntity(const std::string& name = "Entity");
+         Entity CreateEntityWithID(uint64_t id, const std::string& name = "Entity");   // used by undo/redo to bring an entity back with its old ID
+         Entity FindEntityByID(uint64_t id);                                           // invalid Entity if there's none
+         void DestroyEntity(Entity entity);
 
-        // The first entity with a camera component marked Primary, or invalid Entity if there isn't one.
-        Entity GetPrimaryCamera();
+         // The first entity with a camera component marked Primary, or invalid Entity if there isn't one.
+         Entity GetPrimaryCamera();
 
-        const std::string& GetName() const { return m_Name; }
-        const std::string& GetWorldPath() const { return m_WorldPath; }
+         const std::string& GetName() const { return m_Name; }
+         const std::string& GetWorldPath() const { return m_WorldPath; }
 
-        entt::registry& GetRegistry() { return m_Registry; }
+         entt::registry& GetRegistry() { return m_Registry; }
 
-        /* How strong the flat background light is, 0 = none (only real lights light things), 1 = the
-           old fixed brightness. Saved with the world. */
-        float GetAmbientIntensity() const { return m_AmbientIntensity; }
-        void SetAmbientIntensity(float value) { m_AmbientIntensity = value < 0.0f ? 0.0f : value; }
+         /* How strong the flat background light is, 0 = none (only real lights light things), 1 = the
+            old fixed brightness. Saved with the world. */
+         float GetAmbientIntensity() const { return m_AmbientIntensity; }
+         void SetAmbientIntensity(float value) { m_AmbientIntensity = value < 0.0f ? 0.0f : value; }
 
-        /* Gravity in world units per second squared; (0, -9.81, 0) is Earth. Saved with the world. It is read
-           when Play starts, so changing it while playing has no effect until the next Play. */
-        /* Moves an entity by `delta` without letting it pass through static colliders; see
-           PhysicsWorld::MoveAndSlide for the rules. Only meaningful while playing; returns false otherwise,
-           and for entities that aren't Kinematic/Static bodies. This is what a script's Entity.Move calls. */
-        bool MoveAndSlide(entt::entity entity, const glm::vec3& delta);
+         /* Gravity in world units per second squared; (0, -9.81, 0) is Earth. Saved with the world. It is read
+            when Play starts, so changing it while playing has no effect until the next Play. */
+         /* Moves an entity by `delta` without letting it pass through static colliders; see
+            PhysicsWorld::MoveAndSlide for the rules. Only meaningful while playing; returns false otherwise,
+            and for entities that aren't Kinematic/Static bodies. This is what a script's Entity.Move calls. */
+         bool MoveAndSlide(entt::entity entity, const glm::vec3& delta);
 
-        const glm::vec3& GetGravity() const { return m_Gravity; }
-        void SetGravity(const glm::vec3& gravity) { m_Gravity = gravity; }
+         const glm::vec3& GetGravity() const { return m_Gravity; }
+         void SetGravity(const glm::vec3& gravity) { m_Gravity = gravity; }
 
-    private:
-        std::string m_Name;
-        std::string m_WorldPath;
-        float m_AmbientIntensity = 0.1f;
-        glm::vec3 m_Gravity{ 0.0f, -9.81f, 0.0f };
+      private:
+         std::string m_Name;
+         std::string m_WorldPath;
+         float m_AmbientIntensity = 0.1f;
+         glm::vec3 m_Gravity{ 0.0f, -9.81f, 0.0f };
 
-        entt::registry m_Registry;
+         entt::registry m_Registry;
 
-        /* The Bullet simulation. Exists only while playing. Declared AFTER the registry so it is destroyed
-           first, and World::OnColliderDestroyed (below) is how it hears about colliders going away. */
-        std::unique_ptr<PhysicsWorld> m_Physics;
-        void OnColliderDestroyed(entt::registry& registry, entt::entity entity);
+         /* The Bullet simulation. Exists only while playing. Declared AFTER the registry so it is destroyed
+            first, and World::OnColliderDestroyed (below) is how it hears about colliders going away. */
+         std::unique_ptr<PhysicsWorld> m_Physics;
+         void OnColliderDestroyed(entt::registry& registry, entt::entity entity);
 
-        // Moves every playing Animation component forward by dt (looping or stopping at the end).
-        void UpdateAnimations(DeltaTime dt);
+         // Moves every playing Animation component forward by dt (looping or stopping at the end).
+         void UpdateAnimations(DeltaTime dt);
 
-        bool m_Running = false;
+         bool m_Running = false;
 
-        struct TransformSnapshot { glm::vec3 Position, Rotation, Scale; };
-        std::unordered_map<uint64_t, TransformSnapshot> m_RuntimeSnapshot;   // keyed by IDComponent::ID
-        std::unordered_map<uint64_t, float> m_AnimationTimeSnapshot;         // same key: Animation time before Play
+         struct TransformSnapshot { glm::vec3 Position, Rotation, Scale; };
+         std::unordered_map<uint64_t, TransformSnapshot> m_RuntimeSnapshot;   // keyed by IDComponent::ID
+         std::unordered_map<uint64_t, float> m_AnimationTimeSnapshot;         // same key: Animation time before Play
     };
 }

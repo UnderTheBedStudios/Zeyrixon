@@ -725,7 +725,20 @@ namespace Editor
             static_cast<ImGuizmo::OPERATION>(m_GizmoOperation), ImGuizmo::WORLD, matrix
         );
 
-        if (ImGuizmo::IsUsing())
+        const bool gizmoUsing = ImGuizmo::IsUsing();
+        auto* transformInfo = Zeyrixon::ComponentRegistry::Get().Find("Transform");
+
+        // Drag just started: the transform hasn't been written yet this frame, so this is the "before" state.
+        if (gizmoUsing && !m_GizmoWasUsing)
+        {
+            m_GizmoEntityID = m_SelectedEntity.GetComponent<Zeyrixon::IDComponent>().ID;
+            m_GizmoBefore = (m_IsPlaying || !transformInfo)
+                ? std::string()
+                : Editor::SnapshotComponent(*transformInfo, m_SelectedEntity);
+        }
+
+        // The original write-back, unchanged.
+        if (gizmoUsing)
         {
             glm::vec3 position, rotation, scale;
             ImGuizmo::DecomposeMatrixToComponents(
@@ -736,6 +749,21 @@ namespace Editor
             transform.Rotation = glm::radians(rotation);
             transform.Scale = scale;
         }
+
+        // Drag just ended: record one undo step.
+        if (!gizmoUsing && m_GizmoWasUsing)
+        {
+            if (!m_GizmoBefore.empty() && m_ActiveWorld && transformInfo)
+            {
+                std::string after = Editor::SnapshotComponent(*transformInfo, m_SelectedEntity);
+                if (after != m_GizmoBefore)
+                    m_History.Record(std::make_unique<EditComponentCommand>(
+                        *m_ActiveWorld, m_GizmoEntityID, "Transform", std::move(m_GizmoBefore), std::move(after)));
+            }
+            m_GizmoBefore.clear();
+        }
+
+        m_GizmoWasUsing = gizmoUsing;
     }
 
     void EditorLayer::DrawColliderGizmo()
@@ -1185,11 +1213,15 @@ namespace Editor
         if (!m_ActiveWorld || !entity)
             return;
 
-        // Clear the selection first so the properties panel and gizmo never see the deletion
+        FlushPendingEdit();
+
         if (m_SelectedEntity == entity)
             m_SelectedEntity = {};
 
-        m_ActiveWorld->DestroyEntity(entity);
+        if (m_IsPlaying)
+            m_ActiveWorld->DestroyEntity(entity);   // not undoable, Stop reverts play changes
+        else
+            m_History.Do(std::make_unique<EntityExistsCommand>(*m_ActiveWorld, entity, false));
     }
 
     void EditorLayer::BuildDefaultLayout(ImGuiID dockspaceId)
@@ -1228,6 +1260,8 @@ namespace Editor
             return;
         }
 
+        HandleUndoShortcuts();
+
         static bool dockspaceOpen = true;
 
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -1261,6 +1295,9 @@ namespace Editor
         DrawLoggerPanel();
         DrawContentBrowserPanel();
         DrawAssetsPanel();
+
+        if (m_PendingEdit && !ImGui::IsAnyItemActive())
+            FlushPendingEdit();
     }
 
     void EditorLayer::DrawProjectLauncher()
@@ -1503,8 +1540,8 @@ namespace Editor
         }
         if (ImGui::BeginMenu("Edit"))
         {
-            ImGui::MenuItem("Undo");
-            ImGui::MenuItem("Redo");
+            if (ImGui::MenuItem("Undo", "Ctrl+Z", false, !m_IsPlaying && m_History.CanUndo())) Undo();
+            if (ImGui::MenuItem("Redo", "Ctrl+Y", false, !m_IsPlaying && m_History.CanRedo())) Redo();
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("View")) { ImGui::EndMenu(); }
@@ -1751,13 +1788,17 @@ namespace Editor
         if (ImGui::BeginPopupContextWindow(nullptr, ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
         {
             if (ImGui::MenuItem("Create Entity"))
+            {
                 m_SelectedEntity = m_ActiveWorld->CreateEntity("Entity");
+                RecordCreated(m_SelectedEntity);
+            }
 
             if (ImGui::MenuItem("Create Sprite"))
             {
                 Zeyrixon::Entity sprite = m_ActiveWorld->CreateEntity("Sprite");
                 sprite.AddComponent<Zeyrixon::SpriteComponent>();
                 m_SelectedEntity = sprite;
+                RecordCreated(sprite);
             }
 
             if (ImGui::BeginMenu("Create Light"))
@@ -1773,6 +1814,7 @@ namespace Editor
                     // Pitched down 50 degrees and turned 30, so it shines down and forward.
                     entity.GetComponent<Zeyrixon::TransformComponent>().Rotation = glm::radians(glm::vec3(-50.0f, 30.0f, 0.0f));
                     m_SelectedEntity = entity;
+                    RecordCreated(entity);
                 }
 
                 if (ImGui::MenuItem("Point Light"))
@@ -1783,6 +1825,7 @@ namespace Editor
                     light.Intensity = 10.0f;
                     entity.GetComponent<Zeyrixon::TransformComponent>().Position = glm::vec3(0.0f, 3.0f, 0.0f);
                     m_SelectedEntity = entity;
+                    RecordCreated(entity);
                 }
 
                 if (ImGui::MenuItem("Spot Light"))
@@ -1795,6 +1838,7 @@ namespace Editor
                     transform.Position = glm::vec3(0.0f, 4.0f, 0.0f);
                     transform.Rotation = glm::radians(glm::vec3(-90.0f, 0.0f, 0.0f));   // straight down
                     m_SelectedEntity = entity;
+                    RecordCreated(entity);
                 }
 
                 ImGui::EndMenu();
@@ -1856,7 +1900,29 @@ namespace Editor
             }
 
             if (open)
+            {
+                const bool track = !m_IsPlaying && info.Serialize;
+                const std::string before = track ? SnapshotComponent(info, m_SelectedEntity) : std::string();
+
                 info.DrawInspector(m_SelectedEntity);
+
+                if (track)
+                {
+                    std::string after = SnapshotComponent(info, m_SelectedEntity);
+                    if (after != before)
+                    {
+                        const uint64_t id = m_SelectedEntity.GetComponent<Zeyrixon::IDComponent>().ID;
+
+                        // A different component or entity than the pending edit: close the old one first.
+                        if (m_PendingEdit && (m_PendingEdit->EntityID != id || m_PendingEdit->Component != info.Name))
+                            FlushPendingEdit();
+
+                        if (!m_PendingEdit)
+                            m_PendingEdit = PendingEdit{ id, info.Name, before, {} };
+                        m_PendingEdit->After = std::move(after);
+                    }
+                }
+            }
 
             if (removeRequested)
                 info.Remove(m_SelectedEntity);
@@ -2354,5 +2420,66 @@ namespace Editor
 
         if (!m_ActiveWorld)
             Z_EDITOR_ERROR("Failed to load world for project '{0}'", m_ActiveProject->GetName());
+    }
+
+    void EditorLayer::Undo()
+    {
+        // Play-mode changes are thrown away on Stop, so history is frozen while playing.
+        if (m_IsPlaying) return;
+        FlushPendingEdit();
+        m_History.Undo();
+    }
+
+    void EditorLayer::Redo()
+    {
+        if (m_IsPlaying) return;
+        FlushPendingEdit();
+        m_History.Redo();
+    }
+
+    void EditorLayer::HandleUndoShortcuts()
+    {
+        ImGuiIO& io = ImGui::GetIO();
+
+        // Don't steal Ctrl+Z from text fields, and don't undo in the middle of a drag.
+        if (!io.KeyCtrl || io.WantTextInput || ImGui::IsAnyItemActive() + ImGuizmo::IsUsing())
+            return;
+        if (ImGui::IsKeyPressed(ImGuiKey_Z))
+        {
+            if (io.KeyShift)
+                Redo();
+            else
+                Undo();
+        }
+        else if (ImGui::IsKeyPressed(ImGuiKey_Y))
+            Redo();
+    }
+
+    void EditorLayer::FlushPendingEdit()
+    {
+        if (!m_PendingEdit) return;
+
+        if (m_ActiveWorld && m_PendingEdit->Before != m_PendingEdit->After)
+            m_History.Record(std::make_unique<EditComponentCommand>(
+            *m_ActiveWorld, m_PendingEdit->EntityID, m_PendingEdit->Component,
+            std::move(m_PendingEdit->Before), std::move(m_PendingEdit->After))
+        );
+
+        m_PendingEdit.reset();
+    }
+
+    void EditorLayer::RecordCreated(Zeyrixon::Entity entity)
+    {
+        if (m_IsPlaying || !m_ActiveWorld || !entity) return;
+        FlushPendingEdit();
+        m_History.Record(std::make_unique<EntityExistsCommand>(*m_ActiveWorld, entity, true));
+    }
+
+    void EditorLayer::ResetHistory()
+    {
+        m_PendingEdit.reset();
+        m_GizmoWasUsing = false;
+        m_GizmoBefore.clear();
+        m_History.Clear();
     }
 }
