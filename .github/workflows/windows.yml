@@ -12,6 +12,11 @@ jobs:
 
       - uses: microsoft/setup-msbuild@v2
 
+      # Run the python script here so the generated resources exist on this machine
+      # Note: Windows runners use 'python', not 'python3'
+      - name: Run a tool
+        run: python tools/EmbedResources.py
+
       - name: Generate project files
         run: .\vendor\binary\premake5.exe vs2022
 
