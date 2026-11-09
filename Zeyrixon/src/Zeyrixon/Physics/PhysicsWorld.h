@@ -6,9 +6,26 @@
 #include <glm/glm.hpp>
 
 #include <memory>
+#include <vector>
 
 namespace Zeyrixon
 {
+    struct RaycastHit
+    {
+        bool Hit = false;
+        entt::entity Entity = entt::null;
+        glm::vec3 Point{0.0f};
+        glm::vec3 Normal{0.0f};
+        float Distance = 0.0f;
+    };
+
+    struct CollisionEvent
+    {
+        entt::entity First = entt::null;
+        entt::entity Second = entt::null;
+        bool Entered = true;
+    };
+
     /* The Bullet simulation behind one World. It exists only while the world is playing: World creates it
        in OnRuntimeStart and destroys it in OnRuntimeStop, so editing never touches Bullet.
 
@@ -40,6 +57,12 @@ namespace Zeyrixon
 
         // Takes the entity's body out of the simulation. Safe to call for an entity that has none.
         void RemoveBody(entt::entity entity);
+
+        // Cast a world-space ray. Direction is normalized internally; maxDistance is in world units.
+        RaycastHit Raycast(const glm::vec3& origin, const glm::vec3& direction, float maxDistance) const;
+
+        // Contacts begin/end are reported once per simulation step.
+        const std::vector<CollisionEvent>& GetCollisionEvents() const;
 
         /* Moves a Kinematic (or Static) entity by `delta`, but never into a wall.
 

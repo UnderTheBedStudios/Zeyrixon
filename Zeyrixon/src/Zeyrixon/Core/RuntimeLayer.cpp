@@ -73,20 +73,19 @@ namespace Zeyrixon
         if (!camera)
             return;
 
-        const auto& transform = camera.GetComponent<TransformComponent>();
         const auto& cameraData = camera.GetComponent<CameraComponent>();
 
         auto window = Application::Get().GetWindow();
         const float aspect = window->GetHeight() > 0 ? (float)window->GetWidth() / (float)window->GetHeight() : 1.f;
 
-        const glm::mat4 view = transform.GetViewMatrix();
+        const glm::mat4 view = m_World->GetWorldViewMatrix(camera.Handle());
         const glm::mat4 projection = cameraData.GetProjection(aspect);
 
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
         glFrontFace(GL_CCW);
 
-        WorldRenderer::RenderWorld(*m_World, view, projection, transform.Position);
+        WorldRenderer::RenderWorld(*m_World, view, projection, m_World->GetWorldPosition(camera.Handle()));
         WorldRenderer::RenderSprites(*m_World, view, projection);
     }
 }

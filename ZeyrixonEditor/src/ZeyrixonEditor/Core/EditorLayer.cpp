@@ -1,3 +1,4 @@
+#include <cstring>
 #include <ZeyrixonEditor/Core/EditorLayer.h>
 #include <Zeyrixon/Embedded/EmbeddedResources.h>
 #include <Zeyrixon/ImGui/ImGuiLayer.h>
@@ -712,13 +713,28 @@ namespace Editor
             return;
 
         auto& transform = m_SelectedEntity.GetComponent<Zeyrixon::TransformComponent>();
+
+        /* The gizmo works in WORLD space. For a root entity that is just its own transform, built exactly as
+           before. For a child the gizmo sits on its world matrix, and a drag is turned back into a local
+           transform (local = inverse(parent world) * new world) before it is written. */
+        const bool hasParent = m_SelectedEntity.GetComponent<Zeyrixon::IDComponent>().ParentID != 0;
+        const glm::mat4 parentWorld = hasParent ? m_ActiveWorld->GetParentWorldMatrix(m_SelectedEntity.Handle()) : glm::mat4(1.0f);
+
         glm::vec3 rotationDegrees = glm::degrees(transform.Rotation);
 
         float matrix[16];
-        ImGuizmo::RecomposeMatrixFromComponents(
-            glm::value_ptr(transform.Position), glm::value_ptr(rotationDegrees),
-            glm::value_ptr(transform.Scale), matrix
-        );
+        if (hasParent)
+        {
+            const glm::mat4 world = m_ActiveWorld->GetWorldMatrix(m_SelectedEntity.Handle());
+            std::memcpy(matrix, glm::value_ptr(world), sizeof(matrix));
+        }
+        else
+        {
+            ImGuizmo::RecomposeMatrixFromComponents(
+                glm::value_ptr(transform.Position), glm::value_ptr(rotationDegrees),
+                glm::value_ptr(transform.Scale), matrix
+            );
+        }
 
         ImGuizmo::Manipulate(
             glm::value_ptr(view), glm::value_ptr(projection),
@@ -738,7 +754,14 @@ namespace Editor
         }
 
         // The original write-back, unchanged.
-        if (gizmoUsing)
+        if (gizmoUsing && hasParent)
+        {
+            glm::mat4 newWorld;
+            std::memcpy(glm::value_ptr(newWorld), matrix, sizeof(matrix));
+            if (std::abs(glm::determinant(parentWorld)) > 1e-12f)
+                transform.SetFromMatrix(glm::inverse(parentWorld) * newWorld);
+        }
+        else if (gizmoUsing)
         {
             glm::vec3 position, rotation, scale;
             ImGuizmo::DecomposeMatrixToComponents(
@@ -778,7 +801,8 @@ namespace Editor
             return;
         }
 
-        auto& transform = m_SelectedEntity.GetComponent<Zeyrixon::TransformComponent>();
+        // The collider handles work in world space, so for a child use its world transform (a root's is its own).
+        const Zeyrixon::TransformComponent transform = m_ActiveWorld->GetWorldTransform(m_SelectedEntity.Handle());
 
         // From here on `collider` is the ONE slot the handles resize (the rest of this function only ever
         // deals with a single shape).
@@ -1087,8 +1111,11 @@ namespace Editor
         auto lights = m_ActiveWorld->GetRegistry().view<Zeyrixon::TransformComponent, Zeyrixon::LightComponent>();
         for (auto [handle, transform, light] : lights.each())
         {
+            const glm::mat4 lightWorld = m_ActiveWorld->GetWorldMatrix(handle);   // a parented light is drawn where it really is
+            const glm::vec3 lightPosition = glm::vec3(lightWorld[3]);
+
             ImVec2 center;
-            if (!project(transform.Position, center))
+            if (!project(lightPosition, center))
                 continue;
 
             Zeyrixon::Entity entity(handle, m_ActiveWorld.get());
@@ -1118,7 +1145,7 @@ namespace Editor
             // A pale disc behind the drawing keeps the black line art readable over dark parts of the scene
             // (and gives the icon a clear click target).
             // Behind a wall or other solid? Dim it (rather than hide it) so you can still find and click it.
-            const float visibility = isOccluded(transform.Position, center) ? 0.35f : 1.0f;
+            const float visibility = isOccluded(lightPosition, center) ? 0.35f : 1.0f;
 
             const float radius = half + 3.0f;
             drawList->AddCircleFilled(center, radius, IM_COL32(235, 235, 235, static_cast<int>((hovered || selected ? 235 : 170) * visibility)), 32);
@@ -1138,8 +1165,8 @@ namespace Editor
 
             const ImU32 outerColor = IM_COL32(255, 200, 70, 230);
             const ImU32 innerColor = IM_COL32(255, 200, 70, 110);
-            const glm::vec3 position = transform.Position;
-            const glm::vec3 direction = Zeyrixon::LightComponent::GetDirection(transform);
+            const glm::vec3 position = lightPosition;
+            const glm::vec3 direction = Zeyrixon::LightComponent::GetDirection(lightWorld);
 
             // Two axes at right angles to the light's direction, for drawing circles around it.
             const glm::vec3 helperUp = std::abs(direction.y) > 0.99f ? glm::vec3(0.f, 0.f, 1.f) : glm::vec3(0.f, 1.f, 0.f);
@@ -1215,7 +1242,8 @@ namespace Editor
 
         FlushPendingEdit();
 
-        if (m_SelectedEntity == entity)
+        // Deleting an entity deletes everything under it, so a selected child has to be let go too.
+        if (m_SelectedEntity == entity || m_ActiveWorld->IsDescendantOf(m_SelectedEntity, entity))
             m_SelectedEntity = {};
 
         if (m_IsPlaying)
@@ -1431,17 +1459,18 @@ namespace Editor
             Zeyrixon::Entity camera = m_ActiveWorld ? m_ActiveWorld->GetPrimaryCamera() : Zeyrixon::Entity{};
             if (camera)
             {
-                const auto& transform = camera.GetComponent<Zeyrixon::TransformComponent>();
                 const auto& cameraData = camera.GetComponent<Zeyrixon::CameraComponent>();
+                const glm::mat4 cameraView = m_ActiveWorld->GetWorldViewMatrix(camera.Handle());
+                const glm::vec3 cameraPosition = m_ActiveWorld->GetWorldPosition(camera.Handle());
 
                 const float aspect = m_ViewportSize.y > 0.f ? m_ViewportSize.x / m_ViewportSize.y : 1.f;
 
                 Zeyrixon::WorldRenderer::RenderWorld(
-                    *m_ActiveWorld, transform.GetViewMatrix(), cameraData.GetProjection(aspect), transform.Position
+                    *m_ActiveWorld, cameraView, cameraData.GetProjection(aspect), cameraPosition
                 );
 
                 Zeyrixon::WorldRenderer::RenderSprites(
-                    *m_ActiveWorld, transform.GetViewMatrix(), cameraData.GetProjection(aspect)
+                    *m_ActiveWorld, cameraView, cameraData.GetProjection(aspect)
                 );
             }
         }
@@ -1470,8 +1499,9 @@ namespace Editor
             if (m_ShowColliders && m_ActiveWorld)
             {
                 auto& registry = m_ActiveWorld->GetRegistry();
-                for (auto [handle, transform, collider] : registry.view<Zeyrixon::TransformComponent, Zeyrixon::ColliderComponent>().each())
+                for (auto [handle, localTransform, collider] : registry.view<Zeyrixon::TransformComponent, Zeyrixon::ColliderComponent>().each())
                 {
+                    const Zeyrixon::TransformComponent transform = m_ActiveWorld->GetWorldTransform(handle);   // parents included
                     glm::vec4 color(0.3f, 0.6f, 1.0f, 0.8f);
                     if (registry.all_of<Zeyrixon::RigidBodyComponent>(handle))
                     {
@@ -1757,27 +1787,94 @@ namespace Editor
         // actual deletion happens after the loop, using this.
         Zeyrixon::Entity entityToDelete;
 
-        if (ImGui::TreeNodeEx(m_ActiveWorld->GetName().c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+        // Changing the hierarchy while the tree is being drawn would pull entities out from under the loop,
+        // so drags and "create child" are noted here and carried out after it.
+        struct PendingReparent { bool Valid = false; uint64_t Child = 0; uint64_t Parent = 0; } pendingReparent;
+        Zeyrixon::Entity createChildOf;
+
+        auto acceptEntityDrop = [&](uint64_t newParentID)
         {
-            auto view = m_ActiveWorld->GetRegistry().view<Zeyrixon::TagComponent>();
-            for (auto [handle, tag] : view.each())
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ZEYRIXON_ENTITY"))
+                pendingReparent = { true, *static_cast<const uint64_t*>(payload->Data), newParentID };
+        };
+
+        const bool worldOpen = ImGui::TreeNodeEx(m_ActiveWorld->GetName().c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+
+        // Dropping an entity on the world's own row takes it out of its parent.
+        if (ImGui::BeginDragDropTarget())
+        {
+            acceptEntityDrop(0);
+            ImGui::EndDragDropTarget();
+        }
+
+        if (worldOpen)
+        {
+            // One row per entity, with its children nested underneath.
+            std::function<void(Zeyrixon::Entity)> drawNode = [&](Zeyrixon::Entity entity)
             {
-                Zeyrixon::Entity entity{ handle, m_ActiveWorld.get() };
+                const auto& idComponent = entity.GetComponent<Zeyrixon::IDComponent>();
+                const std::string& tag = entity.GetComponent<Zeyrixon::TagComponent>().Tag;
+                const uint64_t entityID = idComponent.ID;
+                const bool hasChildren = !idComponent.ChildIDs.empty();
 
-                ImGui::PushID(static_cast<int>(static_cast<uint32_t>(handle)));
+                ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
+                if (!hasChildren)
+                    flags |= ImGuiTreeNodeFlags_Leaf;
+                if (m_SelectedEntity == entity)
+                    flags |= ImGuiTreeNodeFlags_Selected;
 
-                if (ImGui::Selectable(tag.Tag.c_str(), m_SelectedEntity == entity))
+                ImGui::PushID(static_cast<int>(static_cast<uint32_t>(entity.Handle())));
+                const bool open = ImGui::TreeNodeEx(tag.c_str(), flags);
+
+                if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
                     m_SelectedEntity = entity;
+
+                // Drag a row onto another row to make it that entity's child.
+                if (ImGui::BeginDragDropSource())
+                {
+                    ImGui::SetDragDropPayload("ZEYRIXON_ENTITY", &entityID, sizeof(entityID));
+                    ImGui::TextUnformatted(tag.c_str());
+                    ImGui::EndDragDropSource();
+                }
+                if (ImGui::BeginDragDropTarget())
+                {
+                    acceptEntityDrop(entityID);
+                    ImGui::EndDragDropTarget();
+                }
 
                 if (ImGui::BeginPopupContextItem())
                 {
                     m_SelectedEntity = entity;
+                    if (ImGui::MenuItem("Create Child Entity"))
+                        createChildOf = entity;
+                    if (idComponent.ParentID != 0 && ImGui::MenuItem("Unparent"))
+                        pendingReparent = { true, entityID, 0 };
                     if (ImGui::MenuItem("Delete Entity"))
                         entityToDelete = entity;
                     ImGui::EndPopup();
                 }
 
+                if (open)
+                {
+                    // Copy first: drawing a child can't change this list, but a copy costs nothing and can't dangle.
+                    const std::vector<uint64_t> childIDs = idComponent.ChildIDs;
+                    for (uint64_t childID : childIDs)
+                    {
+                        Zeyrixon::Entity child = m_ActiveWorld->FindEntityByID(childID);
+                        if (child)
+                            drawNode(child);
+                    }
+                    ImGui::TreePop();
+                }
+
                 ImGui::PopID();
+            };
+
+            auto view = m_ActiveWorld->GetRegistry().view<Zeyrixon::TagComponent, Zeyrixon::IDComponent>();
+            for (auto [handle, tag, idComponent] : view.each())
+            {
+                if (idComponent.ParentID == 0)   // children are drawn by their parent
+                    drawNode(Zeyrixon::Entity{ handle, m_ActiveWorld.get() });
             }
             ImGui::TreePop();
         }
@@ -1847,10 +1944,42 @@ namespace Editor
             ImGui::EndPopup();
         }
 
+        if (pendingReparent.Valid)
+            ReparentEntity(m_ActiveWorld->FindEntityByID(pendingReparent.Child),
+                           m_ActiveWorld->FindEntityByID(pendingReparent.Parent));   // parent 0 = no entity = make a root
+
+        if (createChildOf)
+        {
+            Zeyrixon::Entity child = m_ActiveWorld->CreateEntity("Entity");
+            m_ActiveWorld->SetParent(child, createChildOf, false);   // a fresh entity has an identity transform, so nothing to keep
+            m_SelectedEntity = child;
+            RecordCreated(child);
+        }
+
         if (entityToDelete)
             DeleteEntity(entityToDelete);
 
         ImGui::End();
+    }
+
+    void EditorLayer::ReparentEntity(Zeyrixon::Entity child, Zeyrixon::Entity newParent)
+    {
+        if (!m_ActiveWorld || !child)
+            return;
+
+        // Nothing to do, or it would make a loop (an entity under itself or its own descendant).
+        const uint64_t newParentID = newParent ? newParent.GetComponent<Zeyrixon::IDComponent>().ID : 0;
+        if (child.GetComponent<Zeyrixon::IDComponent>().ParentID == newParentID)
+            return;
+        if (newParent && (newParent == child || m_ActiveWorld->IsDescendantOf(newParent, child)))
+            return;
+
+        FlushPendingEdit();
+
+        if (m_IsPlaying)
+            m_ActiveWorld->SetParent(child, newParent, true);   // not undoable, Stop reverts play changes
+        else
+            m_History.Do(std::make_unique<SetParentCommand>(*m_ActiveWorld, child, newParent));
     }
 
     void EditorLayer::DrawPropertiesPanel()

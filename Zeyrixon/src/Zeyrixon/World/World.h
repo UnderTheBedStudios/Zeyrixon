@@ -2,6 +2,7 @@
 
 #include <Zeyrixon/Core/Core.h>
 #include <Zeyrixon/Core/DeltaTime.h>
+#include <Zeyrixon/World/Components.h>
 
 #include <entt.hpp>
 #include <glm/glm.hpp>
@@ -15,6 +16,8 @@ namespace Zeyrixon
 {
     class Entity;
     class PhysicsWorld;
+    struct RaycastHit;
+    struct CollisionEvent;
 
     class Z_API World
     {
@@ -41,7 +44,32 @@ namespace Zeyrixon
          Entity CreateEntity(const std::string& name = "Entity");
          Entity CreateEntityWithID(uint64_t id, const std::string& name = "Entity");   // used by undo/redo to bring an entity back with its old ID
          Entity FindEntityByID(uint64_t id);                                           // invalid Entity if there's none
-         void DestroyEntity(Entity entity);
+         entt::entity FindHandleByID(uint64_t id) const;                               // entt::null if there's none
+         void DestroyEntity(Entity entity);                                            // also destroys all of its children, grandchildren...
+
+         // ---- Hierarchy ----
+         // A child's TransformComponent is LOCAL: relative to its parent. The world matrix is every
+         // ancestor's transform multiplied together, and that is what rendering, picking, lights and
+         // cameras use.
+
+         /* Makes `parent` the parent of `child`; an invalid Entity as parent makes the child a root again.
+            With keepWorldTransform (the default) the child's local transform is rewritten so it stays exactly
+            where it is on screen; without it the local transform is kept and the child jumps. Returns false
+            (and changes nothing) if it would make a loop: an entity can't be its own parent or be put under
+            one of its own descendants. */
+         bool SetParent(Entity child, Entity parent, bool keepWorldTransform = true);
+         Entity GetParent(Entity entity);
+         std::vector<Entity> GetChildren(Entity entity);
+         bool IsDescendantOf(Entity entity, Entity possibleAncestor);
+
+         // The entity's ID followed by the IDs of everything beneath it, parents always before their children.
+         std::vector<uint64_t> GetSubtreeIDs(uint64_t rootID) const;
+
+         glm::mat4 GetWorldMatrix(entt::entity entity) const;
+         glm::mat4 GetParentWorldMatrix(entt::entity entity) const;      // identity for a root
+         glm::vec3 GetWorldPosition(entt::entity entity) const;
+         TransformComponent GetWorldTransform(entt::entity entity) const; // the world matrix taken apart again
+         glm::mat4 GetWorldViewMatrix(entt::entity entity) const;         // a camera's view matrix (scale ignored)
 
          // The first entity with a camera component marked Primary, or invalid Entity if there isn't one.
          Entity GetPrimaryCamera();
@@ -62,6 +90,8 @@ namespace Zeyrixon
             PhysicsWorld::MoveAndSlide for the rules. Only meaningful while playing; returns false otherwise,
             and for entities that aren't Kinematic/Static bodies. This is what a script's Entity.Move calls. */
          bool MoveAndSlide(entt::entity entity, const glm::vec3& delta);
+         RaycastHit Raycast(const glm::vec3& origin, const glm::vec3& direction, float maxDistance) const;
+         const std::vector<CollisionEvent>& GetCollisionEvents() const;
 
          const glm::vec3& GetGravity() const { return m_Gravity; }
          void SetGravity(const glm::vec3& gravity) { m_Gravity = gravity; }
@@ -71,6 +101,12 @@ namespace Zeyrixon
          std::string m_WorldPath;
          float m_AmbientIntensity = 0.1f;
          glm::vec3 m_Gravity{ 0.0f, -9.81f, 0.0f };
+
+         // ID -> entity, kept up to date by the registry's construct/destroy signals. Declared before the
+         // registry so it outlives it.
+         std::unordered_map<uint64_t, entt::entity> m_IDLookup;
+         void OnIDConstructed(entt::registry& registry, entt::entity entity);
+         void OnIDDestroyed(entt::registry& registry, entt::entity entity);
 
          entt::registry m_Registry;
 

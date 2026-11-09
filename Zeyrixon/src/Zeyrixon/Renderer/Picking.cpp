@@ -91,7 +91,7 @@ namespace Zeyrixon
             // Test in the mesh's own space, so rotation and scale don't matter. Leaving the
             // direction unnormalised keeps the distance t the same in both spaces, so hits on
             // different entities can be compared directly.
-            const glm::mat4 inverseModel = glm::inverse(transform.GetMatrix());
+            const glm::mat4 inverseModel = glm::inverse(world.GetWorldMatrix(handle));
             const glm::vec3 localOrigin = glm::vec3(inverseModel * glm::vec4(rayOrigin, 1.0f));
             const glm::vec3 localDirection = glm::vec3(inverseModel * glm::vec4(rayDirection, 0.0f));
 
@@ -119,7 +119,7 @@ namespace Zeyrixon
         for (auto [handle, transform, sprite] : sprites.each())
         {
             const glm::vec2 size = WorldRenderer::GetSpriteSize(sprite);
-            const glm::mat4 model = transform.GetMatrix() * glm::scale(glm::mat4(1.0f), glm::vec3(size, 1.0f));
+            const glm::mat4 model = world.GetWorldMatrix(handle) * glm::scale(glm::mat4(1.0f), glm::vec3(size, 1.0f));
             const glm::mat4 inverseModel = glm::inverse(model);
 
             // Same trick as for meshes: an unnormalised local direction keeps t comparable.

@@ -10,6 +10,7 @@
 #include <Zeyrixon/Physics/PhysicsWorld.h>
 
 #include <cmath>
+#include <algorithm>
 
 #include <pugixml.hpp>
 #include <glm/glm.hpp>
@@ -43,8 +44,13 @@ namespace
 
 namespace Zeyrixon
 {
+    namespace { constexpr int k_MaxHierarchyDepth = 256; }   // guards every walk up the tree against a loop in a hand-edited file
+
     World::World()
     {
+        m_Registry.on_construct<IDComponent>().connect<&World::OnIDConstructed>(this);
+        m_Registry.on_destroy<IDComponent>().connect<&World::OnIDDestroyed>(this);
+
         /* Bodies hold no pointers into the registry, but the PhysicsWorld still has to be told when a
            collider goes away (entity deleted, or the component removed), or Bullet keeps simulating a ghost.
            EnTT calls this just BEFORE the component is destroyed. */
@@ -58,11 +64,36 @@ namespace Zeyrixon
 
         // The registry is destroyed after this body runs; make sure nothing calls back into a half-dead World.
         m_Registry.on_destroy<ColliderComponent>().disconnect<&World::OnColliderDestroyed>(this);
+        m_Registry.on_construct<IDComponent>().disconnect<&World::OnIDConstructed>(this);
+        m_Registry.on_destroy<IDComponent>().disconnect<&World::OnIDDestroyed>(this);
+    }
+
+    void World::OnIDConstructed(entt::registry& registry, entt::entity entity)
+    {
+        m_IDLookup[registry.get<IDComponent>(entity).ID] = entity;
+    }
+
+    void World::OnIDDestroyed(entt::registry& registry, entt::entity entity)
+    {
+        auto it = m_IDLookup.find(registry.get<IDComponent>(entity).ID);
+        if (it != m_IDLookup.end() && it->second == entity)
+            m_IDLookup.erase(it);
     }
 
     bool World::MoveAndSlide(entt::entity entity, const glm::vec3& delta)
     {
         return m_Physics && m_Physics->MoveAndSlide(m_Registry, entity, delta);
+    }
+
+    RaycastHit World::Raycast(const glm::vec3& origin, const glm::vec3& direction, float maxDistance) const
+    {
+        return m_Physics ? m_Physics->Raycast(origin, direction, maxDistance) : RaycastHit{};
+    }
+
+    const std::vector<CollisionEvent>& World::GetCollisionEvents() const
+    {
+        static const std::vector<CollisionEvent> empty;
+        return m_Physics ? m_Physics->GetCollisionEvents() : empty;
     }
 
     void World::OnColliderDestroyed(entt::registry&, entt::entity entity)
@@ -106,6 +137,15 @@ namespace Zeyrixon
         {
             if (!m_Registry.all_of<ColliderComponent>(handle))
                 Z_CORE_WARN("Entity '{0}' has a RigidBody but no Collider, so it has no shape and won't take part in physics.",
+                            m_Registry.all_of<TagComponent>(handle) ? m_Registry.get<TagComponent>(handle).Tag : std::string("?"));
+        }
+
+        // Physics still reads and writes an entity's transform as if it were a world transform, so a
+        // collider on a CHILD would be built in the wrong place. Until that is taught about parents, say so.
+        for (auto [handle, id, collider] : m_Registry.view<IDComponent, ColliderComponent>().each())
+        {
+            if (id.ParentID != 0)
+                Z_CORE_WARN("Entity '{0}' has a Collider and a parent. Physics doesn't understand parents yet, so keep colliders and rigid bodies on root entities.",
                             m_Registry.all_of<TagComponent>(handle) ? m_Registry.get<TagComponent>(handle).Tag : std::string("?"));
         }
 
@@ -161,6 +201,9 @@ namespace Zeyrixon
         // After the scripts, so a transform a script just changed is what the simulation starts from.
         if (m_Physics)
             m_Physics->Step(m_Registry, dt.GetSeconds());
+
+        // Deliver contacts after Bullet has completed the step, so callbacks observe current transforms.
+        ScriptEngine::OnCollisionEvents(*this);
 
         UpdateAnimations(dt);
     }
@@ -241,6 +284,7 @@ namespace Zeyrixon
 
             Entity entity{ world->m_Registry.create(), world.get() };
             entity.AddComponent<IDComponent>(id);
+            entity.GetComponent<IDComponent>().ParentID = node.attribute("Parent").as_ullong(0);   // linked up after the loop
 
             // Every entity always has a Tag and a Transform, same as CreateEntity.
             pugi::xml_node tagNode = node.child("Tag");
@@ -260,6 +304,40 @@ namespace Zeyrixon
 
                 if (info.Deserialize)
                     info.Deserialize(entity, componentNode);
+            }
+        }
+
+        // Second pass: now every entity exists, hook children up to their parents. A parent that isn't in
+        // the file, or one that would make a loop, is dropped (the entity becomes a root) with a warning.
+        for (auto handle : world->m_Registry.view<IDComponent>())
+        {
+            auto& idComponent = world->m_Registry.get<IDComponent>(handle);
+            if (idComponent.ParentID == 0)
+                continue;
+
+            const entt::entity parentHandle = world->FindHandleByID(idComponent.ParentID);
+            const bool loop = parentHandle == handle
+                || (parentHandle != entt::null && world->IsDescendantOf(Entity{ parentHandle, world.get() }, Entity{ handle, world.get() }));
+            if (parentHandle == entt::null || loop)
+            {
+                Z_CORE_WARN("World '{0}': entity {1} has {2} parent {3}; making it a root.",
+                            world->m_Name, idComponent.ID, loop ? "a looping" : "a missing", idComponent.ParentID);
+                idComponent.ParentID = 0;
+                continue;
+            }
+        }
+
+        // Views run newest-first; walk them in reverse so each parent's ChildIDs ends up in file order.
+        {
+            std::vector<entt::entity> all;
+            for (auto handle : world->m_Registry.view<IDComponent>())
+                all.push_back(handle);
+            for (auto it = all.rbegin(); it != all.rend(); ++it)
+            {
+                const auto& idComponent = world->m_Registry.get<IDComponent>(*it);
+                if (idComponent.ParentID == 0)
+                    continue;
+                world->m_Registry.get<IDComponent>(world->FindHandleByID(idComponent.ParentID)).ChildIDs.push_back(idComponent.ID);
             }
         }
 
@@ -300,6 +378,8 @@ namespace Zeyrixon
 
             auto node = root.append_child("Entity");
             node.append_attribute("ID") = static_cast<unsigned long long>(entity.GetComponent<IDComponent>().ID);
+            if (entity.GetComponent<IDComponent>().ParentID != 0)
+                node.append_attribute("Parent") = static_cast<unsigned long long>(entity.GetComponent<IDComponent>().ParentID);
 
             for (auto& info : ComponentRegistry::Get().GetAll())
             {
@@ -354,13 +434,14 @@ namespace Zeyrixon
 
     Entity World::FindEntityByID(uint64_t id)
     {
-        for (auto [handle, idComponent] : m_Registry.view<IDComponent>().each())
-        {
-            if (idComponent.ID == id)
-                return Entity{ handle, this };
-        }
+        const entt::entity handle = FindHandleByID(id);
+        return handle != entt::null ? Entity{ handle, this } : Entity{};
+    }
 
-        return Entity{};
+    entt::entity World::FindHandleByID(uint64_t id) const
+    {
+        auto it = m_IDLookup.find(id);
+        return it != m_IDLookup.end() ? it->second : entt::null;
     }
 
     void World::DestroyEntity(Entity entity)
@@ -368,7 +449,178 @@ namespace Zeyrixon
         if (!entity)
             return;
 
-        m_Registry.destroy(entity.Handle());
+        // Everything beneath it goes too. Collect the handles first, then destroy children before parents.
+        const uint64_t id = entity.GetComponent<IDComponent>().ID;
+        std::vector<entt::entity> doomed;
+        for (uint64_t subtreeID : GetSubtreeIDs(id))
+        {
+            const entt::entity handle = FindHandleByID(subtreeID);
+            if (handle != entt::null)
+                doomed.push_back(handle);
+        }
+
+        // Take the root out of its parent's child list.
+        const uint64_t parentID = entity.GetComponent<IDComponent>().ParentID;
+        if (parentID != 0)
+        {
+            const entt::entity parentHandle = FindHandleByID(parentID);
+            if (parentHandle != entt::null)
+            {
+                auto& siblings = m_Registry.get<IDComponent>(parentHandle).ChildIDs;
+                siblings.erase(std::remove(siblings.begin(), siblings.end(), id), siblings.end());
+            }
+        }
+
+        for (auto it = doomed.rbegin(); it != doomed.rend(); ++it)
+            m_Registry.destroy(*it);
+    }
+
+    // ---- Hierarchy ----
+
+    bool World::IsDescendantOf(Entity entity, Entity possibleAncestor)
+    {
+        if (!entity || !possibleAncestor)
+            return false;
+
+        const uint64_t ancestorID = possibleAncestor.GetComponent<IDComponent>().ID;
+        uint64_t current = entity.GetComponent<IDComponent>().ParentID;
+        for (int hops = 0; current != 0 && hops < k_MaxHierarchyDepth; ++hops)
+        {
+            if (current == ancestorID)
+                return true;
+
+            const entt::entity handle = FindHandleByID(current);
+            current = handle != entt::null ? m_Registry.get<IDComponent>(handle).ParentID : 0;
+        }
+        return false;
+    }
+
+    bool World::SetParent(Entity child, Entity parent, bool keepWorldTransform)
+    {
+        if (!child)
+            return false;
+        if (parent && (parent == child || IsDescendantOf(parent, child)))
+            return false;
+
+        auto& childID = child.GetComponent<IDComponent>();
+        const uint64_t newParentID = parent ? parent.GetComponent<IDComponent>().ID : 0;
+        if (childID.ParentID == newParentID)
+            return true;
+
+        const glm::mat4 world = GetWorldMatrix(child.Handle());   // where it is now, before anything moves
+
+        // Out of the old parent's list...
+        if (childID.ParentID != 0)
+        {
+            const entt::entity oldParent = FindHandleByID(childID.ParentID);
+            if (oldParent != entt::null)
+            {
+                auto& siblings = m_Registry.get<IDComponent>(oldParent).ChildIDs;
+                siblings.erase(std::remove(siblings.begin(), siblings.end(), childID.ID), siblings.end());
+            }
+        }
+
+        // ...into the new one's.
+        childID.ParentID = newParentID;
+        if (parent)
+            parent.GetComponent<IDComponent>().ChildIDs.push_back(childID.ID);
+
+        if (keepWorldTransform && child.HasComponent<TransformComponent>())
+        {
+            const glm::mat4 parentWorld = GetParentWorldMatrix(child.Handle());
+            if (std::abs(glm::determinant(parentWorld)) > 1e-12f)   // a parent scaled to zero can't be undone
+                child.GetComponent<TransformComponent>().SetFromMatrix(glm::inverse(parentWorld) * world);
+        }
+        return true;
+    }
+
+    Entity World::GetParent(Entity entity)
+    {
+        if (!entity)
+            return Entity{};
+        return FindEntityByID(entity.GetComponent<IDComponent>().ParentID);   // ID 0 finds nothing
+    }
+
+    std::vector<Entity> World::GetChildren(Entity entity)
+    {
+        std::vector<Entity> children;
+        if (!entity)
+            return children;
+
+        for (uint64_t childID : entity.GetComponent<IDComponent>().ChildIDs)
+        {
+            Entity child = FindEntityByID(childID);
+            if (child)
+                children.push_back(child);
+        }
+        return children;
+    }
+
+    std::vector<uint64_t> World::GetSubtreeIDs(uint64_t rootID) const
+    {
+        std::vector<uint64_t> result;
+        std::vector<uint64_t> stack{ rootID };
+        const size_t limit = m_Registry.view<IDComponent>().size();   // a loop could never produce more than this
+
+        while (!stack.empty() && result.size() <= limit)
+        {
+            const uint64_t id = stack.back();
+            stack.pop_back();
+
+            const entt::entity handle = FindHandleByID(id);
+            if (handle == entt::null)
+                continue;
+
+            result.push_back(id);
+            const auto& children = m_Registry.get<IDComponent>(handle).ChildIDs;
+            for (auto it = children.rbegin(); it != children.rend(); ++it)   // reversed so the first child pops first
+                stack.push_back(*it);
+        }
+        return result;
+    }
+
+    glm::mat4 World::GetWorldMatrix(entt::entity entity) const
+    {
+        glm::mat4 world(1.0f);
+        for (int hops = 0; entity != entt::null && m_Registry.valid(entity) && hops < k_MaxHierarchyDepth; ++hops)
+        {
+            if (const auto* transform = m_Registry.try_get<TransformComponent>(entity))
+                world = transform->GetMatrix() * world;   // each step up puts the parent on the left
+
+            const auto* id = m_Registry.try_get<IDComponent>(entity);
+            entity = (id && id->ParentID != 0) ? FindHandleByID(id->ParentID) : entt::null;
+        }
+        return world;
+    }
+
+    glm::mat4 World::GetParentWorldMatrix(entt::entity entity) const
+    {
+        const auto* id = m_Registry.valid(entity) ? m_Registry.try_get<IDComponent>(entity) : nullptr;
+        return (id && id->ParentID != 0) ? GetWorldMatrix(FindHandleByID(id->ParentID)) : glm::mat4(1.0f);
+    }
+
+    glm::vec3 World::GetWorldPosition(entt::entity entity) const
+    {
+        return glm::vec3(GetWorldMatrix(entity)[3]);
+    }
+
+    TransformComponent World::GetWorldTransform(entt::entity entity) const
+    {
+        TransformComponent result;
+        result.SetFromMatrix(GetWorldMatrix(entity));
+        return result;
+    }
+
+    glm::mat4 World::GetWorldViewMatrix(entt::entity entity) const
+    {
+        glm::mat4 cameraToWorld = GetWorldMatrix(entity);
+        for (int axis = 0; axis < 3; ++axis)   // a camera ignores scale
+        {
+            const float length = glm::length(glm::vec3(cameraToWorld[axis]));
+            if (length > 1e-6f)
+                cameraToWorld[axis] /= length;
+        }
+        return glm::inverse(cameraToWorld);
     }
 
     Entity World::GetPrimaryCamera()

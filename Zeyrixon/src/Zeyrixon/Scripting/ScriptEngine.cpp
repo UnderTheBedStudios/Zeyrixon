@@ -4,6 +4,7 @@
 #include <Zeyrixon/World/World.h>
 #include <Zeyrixon/World/Entity.h>
 #include <Zeyrixon/World/Components.h>
+#include <Zeyrixon/Physics/PhysicsWorld.h>
 #include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/Core/Input.h>
 #include <Zeyrixon/Core/KeyCodes.h>
@@ -222,6 +223,15 @@ namespace Zeyrixon
             }
         };
 
+        struct ScriptRaycastHit
+        {
+            bool Hit = false;
+            ScriptEntity Entity;
+            ScriptVec3 Point;
+            ScriptVec3 Normal;
+            float Distance = 0.0f;
+        };
+
         // ------------------------------------------------------------------------------------
         //  Free functions scripts can call
         // ------------------------------------------------------------------------------------
@@ -258,6 +268,19 @@ namespace Zeyrixon
             }
 
             s_CurrentWorld->SetGravity(glm::vec3(Vector));
+        }
+
+        ScriptRaycastHit WorldRaycast(const ScriptVec3& origin, const ScriptVec3& direction, float maxDistance)
+        {
+            ScriptRaycastHit result;
+            if (!s_CurrentWorld) return result;
+            const RaycastHit hit = s_CurrentWorld->Raycast(glm::vec3(origin), glm::vec3(direction), maxDistance);
+            result.Hit = hit.Hit;
+            result.Point = ScriptVec3(hit.Point);
+            result.Normal = ScriptVec3(hit.Normal);
+            result.Distance = hit.Distance;
+            if (hit.Hit) result.Entity = ScriptEntity{ hit.Entity, s_CurrentWorld };
+            return result;
         }
 
         // Filled by World::ChangeWorld, emptied by ScriptEngine::ConsumeWorldChange.
@@ -305,6 +328,8 @@ namespace Zeyrixon
             asIScriptFunction* OnCreate = nullptr;
             asIScriptFunction* OnUpdate = nullptr;
             asIScriptFunction* OnDestroy = nullptr;
+            asIScriptFunction* OnCollisionEnter = nullptr;
+            asIScriptFunction* OnCollisionExit = nullptr;
             bool Faulted = false;                     // threw an exception: never called again
         };
 
@@ -445,6 +470,14 @@ namespace Zeyrixon
             AS_REG(engine->RegisterObjectMethod("Entity", "Vec3 Up() const", WRAP_MFN(ScriptEntity, Up), asCALL_GENERIC));
 
             AS_REG(engine->RegisterGlobalFunction("Entity FindEntity(const string &in)", WRAP_FN(FindEntity), asCALL_GENERIC));
+
+            AS_REG(engine->RegisterObjectType("RaycastHit", sizeof(ScriptRaycastHit), asOBJ_VALUE | asOBJ_POD | asGetTypeTraits<ScriptRaycastHit>()));
+            AS_REG(engine->RegisterObjectBehaviour("RaycastHit", asBEHAVE_CONSTRUCT, "void f()", WRAP_CON(ScriptRaycastHit, (void)), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectProperty("RaycastHit", "bool hit", asOFFSET(ScriptRaycastHit, Hit)));
+            AS_REG(engine->RegisterObjectProperty("RaycastHit", "Entity entity", asOFFSET(ScriptRaycastHit, Entity)));
+            AS_REG(engine->RegisterObjectProperty("RaycastHit", "Vec3 point", asOFFSET(ScriptRaycastHit, Point)));
+            AS_REG(engine->RegisterObjectProperty("RaycastHit", "Vec3 normal", asOFFSET(ScriptRaycastHit, Normal)));
+            AS_REG(engine->RegisterObjectProperty("RaycastHit", "float distance", asOFFSET(ScriptRaycastHit, Distance)));
             return ok;
         }
 
@@ -496,6 +529,7 @@ namespace Zeyrixon
             AS_REG(engine->RegisterGlobalFunction("Vec3 GetGravity()", WRAP_FN(GetGravity), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("void SetGravity(const Vec3 &in)", WRAP_FN(SetGravity), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("void ChangeWorld(const string &in worldPath)", WRAP_FN(ChangeWorld), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("RaycastHit Raycast(const Vec3 &in origin, const Vec3 &in direction, float maxDistance)", WRAP_FN(WorldRaycast), asCALL_GENERIC));
 
             AS_REG(engine->SetDefaultNamespace(""));
             return ok;
@@ -532,6 +566,20 @@ namespace Zeyrixon
                 LogException(ctx, instance);
             else
                 Z_ERROR("[Script] {0} did not finish normally (code {1})", instance.Description, result);
+            return false;
+        }
+
+        bool CallCollision(ScriptInstance& instance, asIScriptFunction* function, entt::entity other)
+        {
+            asIScriptContext* ctx = s_Data->Context;
+            if (ctx->Prepare(function) < 0) return false;
+            ctx->SetObject(instance.Object);
+            ScriptEntity entity{ other, s_CurrentWorld };
+            ctx->SetArgObject(0, &entity);
+            const int result = ctx->Execute();
+            if (result == asEXECUTION_FINISHED) return true;
+            if (result == asEXECUTION_EXCEPTION) LogException(ctx, instance);
+            else Z_ERROR("[Script] {0} did not finish normally (code {1})", instance.Description, result);
             return false;
         }
 
@@ -773,6 +821,8 @@ namespace Zeyrixon
             instance.Object = object;
             instance.OnCreate = type->GetMethodByDecl("void OnCreate()");
             instance.OnUpdate = type->GetMethodByDecl("void OnUpdate(float)");
+            instance.OnCollisionEnter = type->GetMethodByDecl("void OnCollisionEnter(Entity)");
+            instance.OnCollisionExit = type->GetMethodByDecl("void OnCollisionExit(Entity)");
             instance.OnDestroy = type->GetMethodByDecl("void OnDestroy()");
             // These function pointers belong to the module. They stay valid until
             // ReleaseInstances discards the module, which always happens after the instances are gone.
@@ -816,6 +866,32 @@ namespace Zeyrixon
 
             if (!Call(instance, instance.OnUpdate, &seconds))
                 instance.Faulted = true;
+        }
+    }
+
+    void ScriptEngine::OnCollisionEvents(World& world)
+    {
+        if (!s_Data || !s_Data->Running || s_CurrentWorld != &world) return;
+        for (const CollisionEvent& event : world.GetCollisionEvents())
+        {
+            for (ScriptInstance& instance : s_Data->Instances)
+            {
+                if (instance.Faulted || !world.GetRegistry().valid(instance.EntityHandle)) continue;
+                asIScriptFunction* callback = nullptr;
+                entt::entity other = entt::null;
+                if (instance.EntityHandle == event.First)
+                {
+                    callback = event.Entered ? instance.OnCollisionEnter : instance.OnCollisionExit;
+                    other = event.Second;
+                }
+                else if (instance.EntityHandle == event.Second)
+                {
+                    callback = event.Entered ? instance.OnCollisionEnter : instance.OnCollisionExit;
+                    other = event.First;
+                }
+                if (callback && !CallCollision(instance, callback, other))
+                    instance.Faulted = true;
+            }
         }
     }
 

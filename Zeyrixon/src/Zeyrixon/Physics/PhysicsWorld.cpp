@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace Zeyrixon
@@ -102,6 +103,15 @@ namespace Zeyrixon
         btDiscreteDynamicsWorld World{ &Dispatcher, &Broadphase, &Solver, &Configuration };
 
         std::unordered_map<entt::entity, Body> Bodies;
+        std::unordered_set<uint64_t> Contacts;
+        std::vector<CollisionEvent> CollisionEvents;
+
+        static uint64_t PairKey(entt::entity a, entt::entity b)
+        {
+            uint32_t x = static_cast<uint32_t>(a), y = static_cast<uint32_t>(b);
+            if (x > y) std::swap(x, y);
+            return (uint64_t(x) << 32) | y;
+        }
 
         // Bodies must be taken OUT of the world before they are destroyed. btDiscreteDynamicsWorld's own
         // destructor walks the bodies still inside it, so freeing one first is a use-after-free.
@@ -183,6 +193,7 @@ namespace Zeyrixon
                 info.m_angularDamping = settings->AngularDamping;
             }
             body.RigidBody = std::make_unique<btRigidBody>(info);
+            body.RigidBody->setUserIndex(static_cast<int>(entity));
 
             if (type == BodyType::Kinematic)
             {
@@ -272,6 +283,26 @@ namespace Zeyrixon
         m_Impl->World.removeRigidBody(it->second.RigidBody.get());
         m_Impl->Bodies.erase(it);
     }
+
+    RaycastHit PhysicsWorld::Raycast(const glm::vec3& origin, const glm::vec3& direction, float maxDistance) const
+    {
+        RaycastHit result;
+        const float length = glm::length(direction);
+        if (length <= 1e-6f || maxDistance <= 0.0f) return result;
+        const btVector3 from = ToBullet(origin);
+        const btVector3 to = ToBullet(origin + direction / length * maxDistance);
+        btCollisionWorld::ClosestRayResultCallback callback(from, to);
+        m_Impl->World.rayTest(from, to, callback);
+        if (!callback.hasHit()) return result;
+        result.Hit = true;
+        result.Point = ToGlm(callback.m_hitPointWorld);
+        result.Normal = ToGlm(callback.m_hitNormalWorld);
+        result.Distance = maxDistance * callback.m_closestHitFraction;
+        result.Entity = static_cast<entt::entity>(callback.m_collisionObject->getUserIndex());
+        return result;
+    }
+
+    const std::vector<CollisionEvent>& PhysicsWorld::GetCollisionEvents() const { return m_Impl->CollisionEvents; }
 
     bool PhysicsWorld::MoveAndSlide(entt::registry& registry, entt::entity entity, const glm::vec3& delta)
     {
@@ -390,6 +421,28 @@ namespace Zeyrixon
            so one huge hitch can't make it spiral), then interpolates the left-over fraction, which is why
            motion still looks smooth when the frame rate isn't a multiple of 60. */
         m_Impl->World.stepSimulation(dt, 10, 1.0f / 60.0f);
+
+        m_Impl->CollisionEvents.clear();
+        std::unordered_set<uint64_t> currentContacts;
+        for (int i = 0; i < m_Impl->Dispatcher.getNumManifolds(); ++i)
+        {
+            const btPersistentManifold* manifold = m_Impl->Dispatcher.getManifoldByIndexInternal(i);
+            bool touching = false;
+            for (int p = 0; p < manifold->getNumContacts(); ++p)
+                if (manifold->getContactPoint(p).getDistance() <= 0.0f) { touching = true; break; }
+            if (!touching) continue;
+            const auto* a = static_cast<const btCollisionObject*>(manifold->getBody0());
+            const auto* b = static_cast<const btCollisionObject*>(manifold->getBody1());
+            const auto first = static_cast<entt::entity>(a->getUserIndex());
+            const auto second = static_cast<entt::entity>(b->getUserIndex());
+            const uint64_t key = Impl::PairKey(first, second);
+            currentContacts.insert(key);
+            if (!m_Impl->Contacts.contains(key)) m_Impl->CollisionEvents.push_back({first, second, true});
+        }
+        for (uint64_t key : m_Impl->Contacts)
+            if (!currentContacts.contains(key))
+                m_Impl->CollisionEvents.push_back({static_cast<entt::entity>(key >> 32), static_cast<entt::entity>(key), false});
+        m_Impl->Contacts = std::move(currentContacts);
 
         // 3. Dynamic bodies -> entities.
         for (auto& [entity, body] : m_Impl->Bodies)

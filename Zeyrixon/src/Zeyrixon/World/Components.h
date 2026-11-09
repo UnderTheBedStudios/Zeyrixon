@@ -10,12 +10,18 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <cmath>
 
 namespace Zeyrixon
 {
+    /* The entity's ID, plus where it sits in the parent/child hierarchy. Never edit ParentID or ChildIDs
+       by hand: use World::SetParent, which keeps both sides in step (and refuses loops). Only ParentID is
+       saved; ChildIDs is rebuilt from it when a world loads. */
     struct IDComponent
     {
         uint64_t ID = 0;
+        uint64_t ParentID = 0;            // 0 = no parent (this entity is a root)
+        std::vector<uint64_t> ChildIDs;   // in order; the outliner shows them in this order
 
         IDComponent() = default;
         IDComponent(uint64_t id) : ID(id) {}
@@ -45,6 +51,41 @@ namespace Zeyrixon
                 * glm::rotate(identity, Rotation.y, glm::vec3(0.f, 1.f, 0.f))
                 * glm::rotate(identity, Rotation.x, glm::vec3(1.f, 0.f, 0.f))
                 * glm::scale(identity, Scale);
+        }
+
+        /* The reverse of GetMatrix: takes a matrix apart into Position / Rotation / Scale, using the same
+           T * Rz * Ry * Rx * S order. Used to turn a world-space matrix back into a local transform
+           (reparenting, gizmo drags on children). A matrix that is sheared (a rotated child under a
+           non-uniformly scaled parent) can't be stored exactly in this form; the closest fit is kept. */
+        void SetFromMatrix(const glm::mat4& m)
+        {
+            Position = glm::vec3(m[3]);
+
+            glm::vec3 axisX(m[0]), axisY(m[1]), axisZ(m[2]);
+            Scale = glm::vec3(glm::length(axisX), glm::length(axisY), glm::length(axisZ));
+
+            // A mirrored matrix has a negative determinant; put the minus sign on X so the rotation stays proper.
+            if (glm::dot(glm::cross(axisX, axisY), axisZ) < 0.0f)
+                Scale.x = -Scale.x;
+
+            const glm::vec3 safe(Scale.x != 0.0f ? Scale.x : 1.0f, Scale.y != 0.0f ? Scale.y : 1.0f, Scale.z != 0.0f ? Scale.z : 1.0f);
+            axisX /= safe.x; axisY /= safe.y; axisZ /= safe.z;
+
+            // With R = Rz * Ry * Rx:  R(2,0) = -sin(y),  R(2,1) = sin(x)cos(y),  R(2,2) = cos(x)cos(y),
+            // R(1,0) = cos(y)sin(z),  R(0,0) = cos(y)cos(z).  (axisN is column N, so R(row, N) = axisN[row].)
+            const float sinY = glm::clamp(-axisX.z, -1.0f, 1.0f);
+            Rotation.y = std::asin(sinY);
+            if (std::abs(sinY) < 0.99999f)
+            {
+                Rotation.x = std::atan2(axisY.z, axisZ.z);
+                Rotation.z = std::atan2(axisX.y, axisX.x);
+            }
+            else
+            {
+                // Looking straight up/down (gimbal lock): x and z do the same thing, so put it all in x.
+                Rotation.x = std::atan2(-axisZ.y, axisY.y);
+                Rotation.z = 0.0f;
+            }
         }
 
         /* The view matrix of a camera placed at this transform: position and rotation only
@@ -116,6 +157,13 @@ namespace Zeyrixon
                 * glm::rotate(identity, transform.Rotation.y, glm::vec3(0.f, 1.f, 0.f))
                 * glm::rotate(identity, transform.Rotation.x, glm::vec3(1.f, 0.f, 0.f));
             return glm::normalize(glm::vec3(rotation * glm::vec4(0.f, 0.f, -1.f, 0.f)));
+        }
+
+        // The same, from a WORLD matrix (so a light parented to something still points the right way).
+        static glm::vec3 GetDirection(const glm::mat4& world)
+        {
+            const glm::vec3 backwards(world[2]);   // local +Z in world space; scale along Z doesn't change its direction
+            return glm::length(backwards) > 1e-6f ? -glm::normalize(backwards) : glm::vec3(0.f, 0.f, -1.f);
         }
     };
 

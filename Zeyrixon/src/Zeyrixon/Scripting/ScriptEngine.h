@@ -38,6 +38,7 @@ namespace Zeyrixon
            script fails to compile. */
         static bool OnRuntimeStart(World& world);
         static void OnRuntimeUpdate(World& world, DeltaTime dt);
+        static void OnCollisionEvents(World& world);
         static void OnRuntimeStop(World& world);
 
         static bool IsRunning();

@@ -342,7 +342,7 @@ namespace Zeyrixon
             float NormalBias = 1.5f;
         };
 
-        GPULight MakeGPULight(const LightComponent& light, const TransformComponent& transform)
+        GPULight MakeGPULight(const LightComponent& light, const glm::mat4& worldMatrix)
         {
             GPULight gpu{};
             const float range = std::max(light.Range, 0.01f);
@@ -352,8 +352,8 @@ namespace Zeyrixon
             const float outer = glm::clamp(light.OuterConeAngle, 1.0f, 89.0f);
             const float inner = glm::clamp(light.InnerConeAngle, 0.0f, outer);
 
-            gpu.PositionRange  = glm::vec4(transform.Position, range);
-            gpu.DirectionType  = glm::vec4(LightComponent::GetDirection(transform), static_cast<float>(light.Type));
+            gpu.PositionRange  = glm::vec4(glm::vec3(worldMatrix[3]), range);
+            gpu.DirectionType  = glm::vec4(LightComponent::GetDirection(worldMatrix), static_cast<float>(light.Type));
             gpu.ColorIntensity = glm::vec4(light.Color * std::max(light.Intensity, 0.0f), 0.0f);
             gpu.SpotCones      = glm::vec4(std::cos(glm::radians(inner)), std::cos(glm::radians(outer)), 0.0f, 0.0f);
             return gpu;
@@ -377,12 +377,14 @@ namespace Zeyrixon
             auto lights = world.GetRegistry().view<TransformComponent, LightComponent>();
             for (auto [entity, transform, light] : lights.each())
             {
-                const glm::vec3 offset = transform.Position - cameraPosition;
-                candidates.push_back({ MakeGPULight(light, transform),
+                // World space, so a light parented to something moves and turns with it.
+                const glm::mat4 worldMatrix = world.GetWorldMatrix(entity);
+                const glm::vec3 offset = glm::vec3(worldMatrix[3]) - cameraPosition;
+                candidates.push_back({ MakeGPULight(light, worldMatrix),
                                        light.Type == LightType::Directional,
                                        glm::dot(offset, offset),
                                        &light,
-                                       LightComponent::GetDirection(transform) });
+                                       LightComponent::GetDirection(worldMatrix) });
             }
 
             // A world with no lights would be black, so give it a default sun. It disappears as soon
@@ -820,7 +822,7 @@ namespace Zeyrixon
                 }
             }
 
-            const glm::mat4 model = transform.GetMatrix();
+            const glm::mat4 model = world.GetWorldMatrix(entity);   // includes every parent's transform
             int uploadedSkin = -1;   // which skin's joint matrices are currently in the shader (for this entity)
 
             // One draw call per submesh, each with its own material.
@@ -1025,7 +1027,7 @@ namespace Zeyrixon
     {
         struct SpriteDraw
         {
-            const TransformComponent* Transform;
+            glm::mat4 Model;   // world matrix (parents included), before the sprite's size is applied
             const SpriteComponent* Sprite;
             float Depth;   // view-space z: more negative = farther from the camera
         };
@@ -1034,8 +1036,9 @@ namespace Zeyrixon
         auto sprites = world.GetRegistry().view<TransformComponent, SpriteComponent>();
         for (auto [entity, transform, sprite] : sprites.each())
         {
-            const glm::vec4 viewPosition = view * glm::vec4(transform.Position, 1.0f);
-            draws.push_back({ &transform, &sprite, viewPosition.z });
+            const glm::mat4 worldMatrix = world.GetWorldMatrix(entity);
+            const glm::vec4 viewPosition = view * worldMatrix[3];
+            draws.push_back({ worldMatrix, &sprite, viewPosition.z });
         }
 
         if (draws.empty())
@@ -1070,7 +1073,7 @@ namespace Zeyrixon
                 texture = TextureLibrary::Get(sprite.TexturePath, true);
 
             const glm::vec2 size = GetSpriteSize(sprite);
-            const glm::mat4 model = draw.Transform->GetMatrix() * glm::scale(glm::mat4(1.0f), glm::vec3(size, 1.0f));
+            const glm::mat4 model = draw.Model * glm::scale(glm::mat4(1.0f), glm::vec3(size, 1.0f));
 
             shader.SetMat4("u_Model", model);
             shader.SetFloat4("u_Color", sprite.Color);

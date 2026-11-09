@@ -63,6 +63,7 @@ namespace Editor
         void DrawMenuBar();
         void DrawViewportPanel();
         void DrawWorldOutlinerPanel();
+        void ReparentEntity(Zeyrixon::Entity child, Zeyrixon::Entity newParent);   // newParent invalid = make a root; undoable
         void DrawPropertiesPanel();
         void DrawLoggerPanel();
         void DrawContentBrowserPanel();

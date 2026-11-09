@@ -142,6 +142,9 @@ class World
     void SetGravity(const Vec3 &in g);
     /** This just changes the world you're currently in... obviously */
     void ChangeWorld(const string &worldPath);
+    /** Does a raycast */
+    RaycastHit Raycast(const Vec3 &in origin, const Vec3 &in direction, float maxDistance)
+    {}
 }
 
 /** This just allows you to write things into the terminal, nothing too special */
@@ -156,6 +159,24 @@ class Log
     /** This is the most neutral kind of logging you can do */
     void Trace(const string &in msg);
 }
+
+class RaycastHit
+{
+    /** Checks if it has hit anything */
+    bool hit = false;
+    /** Checks for a hit entity */
+    Entity entity;
+    /** Checks where the raycast hit */
+    Vec3 point;
+    /** Checks what the normal of the surface the raycast hit */
+    Vec3 normal;
+    /** Checks the distance of the surface the raycast hit */
+    float distance = 0.0f;
+}
+
+void OnCreate() {}
+void OnUpdate(float dt) {}
+void OnDestroy() {}
 
 /** This allows you to find an entity in the world based on the entity's name */
 Entity@ FindEntity(const string &in name);
