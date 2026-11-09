@@ -129,7 +129,7 @@ What scripts can use:
 
 | Name | What it is |
 |---|---|
-| `Entity` | `name`, `position`, `rotation` (degrees), `scale`, `id`, `IsValid()`, `Forward()`, `Right()`, `Up()`, `Move(Vec3)` |
+| `Entity` | `name`, `position`, `rotation` (degrees), `scale`, `id`, `IsValid()`, `GetParent()`, `GetChildren()` (returns `array<Entity>@`), `Forward()`, `Right()`, `Up()`, `Move(Vec3)` |
 | `FindEntity("Name")` | Looks an entity up by its name |
 | `Vec3` | `x y z`, `+ - * /`, `Length()`, `Normalized()`, `Dot()`, `Cross()`, `Distance()` |
 | `Log::Info/Warn/Error/Trace`, `Print` | Writes to the Logger panel |

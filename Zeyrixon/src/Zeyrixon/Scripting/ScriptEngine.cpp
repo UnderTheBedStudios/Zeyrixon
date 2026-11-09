@@ -221,6 +221,15 @@ namespace Zeyrixon
                 auto* id = Get<IDComponent>("id");
                 return id ? id->ID : 0;
             }
+
+            ScriptEntity GetParent() const
+            {
+                if (!IsValid()) return {};
+                const Zeyrixon::Entity parent = WorldPtr->GetParent(Zeyrixon::Entity{ Handle, WorldPtr });
+                return parent ? ScriptEntity{ parent.Handle(), WorldPtr } : ScriptEntity{};
+            }
+
+            CScriptArray* GetChildren() const;
         };
 
         struct ScriptRaycastHit
@@ -344,6 +353,21 @@ namespace Zeyrixon
 
         Data* s_Data = nullptr;
 
+        CScriptArray* ScriptEntity::GetChildren() const
+        {
+            if (!IsValid() || !s_Data || !s_Data->Engine) return nullptr;
+            asITypeInfo* arrayType = s_Data->Engine->GetTypeInfoByDecl("array<Entity>");
+            if (!arrayType) return nullptr;
+            CScriptArray* result = CScriptArray::Create(arrayType);
+            if (!result) return nullptr;
+            for (const Zeyrixon::Entity& child : WorldPtr->GetChildren(Zeyrixon::Entity{ Handle, WorldPtr }))
+            {
+                ScriptEntity scriptChild{ child.Handle(), WorldPtr };
+                result->InsertLast(&scriptChild);
+            }
+            return result;
+        }
+
         // Kept outside Data so a project can be loaded before the engine exists.
         std::string s_AssetRoot;
 
@@ -452,6 +476,8 @@ namespace Zeyrixon
                 WRAP_CON(ScriptEntity, (void)), asCALL_GENERIC));
 
             AS_REG(engine->RegisterObjectMethod("Entity", "bool IsValid() const", WRAP_MFN(ScriptEntity, IsValid), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Entity", "Entity GetParent() const", WRAP_MFN(ScriptEntity, GetParent), asCALL_GENERIC));
+            AS_REG(engine->RegisterObjectMethod("Entity", "array<Entity>@ GetChildren() const", WRAP_MFN(ScriptEntity, GetChildren), asCALL_GENERIC));
 
             // "property" accessors let a script write entity.position instead of GetPosition().
             AS_REG(engine->RegisterObjectMethod("Entity", "string get_name() const property", WRAP_MFN(ScriptEntity, GetName), asCALL_GENERIC));

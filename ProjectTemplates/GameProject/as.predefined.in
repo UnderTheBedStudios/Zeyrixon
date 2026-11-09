@@ -69,6 +69,11 @@ class Entity
     Vec3 Up();
     /** This just moves the entity... what did you expect? */
     bool Move(const Vec3 &in delta);
+
+    /** Gets the parent of the Entity */
+    Entity GetParent() const {}
+    /** Gets all children the entity has */
+    array<Entity>@ GetChildren() const {}
 }
 
 /** This is a controller than can detect input */
