@@ -108,6 +108,9 @@ namespace Zeyrixon
             return true;
 
         m_RuntimeSnapshot.clear();
+        m_RuntimeEntityIDs.clear();
+        for (auto [handle, id] : m_Registry.view<IDComponent>().each())
+            m_RuntimeEntityIDs.insert(id.ID);
         for (auto [handle, id, transform] : m_Registry.view<IDComponent, TransformComponent>().each())
             m_RuntimeSnapshot[id.ID] = { transform.Position, transform.Rotation, transform.Scale };
 
@@ -119,6 +122,7 @@ namespace Zeyrixon
         {
             m_Physics.reset();
             m_RuntimeSnapshot.clear();
+            m_RuntimeEntityIDs.clear();
             return false;
         }
 
@@ -162,11 +166,23 @@ namespace Zeyrixon
 
         ScriptEngine::OnRuntimeStop(*this);
 
+        // Remove entities created during Play, starting with the new roots in each hierarchy.
+        // DestroyEntity removes the full subtree and updates the original parent.
+        std::vector<uint64_t> runtimeRoots;
+        for (auto [handle, id] : m_Registry.view<IDComponent>().each())
+        {
+            if (m_RuntimeEntityIDs.count(id.ID))
+                continue;
+            if (id.ParentID == 0 || m_RuntimeEntityIDs.count(id.ParentID))
+                runtimeRoots.push_back(id.ID);
+        }
+        for (uint64_t id : runtimeRoots)
+            DestroyEntity(FindEntityByID(id));
+
         // Bodies are removed from Bullet before the transforms are restored below, so nothing can push a
         // restored transform back into a body that is about to be thrown away.
         m_Physics.reset();
 
-        // Entities created while playing are not in the snapshot and are left as they are.
         for (auto [handle, id, transform] : m_Registry.view<IDComponent, TransformComponent>().each())
         {
             auto saved = m_RuntimeSnapshot.find(id.ID);
@@ -179,6 +195,7 @@ namespace Zeyrixon
         }
 
         m_RuntimeSnapshot.clear();
+        m_RuntimeEntityIDs.clear();
 
         for (auto [handle, id, animation] : m_Registry.view<IDComponent, AnimationComponent>().each())
         {

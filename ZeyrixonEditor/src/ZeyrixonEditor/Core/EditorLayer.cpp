@@ -22,6 +22,8 @@
 
 #include <tinyfiledialogs.h>
 
+#include <pugixml.hpp>
+
 #include <filesystem>
 #include <functional>
 #include <fstream>
@@ -1845,6 +1847,13 @@ namespace Editor
                 if (ImGui::BeginPopupContextItem())
                 {
                     m_SelectedEntity = entity;
+                    if (ImGui::MenuItem("Save As Prefab"))
+                    {
+                        const std::string& tag = entity.GetComponent<Zeyrixon::TagComponent>().Tag;
+                        const fs::path prefabPath = fs::path(m_ActiveProject->GetAssetDirectory())
+                            / "Prefabs" / (tag + ".zfab");
+                        SavePrefab(*m_ActiveWorld, entity, prefabPath.string());
+                    }
                     if (ImGui::MenuItem("Create Child Entity"))
                         createChildOf = entity;
                     if (idComponent.ParentID != 0 && ImGui::MenuItem("Unparent"))
@@ -2610,5 +2619,42 @@ namespace Editor
         m_GizmoWasUsing = false;
         m_GizmoBefore.clear();
         m_History.Clear();
+    }
+
+    bool EditorLayer::SavePrefab(Zeyrixon::World& world, Zeyrixon::Entity root, const std::string& path)
+    {
+        pugi::xml_document doc;
+        auto prefab = doc.append_child("Prefab");
+        prefab.append_attribute("version") = 1;
+
+        SaveEntityRecursive(world, root, prefab.append_child("Entity"));
+        std::error_code ec;
+        fs::create_directories(fs::path(path).parent_path(), ec);
+        if (ec)
+        {
+            Z_EDITOR_ERROR("Could not create prefab directory: {0}", ec.message());
+            return false;
+        }
+
+        if (!doc.save_file(path.c_str()))
+        {
+            Z_EDITOR_ERROR("Could not save prefab file: {0}", path);
+            return false;
+        }
+        return true;
+    }
+
+    void EditorLayer::SaveEntityRecursive(Zeyrixon::World& world, Zeyrixon::Entity entity, pugi::xml_node node)
+    {
+        node.append_attribute("name") = entity.GetComponent<Zeyrixon::TagComponent>().Tag.c_str();
+
+        for (auto& component : Zeyrixon::ComponentRegistry::Get().GetAll())
+        {
+            if (component.Serialize && component.Has(entity))
+                component.Serialize(entity, node.append_child(component.Name));
+        }
+
+        for (Zeyrixon::Entity child : world.GetChildren(entity))
+            SaveEntityRecursive(world, child, node.append_child("Entity"));
     }
 }

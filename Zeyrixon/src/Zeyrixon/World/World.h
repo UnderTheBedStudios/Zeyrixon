@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace Zeyrixon
@@ -27,8 +28,8 @@ namespace Zeyrixon
 
          /* Play mode. OnRuntimeStart remembers every entity's transform, compiles and starts the
             scripts and returns false if a script fails to compile (the world then is not running).
-            OnRuntimeStop stops the scripts and puts the transforms back, so playing never changes
-            the world you were editing. OnUpdate runs the scripts, and does nothing when stopped. */
+            OnRuntimeStop stops the scripts, removes entities created during Play, and restores the
+            original transforms. OnUpdate runs the scripts, and does nothing when stopped. */
          bool OnRuntimeStart();
          void OnRuntimeStop();
          bool IsRunning() const { return m_Running; }
@@ -123,5 +124,6 @@ namespace Zeyrixon
          struct TransformSnapshot { glm::vec3 Position, Rotation, Scale; };
          std::unordered_map<uint64_t, TransformSnapshot> m_RuntimeSnapshot;   // keyed by IDComponent::ID
          std::unordered_map<uint64_t, float> m_AnimationTimeSnapshot;         // same key: Animation time before Play
+         std::unordered_set<uint64_t> m_RuntimeEntityIDs;                     // entities present before Play
     };
 }

@@ -4,6 +4,7 @@
 #include <Zeyrixon/World/World.h>
 #include <Zeyrixon/World/Entity.h>
 #include <Zeyrixon/World/Components.h>
+#include <Zeyrixon/World/ComponentRegistry.h>
 #include <Zeyrixon/Physics/PhysicsWorld.h>
 #include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/Core/Input.h>
@@ -18,6 +19,8 @@
 #include <autowrapper/aswrappedcall.h>
 
 #include <glm/gtc/matrix_transform.hpp>
+
+#include <pugixml.hpp>
 
 #include <cmath>
 #include <filesystem>
@@ -320,6 +323,33 @@ namespace Zeyrixon
             return {};
         }
 
+        Entity LoadEntityRecursive(World& world, pugi::xml_node node, Entity parent);
+        ScriptEntity InstantiatePrefab(const std::string& path);
+
+        Entity LoadEntityRecursive(World& world, pugi::xml_node node, Entity parent)
+        {
+            Entity entity = world.CreateEntity(node.attribute("name").as_string());
+
+            for (auto& component : ComponentRegistry::Get().GetAll())
+            {
+                pugi::xml_node componentNode = node.child(component.Name.c_str());
+                if (component.Deserialize && componentNode)
+                {
+                    if (component.Add && !component.Has(entity))
+                        component.Add(entity);
+                    component.Deserialize(entity, componentNode);
+                }
+            }
+
+            if (parent)
+                world.SetParent(entity, parent, false);
+
+            for (pugi::xml_node child : node.children("Entity"))
+                LoadEntityRecursive(world, child, entity);
+
+            return entity;
+        }
+
         // ------------------------------------------------------------------------------------
         //  Engine state
         // ------------------------------------------------------------------------------------
@@ -348,6 +378,7 @@ namespace Zeyrixon
             asIScriptContext* Context = nullptr;
             asIScriptModule* Module = nullptr;
             std::vector<ScriptInstance> Instances;
+            std::vector<entt::entity> PendingScriptEntities;
             bool Running = false;
         };
 
@@ -556,6 +587,7 @@ namespace Zeyrixon
             AS_REG(engine->RegisterGlobalFunction("void SetGravity(const Vec3 &in)", WRAP_FN(SetGravity), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("void ChangeWorld(const string &in worldPath)", WRAP_FN(ChangeWorld), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("RaycastHit Raycast(const Vec3 &in origin, const Vec3 &in direction, float maxDistance)", WRAP_FN(WorldRaycast), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("Entity InstantiatePrefab(const string &in path)", WRAP_FN(InstantiatePrefab), asCALL_GENERIC));
 
             AS_REG(engine->SetDefaultNamespace(""));
             return ok;
@@ -632,8 +664,113 @@ namespace Zeyrixon
             return fs::absolute(path).lexically_normal().string();
         }
 
+        void StartPendingScripts(World& world)
+        {
+            if (!s_Data || !s_Data->Module || !s_Data->Engine)
+                return;
+
+            // Process in waves. A prefab script may instantiate another prefab from OnCreate.
+            while (!s_Data->PendingScriptEntities.empty())
+            {
+                std::vector<entt::entity> pendingHandles = std::move(s_Data->PendingScriptEntities);
+                s_Data->PendingScriptEntities.clear();
+                const size_t firstInstance = s_Data->Instances.size();
+
+                for (entt::entity handle : pendingHandles)
+                {
+                    if (!world.GetRegistry().valid(handle))
+                        continue;
+                    const ScriptComponent* script = world.GetRegistry().try_get<ScriptComponent>(handle);
+                    if (!script || script->ScriptPath.empty())
+                        continue;
+
+                    std::string name = "Entity";
+                    if (const TagComponent* tag = world.GetRegistry().try_get<TagComponent>(handle))
+                        name = tag->Tag;
+
+                    ScriptInstance instance;
+                    instance.EntityHandle = handle;
+                    instance.Description = script->GetResolvedClassName() + " on '" + name + "'";
+
+                    asITypeInfo* type = s_Data->Module->GetTypeInfoByName(script->GetResolvedClassName().c_str());
+                    if (!type)
+                    {
+                        Z_ERROR("[Script] {0}: class '{1}' is not compiled into the running module",
+                            instance.Description, script->GetResolvedClassName());
+                        continue;
+                    }
+
+                    instance.Object = static_cast<asIScriptObject*>(s_Data->Engine->CreateScriptObject(type));
+                    if (!instance.Object)
+                    {
+                        Z_ERROR("[Script] {0}: could not create the object", instance.Description);
+                        continue;
+                    }
+
+                    instance.OnCreate = type->GetMethodByDecl("void OnCreate()");
+                    instance.OnUpdate = type->GetMethodByDecl("void OnUpdate(float)");
+                    instance.OnCollisionEnter = type->GetMethodByDecl("void OnCollisionEnter(Entity)");
+                    instance.OnCollisionExit = type->GetMethodByDecl("void OnCollisionExit(Entity)");
+                    instance.OnDestroy = type->GetMethodByDecl("void OnDestroy()");
+                    InjectEntity(instance.Object, ScriptEntity{ handle, &world });
+                    s_Data->Instances.push_back(instance);
+                }
+
+                const size_t endInstance = s_Data->Instances.size();
+                for (size_t i = firstInstance; i < endInstance; ++i)
+                {
+                    if (s_Data->Instances[i].OnCreate && !Call(s_Data->Instances[i], s_Data->Instances[i].OnCreate))
+                        s_Data->Instances[i].Faulted = true;
+                }
+            }
+        }
+
+        ScriptEntity InstantiatePrefab(const std::string& path)
+        {
+            if (!s_CurrentWorld)
+            {
+                Z_ERROR("Could not instantiate prefab because there is no active world.");
+                return {};
+            }
+
+            fs::path prefabPath(path);
+            if (prefabPath.is_relative())
+                prefabPath = fs::path(ScriptEngine::GetAssetRoot()) / prefabPath;
+
+            pugi::xml_document doc;
+            if (!doc.load_file(prefabPath.string().c_str()))
+            {
+                Z_ERROR("Could not load prefab file at '{0}'", prefabPath.string());
+                return {};
+            }
+
+            pugi::xml_node rootNode = doc.child("Prefab").child("Entity");
+            if (!rootNode)
+            {
+                Z_ERROR("Could not find the root Entity in prefab '{0}'", prefabPath.string());
+                return {};
+            }
+
+            Entity root = LoadEntityRecursive(*s_CurrentWorld, rootNode, {});
+            if (!root)
+                return {};
+
+            if (s_Data && s_Data->Running)
+            {
+                for (uint64_t id : s_CurrentWorld->GetSubtreeIDs(root.GetComponent<IDComponent>().ID))
+                {
+                    Entity instanceEntity = s_CurrentWorld->FindEntityByID(id);
+                    if (instanceEntity && instanceEntity.HasComponent<ScriptComponent>())
+                        s_Data->PendingScriptEntities.push_back(instanceEntity.Handle());
+                }
+            }
+
+            return ScriptEntity{ root.Handle(), s_CurrentWorld };
+        }
+
         void ReleaseInstances(World* worldForDestroyCalls)
         {
+            s_Data->PendingScriptEntities.clear();
             for (ScriptInstance& instance : s_Data->Instances)
             {
                 if (!instance.Object)
@@ -790,9 +927,38 @@ namespace Zeyrixon
             pending.push_back({ handle, path, script.GetResolvedClassName(), name });
         }
 
+        // Prefab scripts need to be compiled before Play starts, even though their entities do not
+        // exist in the world until a script instantiates the prefab.
+        std::error_code scanError;
+        const fs::path assetRoot(s_AssetRoot);
+        if (fs::exists(assetRoot, scanError) && !scanError)
+        {
+            for (fs::recursive_directory_iterator it(assetRoot, fs::directory_options::skip_permission_denied, scanError), end;
+                 it != end; it.increment(scanError))
+            {
+                if (scanError)
+                {
+                    scanError.clear();
+                    continue;
+                }
+                if (!it->is_regular_file(scanError) || it->path().extension() != ".zfab")
+                    continue;
+
+                pugi::xml_document prefabDoc;
+                if (!prefabDoc.load_file(it->path().string().c_str()))
+                    continue;
+                for (pugi::xpath_node scriptNode : prefabDoc.select_nodes("//Script"))
+                {
+                    const std::string scriptPath = scriptNode.node().attribute("Path").as_string();
+                    if (!scriptPath.empty())
+                        files.insert(ResolvePath(scriptPath));
+                }
+            }
+        }
+
         s_CurrentWorld = &world;
 
-        if (pending.empty())
+        if (files.empty())
         {
             s_Data->Running = true;
             return true;
@@ -867,6 +1033,8 @@ namespace Zeyrixon
                 instance.Faulted = true;
         }
 
+        StartPendingScripts(world);
+
         Z_CORE_INFO("Started {0} script(s)", s_Data->Instances.size());
         return true;
     }
@@ -875,6 +1043,8 @@ namespace Zeyrixon
     {
         if (!s_Data || !s_Data->Running)
             return;
+
+        StartPendingScripts(world);
 
         const float seconds = dt.GetSeconds();
 

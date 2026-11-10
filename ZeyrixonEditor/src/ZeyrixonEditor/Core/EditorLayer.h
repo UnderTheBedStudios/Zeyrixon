@@ -23,6 +23,7 @@
 #include <ZeyrixonEditor/Commands/CommandsList.h>
 #include <optional>
 #include <string>
+#include <pugixml.hpp>
 
 namespace Editor
 {
@@ -134,5 +135,9 @@ namespace Editor
         bool m_GizmoWasUsing = false;
         uint64_t m_GizmoEntityID = 0;
         std::string m_GizmoBefore;
+
+        bool SavePrefab(Zeyrixon::World& world, Zeyrixon::Entity root, const std::string& path);
+
+        void SaveEntityRecursive(Zeyrixon::World& world, Zeyrixon::Entity entity, pugi::xml_node node);
     };
 }
