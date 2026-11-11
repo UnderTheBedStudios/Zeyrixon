@@ -150,6 +150,10 @@ class World
     /** Does a raycast */
     RaycastHit Raycast(const Vec3 &in origin, const Vec3 &in direction, float maxDistance)
     {}
+    /** Makes a prefab saved from a file into an entity */
+    Entity InstantiatePrefab(const string &in path) {}
+    /** It destroyes an entity lol */
+    bool DestroyEntity(Entity) {}
 }
 
 /** This just allows you to write things into the terminal, nothing too special */

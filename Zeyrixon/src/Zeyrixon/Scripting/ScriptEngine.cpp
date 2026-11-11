@@ -350,6 +350,19 @@ namespace Zeyrixon
             return entity;
         }
 
+        bool DestroyScriptEntity(ScriptEntity entity)
+        {
+            if (!entity.IsValid() || entity.WorldPtr != s_CurrentWorld)
+            {
+                Z_ERROR("COULD NOT DESTROY ENTITY AS IT DOES NOT EXIST!");
+                return false;
+            }
+
+            entity.WorldPtr->DestroyEntity(
+                Zeyrixon::Entity{ entity.Handle, entity.WorldPtr });
+            return true;
+        }
+
         // ------------------------------------------------------------------------------------
         //  Engine state
         // ------------------------------------------------------------------------------------
@@ -588,6 +601,7 @@ namespace Zeyrixon
             AS_REG(engine->RegisterGlobalFunction("void ChangeWorld(const string &in worldPath)", WRAP_FN(ChangeWorld), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("RaycastHit Raycast(const Vec3 &in origin, const Vec3 &in direction, float maxDistance)", WRAP_FN(WorldRaycast), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("Entity InstantiatePrefab(const string &in path)", WRAP_FN(InstantiatePrefab), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("bool DestroyEntity(Entity)", WRAP_FN(DestroyScriptEntity), asCALL_GENERIC));
 
             AS_REG(engine->SetDefaultNamespace(""));
             return ok;
