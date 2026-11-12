@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <algorithm>
 #include <cmath>
 
@@ -259,6 +260,9 @@ namespace Zeyrixon
         std::string ScriptPath;
 
         std::string ClassName;
+
+        // Values edited in the editor for fields marked [Editor] in the script.
+        std::unordered_map<std::string, std::string> ExposedFields;
 
         std::string GetResolvedClassName() const
         {

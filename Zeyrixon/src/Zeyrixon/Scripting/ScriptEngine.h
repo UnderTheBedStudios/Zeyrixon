@@ -4,6 +4,7 @@
 #include <Zeyrixon/Core/DeltaTime.h>
 
 #include <string>
+#include <vector>
 
 /* Forward declared so that including this header does not drag <angelscript.h> into every
    file. A game that wants to register its own functions includes <angelscript.h> itself. */
@@ -12,6 +13,15 @@ class asIScriptEngine;
 namespace Zeyrixon
 {
     class World;
+    struct ScriptComponent;
+
+    struct ScriptEditorField
+    {
+        std::string Name;
+        std::string Label;
+        std::string Type;
+        std::string DefaultValue;
+    };
 
     /* The AngelScript side of the engine. Everything is static because there is exactly one
        scripting engine per process.
@@ -32,6 +42,10 @@ namespace Zeyrixon
            RuntimeLayer set it to the project's Assets folder when a project is loaded. */
         static void SetAssetRoot(const std::string& directory);
         static const std::string& GetAssetRoot();
+
+        /* Fields marked [Editor] in the script class, with their AngelScript type and default.
+           The builder processes metadata without executing the script. */
+        static const std::vector<ScriptEditorField>& GetEditorFields(const ScriptComponent& script);
 
         /* Compiles every script used by an entity in the world, creates one script object per
            ScriptComponent and calls OnCreate on each. Returns false (and runs nothing) if a

@@ -1,5 +1,18 @@
 class string {}
 
+/**
+ * Zeyrixon script editor metadata
+ *
+ * Mark a class field with [Editor] to show it in the entity's Script properties.
+ * [Editor("Label")] supplies a friendly inspector label. Metadata is parsed from
+ * the script source by the AngelScript Language Server; it does not need a symbol
+ * declaration in as.predefined.
+ * Supported field types are bool, int, uint, float, double, string, and Vec3.
+ *
+ * Example used in a script class:
+ *   [Editor("Walk Speed")] float speed = 4.0f;
+ */
+
 /** This is a list of keys */
 enum Key
 {

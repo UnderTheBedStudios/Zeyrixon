@@ -13,6 +13,7 @@ class Example
     // The name must be exactly "entity" and the type must be Entity.
     Entity entity;
 
+    [Editor("Walk Speed")]
     float speed = 2.0f;
 
     void OnCreate()

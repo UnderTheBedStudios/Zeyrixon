@@ -566,6 +566,63 @@ namespace
                 script.ClassName = classBuffer;
 
             ImGui::TextDisabled("Class empty = same name as the file.");
+            if (!script.ScriptPath.empty())
+            {
+                const auto& fields = Zeyrixon::ScriptEngine::GetEditorFields(script);
+                if (!fields.empty())
+                {
+                    ImGui::SeparatorText("Script Properties");
+                    for (const auto& field : fields)
+                    {
+                        ImGui::PushID(field.Name.c_str());
+                        auto found = script.ExposedFields.find(field.Name);
+                        const std::string current = found == script.ExposedFields.end() ? field.DefaultValue : found->second;
+                        bool changed = false;
+                        if (field.Type == "bool")
+                        {
+                            bool value = current == "true" || current == "1";
+                            changed = ImGui::Checkbox(field.Label.c_str(), &value);
+                            if (changed) script.ExposedFields[field.Name] = value ? "true" : "false";
+                        }
+                        else if (field.Type == "int" || field.Type == "uint")
+                        {
+                            int value = 0; try { value = std::stoi(current); } catch (...) {}
+                            changed = ImGui::DragInt(field.Label.c_str(), &value, 1.f);
+                            if (changed) script.ExposedFields[field.Name] = std::to_string(value);
+                        }
+                        else if (field.Type == "float")
+                        {
+                            float value = 0.f; try { value = std::stof(current); } catch (...) {}
+                            changed = ImGui::DragFloat(field.Label.c_str(), &value, 0.05f);
+                            if (changed) script.ExposedFields[field.Name] = std::to_string(value);
+                        }
+                        else if (field.Type == "double")
+                        {
+                            double value = 0.0; try { value = std::stod(current); } catch (...) {}
+                            changed = ImGui::DragScalar(field.Label.c_str(), ImGuiDataType_Double, &value, 0.05f);
+                            if (changed) script.ExposedFields[field.Name] = std::to_string(value);
+                        }
+                        else if (field.Type == "string")
+                        {
+                            char value[512]{}; std::strncpy(value, current.c_str(), sizeof(value) - 1);
+                            changed = ImGui::InputText(field.Label.c_str(), value, sizeof(value));
+                            if (changed) script.ExposedFields[field.Name] = value;
+                        }
+                        else if (field.Type == "Vec3")
+                        {
+                            glm::vec3 value(0.f); std::istringstream in(current); char a = 0, b = 0;
+                            in >> value.x >> a >> value.y >> b >> value.z;
+                            changed = ImGui::DragFloat3(field.Label.c_str(), &value.x, 0.05f);
+                            if (changed)
+                            {
+                                std::ostringstream out; out << value.x << ',' << value.y << ',' << value.z;
+                                script.ExposedFields[field.Name] = out.str();
+                            }
+                        }
+                        ImGui::PopID();
+                    }
+                }
+            }
         });
 
         SetInspector("Material", [](Zeyrixon::Entity entity)

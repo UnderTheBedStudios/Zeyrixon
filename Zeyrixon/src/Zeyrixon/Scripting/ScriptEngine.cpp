@@ -25,6 +25,9 @@
 #include <cmath>
 #include <filesystem>
 #include <set>
+#include <iomanip>
+#include <sstream>
+#include <unordered_map>
 
 namespace fs = std::filesystem;
 
@@ -415,6 +418,92 @@ namespace Zeyrixon
         // Kept outside Data so a project can be loaded before the engine exists.
         std::string s_AssetRoot;
 
+        struct EditorMetadataCache
+        {
+            std::string Key;
+            fs::file_time_type Modified{};
+            std::vector<ScriptEditorField> Fields;
+        };
+        EditorMetadataCache s_EditorMetadata;
+
+        std::string MetadataLabel(const std::vector<std::string>& metadata, const std::string& name)
+        {
+            for (const std::string& item : metadata)
+            {
+                if (item == name) return {};
+                const std::string prefix = name + "(";
+                if (item.rfind(prefix, 0) == 0 && item.size() > prefix.size() + 1)
+                {
+                    std::string label = item.substr(prefix.size(), item.size() - prefix.size() - 1);
+                    if (label.size() >= 2 && ((label.front() == '"' && label.back() == '"') || (label.front() == '\'' && label.back() == '\'')))
+                        label = label.substr(1, label.size() - 2);
+                    return label;
+                }
+            }
+            return {};
+        }
+
+        std::string PropertyValue(asIScriptEngine* engine, int typeId, void* address)
+        {
+            if (!address) return {};
+            if (typeId == asTYPEID_BOOL) return *static_cast<bool*>(address) ? "true" : "false";
+            {
+                switch (typeId)
+                {
+                    case asTYPEID_INT8: return std::to_string(*static_cast<signed char*>(address));
+                    case asTYPEID_INT16: return std::to_string(*static_cast<short*>(address));
+                    case asTYPEID_INT32: return std::to_string(*static_cast<int*>(address));
+                    case asTYPEID_INT64: return std::to_string(*static_cast<long long*>(address));
+                    case asTYPEID_UINT8: return std::to_string(*static_cast<unsigned char*>(address));
+                    case asTYPEID_UINT16: return std::to_string(*static_cast<unsigned short*>(address));
+                    case asTYPEID_UINT32: return std::to_string(*static_cast<unsigned*>(address));
+                    case asTYPEID_UINT64: return std::to_string(*static_cast<unsigned long long*>(address));
+                    case asTYPEID_FLOAT: { std::ostringstream out; out << std::setprecision(9) << *static_cast<float*>(address); return out.str(); }
+                    case asTYPEID_DOUBLE: { std::ostringstream out; out << std::setprecision(17) << *static_cast<double*>(address); return out.str(); }
+                }
+            }
+            const char* declaration = engine->GetTypeDeclaration(typeId);
+            if (declaration && std::string(declaration) == "string") return *static_cast<std::string*>(address);
+            if (declaration && std::string(declaration) == "Vec3")
+            {
+                const auto& v = *static_cast<ScriptVec3*>(address);
+                std::ostringstream out; out << std::setprecision(9) << v.x << ',' << v.y << ',' << v.z; return out.str();
+            }
+            return {};
+        }
+
+        void ApplyEditorOverrides(asIScriptEngine* engine, asIScriptObject* object,
+                                  const std::unordered_map<std::string, std::string>& values)
+        {
+            if (!object) return;
+            for (asUINT i = 0; i < object->GetPropertyCount(); ++i)
+            {
+                const char* name = object->GetPropertyName(i);
+                auto value = values.find(name ? name : "");
+                if (value == values.end()) continue;
+                void* address = object->GetAddressOfProperty(i);
+                int typeId = object->GetPropertyTypeId(i);
+                const char* declaration = engine->GetTypeDeclaration(typeId);
+                if (!address || !declaration) continue;
+                const std::string type(declaration);
+                try
+                {
+                    if (type == "bool") *static_cast<bool*>(address) = value->second == "true" || value->second == "1";
+                    else if (type == "int") *static_cast<int*>(address) = std::stoi(value->second);
+                    else if (type == "uint") *static_cast<unsigned*>(address) = static_cast<unsigned>(std::stoul(value->second));
+                    else if (type == "float") *static_cast<float*>(address) = std::stof(value->second);
+                    else if (type == "double") *static_cast<double*>(address) = std::stod(value->second);
+                    else if (type == "string") *static_cast<std::string*>(address) = value->second;
+                    else if (type == "Vec3")
+                    {
+                        std::istringstream in(value->second); ScriptVec3 v; char comma1 = 0, comma2 = 0;
+                        if (in >> v.x >> comma1 >> v.y >> comma2 >> v.z && comma1 == ',' && comma2 == ',') *static_cast<ScriptVec3*>(address) = v;
+                    }
+                }
+                catch (...) { Z_WARN("[Script] Ignoring invalid saved value for field '{0}'", name ? name : ""); }
+            }
+        }
+
         void MessageCallback(const asSMessageInfo* msg, void*)
         {
             const std::string where = std::string(msg->section) + " (" + std::to_string(msg->row) + ", "
@@ -727,6 +816,7 @@ namespace Zeyrixon
                     instance.OnCollisionExit = type->GetMethodByDecl("void OnCollisionExit(Entity)");
                     instance.OnDestroy = type->GetMethodByDecl("void OnDestroy()");
                     InjectEntity(instance.Object, ScriptEntity{ handle, &world });
+                    ApplyEditorOverrides(s_Data->Engine, instance.Object, script->ExposedFields);
                     s_Data->Instances.push_back(instance);
                 }
 
@@ -885,6 +975,60 @@ namespace Zeyrixon
         return s_AssetRoot;
     }
 
+    const std::vector<ScriptEditorField>& ScriptEngine::GetEditorFields(const ScriptComponent& script)
+    {
+        static const std::vector<ScriptEditorField> empty;
+        if (!s_Data || !s_Data->Engine || script.ScriptPath.empty()) return empty;
+        const fs::path path(ResolvePath(script.ScriptPath));
+        std::error_code ec;
+        const auto modified = fs::last_write_time(path, ec);
+        const std::string key = path.string() + "|" + script.GetResolvedClassName();
+        if (ec || !fs::is_regular_file(path, ec)) return empty;
+        if (s_EditorMetadata.Key == key && s_EditorMetadata.Modified == modified)
+            return s_EditorMetadata.Fields;
+
+        s_EditorMetadata = {};
+        s_EditorMetadata.Key = key;
+        s_EditorMetadata.Modified = modified;
+        CScriptBuilder builder;
+        const char* moduleName = "__ZeyrixonEditorMetadata";
+        s_Data->Engine->DiscardModule(moduleName);
+        if (builder.StartNewModule(s_Data->Engine, moduleName) < 0
+            || builder.AddSectionFromFile(path.string().c_str()) < 0
+            || builder.BuildModule() < 0)
+        {
+            s_Data->Engine->DiscardModule(moduleName);
+            return s_EditorMetadata.Fields;
+        }
+
+        asIScriptModule* module = builder.GetModule();
+        asITypeInfo* type = module ? module->GetTypeInfoByName(script.GetResolvedClassName().c_str()) : nullptr;
+        asIScriptObject* defaults = type ? static_cast<asIScriptObject*>(s_Data->Engine->CreateScriptObject(type)) : nullptr;
+        if (type)
+        {
+            for (asUINT i = 0; i < type->GetPropertyCount(); ++i)
+            {
+                const auto metadata = builder.GetMetadataForTypeProperty(type->GetTypeId(), static_cast<int>(i));
+                const std::string label = MetadataLabel(metadata, "Editor");
+                if (std::find(metadata.begin(), metadata.end(), "Editor") == metadata.end()
+                    && label.empty() && std::find(metadata.begin(), metadata.end(), "ShowInEditor") == metadata.end())
+                    continue;
+                ScriptEditorField field;
+                field.Name = defaults ? defaults->GetPropertyName(i) : "";
+                field.Label = label.empty() ? field.Name : label;
+                const int propertyTypeId = defaults ? defaults->GetPropertyTypeId(i) : 0;
+                field.Type = s_Data->Engine->GetTypeDeclaration(propertyTypeId);
+                if (defaults) field.DefaultValue = PropertyValue(s_Data->Engine, propertyTypeId, defaults->GetAddressOfProperty(i));
+                if (field.Type == "bool" || field.Type == "int" || field.Type == "uint" || field.Type == "float"
+                    || field.Type == "double" || field.Type == "string" || field.Type == "Vec3")
+                    s_EditorMetadata.Fields.push_back(std::move(field));
+            }
+        }
+        if (defaults) defaults->Release();
+        s_Data->Engine->DiscardModule(moduleName);
+        return s_EditorMetadata.Fields;
+    }
+
     bool ScriptEngine::IsRunning()
     {
         return s_Data && s_Data->Running;
@@ -1034,6 +1178,8 @@ namespace Zeyrixon
             // ReleaseInstances discards the module, which always happens after the instances are gone.
 
             InjectEntity(object, ScriptEntity{ p.Handle, &world });
+            if (const ScriptComponent* script = world.GetRegistry().try_get<ScriptComponent>(p.Handle))
+                ApplyEditorOverrides(s_Data->Engine, object, script->ExposedFields);
             s_Data->Instances.push_back(instance);
         }
 

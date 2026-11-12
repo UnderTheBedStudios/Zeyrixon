@@ -6,8 +6,11 @@ class Walker
 {
     Entity entity;
 
+    [Editor("Walk Speed")]
     float speed     = 4.0f;    // units per second
+    [Editor("Gravity")]
     float gravity   = 20.0f;
+    [Editor("Jump Speed")]
     float jumpSpeed = 8.0f;
 
     float verticalSpeed = 0.0f;

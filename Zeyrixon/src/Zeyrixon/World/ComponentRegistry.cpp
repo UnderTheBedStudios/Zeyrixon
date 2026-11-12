@@ -242,12 +242,21 @@ namespace Zeyrixon
             auto& s = e.GetComponent<ScriptComponent>();
             node.append_attribute("Path") = s.ScriptPath.c_str();
             node.append_attribute("Class") = s.ClassName.c_str();
+            for (const auto& field : s.ExposedFields)
+            {
+                pugi::xml_node value = node.append_child("Field");
+                value.append_attribute("Name") = field.first.c_str();
+                value.append_attribute("Value") = field.second.c_str();
+            }
         };
         script.Deserialize = [](Entity e, pugi::xml_node node)
         {
             auto& s = e.GetComponent<ScriptComponent>();
             s.ScriptPath = node.attribute("Path").as_string();
             s.ClassName = node.attribute("Class").as_string();
+            s.ExposedFields.clear();
+            for (pugi::xml_node value : node.children("Field"))
+                s.ExposedFields[value.attribute("Name").as_string()] = value.attribute("Value").as_string();
         };
 
         auto& animation = Register<AnimationComponent>("Animation");
