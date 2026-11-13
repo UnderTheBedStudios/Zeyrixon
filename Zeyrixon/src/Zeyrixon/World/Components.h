@@ -241,6 +241,20 @@ namespace Zeyrixon
         int SortingOrder = 0;               // higher draws on top
     };
 
+    /* A sound attached to an entity. Spatial=false plays as a stereo 2D sound;
+       Spatial=true uses the entity transform and the world's primary camera listener. */
+    struct AudioSourceComponent
+    {
+        std::string AudioPath;
+        float Volume = 1.0f;
+        float Pitch = 1.0f;
+        bool Looping = false;
+        bool PlayOnStart = true;
+        bool Spatial = false;
+        float MinDistance = 1.0f;
+        float MaxDistance = 100.0f;
+    };
+
     /* Plays one of the animations of a glTF mesh on the same entity (it does nothing for an OBJ or the
        built-in cube). The clip is chosen by its position in the file's animation list. */
     struct AnimationComponent

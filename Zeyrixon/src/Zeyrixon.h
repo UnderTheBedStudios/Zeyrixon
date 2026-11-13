@@ -14,6 +14,7 @@
 #include <Zeyrixon/World/Entity.h>
 #include <Zeyrixon/World/Components.h>
 #include <Zeyrixon/World/ComponentRegistry.h>
+#include <Zeyrixon/Audio/AudioSystem.h>
 
 #include <Zeyrixon/Core/Project.h>
 #include <Zeyrixon/Core/RuntimeLayer.h>

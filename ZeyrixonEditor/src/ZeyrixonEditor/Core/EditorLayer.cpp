@@ -625,6 +625,41 @@ namespace
             }
         });
 
+        SetInspector("Audio Source", [](Zeyrixon::Entity entity)
+        {
+            auto& audio = entity.GetComponent<Zeyrixon::AudioSourceComponent>();
+            char pathBuffer[512]{};
+            std::strncpy(pathBuffer, audio.AudioPath.c_str(), sizeof(pathBuffer) - 1);
+            if (ImGui::InputText("Audio File", pathBuffer, sizeof(pathBuffer)))
+                audio.AudioPath = pathBuffer;
+            if (ImGui::Button("Browse Audio..."))
+            {
+                const char* patterns[] = { "*.wav", "*.mp3", "*.flac", "*.ogg" };
+                const char* chosen = tinyfd_openFileDialog("Choose audio", nullptr, 4, patterns, "Audio", 0);
+                if (chosen)
+                {
+                    std::error_code ec;
+                    const fs::path relative = fs::relative(chosen, Zeyrixon::ScriptEngine::GetAssetRoot(), ec);
+                    audio.AudioPath = !ec && !relative.empty() && *relative.begin() != ".."
+                        ? relative.generic_string() : std::string(chosen);
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Clear Audio")) audio.AudioPath.clear();
+            ImGui::DragFloat("Volume", &audio.Volume, 0.01f, 0.0f, 4.0f);
+            ImGui::DragFloat("Pitch", &audio.Pitch, 0.01f, 0.01f, 4.0f);
+            ImGui::Checkbox("Looping", &audio.Looping);
+            ImGui::Checkbox("Play On Start", &audio.PlayOnStart);
+            ImGui::Checkbox("Spatial 3D", &audio.Spatial);
+            if (audio.Spatial)
+            {
+                ImGui::DragFloat("Min Distance", &audio.MinDistance, 0.1f, 0.0f, 10000.0f);
+                ImGui::DragFloat("Max Distance", &audio.MaxDistance, 0.1f, 0.01f, 10000.0f);
+                audio.MaxDistance = std::max(audio.MinDistance, audio.MaxDistance);
+            }
+            ImGui::TextDisabled("3D audio follows this entity; the primary camera is the listener.");
+        });
+
         SetInspector("Material", [](Zeyrixon::Entity entity)
         {
             auto& material = entity.GetComponent<Zeyrixon::MaterialComponent>();

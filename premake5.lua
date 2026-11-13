@@ -25,6 +25,7 @@ IncludeDir["ImGuizmo"] = "ZeyrixonEditor/vendor/ImGizmo/ImGuizmo/src"
 IncludeDir["AngelScript"] = "Zeyrixon/vendor/AngelScript/sdk/angelscript/include"
 IncludeDir["AngelScriptAddOn"] = "Zeyrixon/vendor/AngelScript/sdk/add_on"
 IncludeDir["Bullet"] = "Zeyrixon/vendor/Bullet/bullet3/src"
+IncludeDir["miniaudio"] = "Zeyrixon/vendor/miniaudio/miniaudio"
 
 include "Zeyrixon/vendor/GLFW"
 include "Zeyrixon/vendor/GLAD"
@@ -77,6 +78,7 @@ project("Zeyrixon")
 		"%{IncludeDir.AngelScript}",
 		"%{IncludeDir.AngelScriptAddOn}",
 		"%{IncludeDir.Bullet}",
+		"%{IncludeDir.miniaudio}",
 	})
 
 	links({
@@ -174,7 +176,7 @@ project("TestProj")
 
 	filter("system:windows")
 		systemversion("latest")
-		links({ "opengl32", "gdi32" })
+		links({ "opengl32", "gdi32", "ole32", "winmm" })
 		defines({ "NOMINMAX", "WIN32_LEAN_AND_MEAN" })
 
 	filter({ "system:windows", "toolset:gcc" })
@@ -261,7 +263,7 @@ project("ZeyrixonEditor")
 
 	filter("system:windows")
 		systemversion("latest")
-		links({ "opengl32", "gdi32", "comdlg32", "ole32" })
+		links({ "opengl32", "gdi32", "comdlg32", "ole32", "winmm" })
 		defines({ "NOMINMAX" })
 
 	filter({ "system:windows", "toolset:gcc" })

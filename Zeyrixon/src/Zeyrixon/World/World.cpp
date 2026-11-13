@@ -8,6 +8,7 @@
 #include <Zeyrixon/Core/Log.h>
 #include <Zeyrixon/Scripting/ScriptEngine.h>
 #include <Zeyrixon/Physics/PhysicsWorld.h>
+#include <Zeyrixon/Audio/AudioSystem.h>
 
 #include <cmath>
 #include <algorithm>
@@ -117,10 +118,12 @@ namespace Zeyrixon
         // The simulation exists BEFORE the scripts' OnCreate so a script can already call Entity.Move there.
         // It starts empty: bodies are created further down, once OnCreate has had its say about positions.
         m_Physics = std::make_unique<PhysicsWorld>(m_Gravity);
+        m_Audio = std::make_unique<AudioSystem>(*this);
 
         if (!ScriptEngine::OnRuntimeStart(*this))
         {
             m_Physics.reset();
+            m_Audio.reset();
             m_RuntimeSnapshot.clear();
             m_RuntimeEntityIDs.clear();
             return false;
@@ -165,6 +168,7 @@ namespace Zeyrixon
             return;
 
         ScriptEngine::OnRuntimeStop(*this);
+        m_Audio.reset();
 
         // Remove entities created during Play, starting with the new roots in each hierarchy.
         // DestroyEntity removes the full subtree and updates the original parent.
@@ -223,6 +227,35 @@ namespace Zeyrixon
         ScriptEngine::OnCollisionEvents(*this);
 
         UpdateAnimations(dt);
+        if (m_Audio)
+            m_Audio->Update();
+    }
+
+    bool World::PlayAudio(uint64_t entityID, bool restart)
+    {
+        return m_Audio && m_Audio->Play(entityID, restart);
+    }
+
+    void World::StopAudio(uint64_t entityID)
+    {
+        if (m_Audio)
+            m_Audio->Stop(entityID);
+    }
+
+    bool World::PlayAudioFile(const std::string& path, float volume, float pitch)
+    {
+        return m_Audio && m_Audio->PlayOneShot(path, volume, pitch);
+    }
+
+    bool World::PlayAudioAt(const std::string& path, const glm::vec3& position, float volume, float pitch)
+    {
+        return m_Audio && m_Audio->PlayOneShot(path, volume, pitch, &position);
+    }
+
+    void World::SetMasterAudioVolume(float volume)
+    {
+        if (m_Audio)
+            m_Audio->SetMasterVolume(volume);
     }
 
     void World::UpdateAnimations(DeltaTime dt)

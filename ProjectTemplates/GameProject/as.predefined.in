@@ -169,6 +169,23 @@ class World
     bool DestroyEntity(Entity) {}
 }
 
+/** This is just what contains every single audio function you'll ever need */
+class Audio
+{
+    /** Play audio from an entity */
+    bool Play(Entity source) {}
+    /** Play audio from 2D space */
+    bool Play2D(const string &in soundPath, float volume = 1.0f, float pitch = 1.0f) {}
+    /** Play audio from a 3D space */
+    bool Play3D(const string &in soundPath, const Vec3 &in position) {}
+    /** Play audio from a 3D space but with more control over it */
+    bool Play3D(const string &in soundPath, const Vec3 &in position, float volume, float pitch) {}
+    /** Stop all audio sounds that this entity is making */
+    bool Stop(Entity source) {}
+    /** Just sets the general volume of everything */
+    void SetMasterVolume(float volume) {}
+}
+
 /** This just allows you to write things into the terminal, nothing too special */
 class Log
 {

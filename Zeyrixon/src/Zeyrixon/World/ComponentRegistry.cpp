@@ -327,6 +327,32 @@ namespace Zeyrixon
             r.FixedRotation = node.attribute("FixedRotation").as_bool(r.FixedRotation);
         };
 
+        auto& audio = Register<AudioSourceComponent>("Audio Source");
+        audio.Serialize = [](Entity e, pugi::xml_node node)
+        {
+            const auto& a = e.GetComponent<AudioSourceComponent>();
+            node.append_attribute("Path") = a.AudioPath.c_str();
+            node.append_attribute("Volume") = a.Volume;
+            node.append_attribute("Pitch") = a.Pitch;
+            node.append_attribute("Looping") = a.Looping;
+            node.append_attribute("PlayOnStart") = a.PlayOnStart;
+            node.append_attribute("Spatial") = a.Spatial;
+            node.append_attribute("MinDistance") = a.MinDistance;
+            node.append_attribute("MaxDistance") = a.MaxDistance;
+        };
+        audio.Deserialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& a = e.GetComponent<AudioSourceComponent>();
+            a.AudioPath = node.attribute("Path").as_string(a.AudioPath.c_str());
+            a.Volume = node.attribute("Volume").as_float(a.Volume);
+            a.Pitch = node.attribute("Pitch").as_float(a.Pitch);
+            a.Looping = node.attribute("Looping").as_bool(a.Looping);
+            a.PlayOnStart = node.attribute("PlayOnStart").as_bool(a.PlayOnStart);
+            a.Spatial = node.attribute("Spatial").as_bool(a.Spatial);
+            a.MinDistance = node.attribute("MinDistance").as_float(a.MinDistance);
+            a.MaxDistance = node.attribute("MaxDistance").as_float(a.MaxDistance);
+        };
+
         auto& sprite = Register<SpriteComponent>("Sprite");
         sprite.Serialize = [](Entity e, pugi::xml_node node)
         {

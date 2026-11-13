@@ -366,6 +366,74 @@ namespace Zeyrixon
             return true;
         }
 
+        bool PlayAudioFF(ScriptEntity entity)
+        {
+            if (!entity.IsValid() || entity.WorldPtr != s_CurrentWorld)
+            {
+                Z_ERROR("Audio::Play requires a valid Entity from the active world");
+                return false;
+            }
+            if (!entity.Get<AudioSourceComponent>("Audio::Play"))
+            {
+                Z_ERROR("Audio::Play requires an Audio Source component on the Entity");
+                return false;
+            }
+            return entity.WorldPtr->PlayAudio(entity.GetID(), true);
+        }
+
+        bool PlayAudio(const std::string& soundPath, float volume, float pitch)
+        {
+            if (!s_CurrentWorld)
+            {
+                Z_ERROR("Audio::Play2D called without an active world");
+                return false;
+            }
+            return s_CurrentWorld->PlayAudioFile(soundPath, volume, pitch);
+        }
+
+        bool PlayAudioAtFF(const std::string& soundPath, const ScriptVec3& position)
+        {
+            if (!s_CurrentWorld)
+            {
+                Z_ERROR("Audio::Play3D called without an active world");
+                return false;
+            }
+            return s_CurrentWorld->PlayAudioAt(soundPath, glm::vec3(position), 1.0f, 1.0f);
+        }
+
+        bool PlayAudioAt(const std::string& soundPath, const ScriptVec3& position, float volume, float pitch)
+        {
+            if (!s_CurrentWorld)
+            {
+                Z_ERROR("Audio::Play3D called without an active world");
+                return false;
+            }
+            const glm::vec3 worldPosition = position;
+            return s_CurrentWorld->PlayAudioAt(soundPath, worldPosition, volume, pitch);
+        }
+
+        bool StopAudioFF(ScriptEntity entity)
+        {
+            if (!entity.IsValid() || entity.WorldPtr != s_CurrentWorld
+                || !entity.Get<AudioSourceComponent>("Audio::Stop"))
+            {
+                Z_ERROR("Audio::Stop requires a valid Entity with an Audio Source in the active world");
+                return false;
+            }
+            entity.WorldPtr->StopAudio(entity.GetID());
+            return true;
+        }
+
+        void SetMasterAudioVolume(float volume)
+        {
+            if (!s_CurrentWorld)
+            {
+                Z_ERROR("Audio::SetMasterVolume called without an active world");
+                return;
+            }
+            s_CurrentWorld->SetMasterAudioVolume(volume);
+        }
+
         // ------------------------------------------------------------------------------------
         //  Engine state
         // ------------------------------------------------------------------------------------
@@ -691,6 +759,14 @@ namespace Zeyrixon
             AS_REG(engine->RegisterGlobalFunction("RaycastHit Raycast(const Vec3 &in origin, const Vec3 &in direction, float maxDistance)", WRAP_FN(WorldRaycast), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("Entity InstantiatePrefab(const string &in path)", WRAP_FN(InstantiatePrefab), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("bool DestroyEntity(Entity)", WRAP_FN(DestroyScriptEntity), asCALL_GENERIC));
+
+            AS_REG(engine->SetDefaultNamespace("Audio"));
+            AS_REG(engine->RegisterGlobalFunction("bool Play(Entity source)", WRAP_FN(PlayAudioFF), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("bool Play2D(const string &in soundPath, float volume = 1.0f, float pitch = 1.0f)", WRAP_FN(PlayAudio), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("bool Play3D(const string &in soundPath, const Vec3 &in position)", WRAP_FN(PlayAudioAtFF), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("bool Play3D(const string &in soundPath, const Vec3 &in position, float volume, float pitch)", WRAP_FN(PlayAudioAt), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("bool Stop(Entity source)", WRAP_FN(StopAudioFF), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("void SetMasterVolume(float volume)", WRAP_FN(SetMasterAudioVolume), asCALL_GENERIC));
 
             AS_REG(engine->SetDefaultNamespace(""));
             return ok;

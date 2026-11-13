@@ -17,6 +17,7 @@ namespace Zeyrixon
 {
     class Entity;
     class PhysicsWorld;
+    class AudioSystem;
     struct RaycastHit;
     struct CollisionEvent;
 
@@ -33,6 +34,12 @@ namespace Zeyrixon
          bool OnRuntimeStart();
          void OnRuntimeStop();
          bool IsRunning() const { return m_Running; }
+         bool PlayAudio(uint64_t entityID, bool restart = true);
+         void StopAudio(uint64_t entityID);
+         bool PlayAudioFile(const std::string& path, float volume = 1.0f, float pitch = 1.0f);
+         bool PlayAudioAt(const std::string& path, const glm::vec3& position,
+                          float volume = 1.0f, float pitch = 1.0f);
+         void SetMasterAudioVolume(float volume);
 
          void OnUpdate(DeltaTime dt);
 
@@ -114,6 +121,7 @@ namespace Zeyrixon
          /* The Bullet simulation. Exists only while playing. Declared AFTER the registry so it is destroyed
             first, and World::OnColliderDestroyed (below) is how it hears about colliders going away. */
          std::unique_ptr<PhysicsWorld> m_Physics;
+         std::unique_ptr<AudioSystem> m_Audio;
          void OnColliderDestroyed(entt::registry& registry, entt::entity entity);
 
          // Moves every playing Animation component forward by dt (looping or stopping at the end).
