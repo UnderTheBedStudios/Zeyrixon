@@ -8,6 +8,8 @@
 #include <Platform/OpenGL/OpenGLRender.h>
 
 #include <string>
+#include <chrono>
+#include <thread>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -56,8 +58,25 @@ namespace Zeyrixon
 
     void Application::Run()
     {
+        using Clock = std::chrono::steady_clock;
+        auto nextFrame = Clock::now();
+
         while (m_Running)
         {
+            const int32_t fpsLimit = m_Window->GetFPSLimit();
+            if (m_Window->DoesHaveFPSLimit() && fpsLimit > 0)
+            {
+                const auto frameDuration = std::chrono::duration_cast<Clock::duration>(
+                    std::chrono::duration<double>(1.0 / fpsLimit));
+                std::this_thread::sleep_until(nextFrame);
+                nextFrame += frameDuration;
+
+                // Don't try to catch up with a burst of frames after a slow frame.
+                const auto now = Clock::now();
+                if (now > nextFrame)
+                    nextFrame = now;
+            }
+
             float time = (float)glfwGetTime();
             DeltaTime dt = time - m_LastTime;
             m_LastTime = time;

@@ -44,5 +44,19 @@ namespace Zeyrixon
         virtual void* GetNativeWindow() const = 0;
 
         static Window* Create(const WindowProps& props = WindowProps());
+
+        bool DoesHaveFPSLimit()                 { return m_ShouldHaveFPSLimit; }
+        void SetShouldhaveFPSLimit(bool value)  { m_ShouldHaveFPSLimit = value; }
+
+        int32_t GetFPSLimit()           { return m_FPSLimit; }
+        void SetFPSLimit(int64_t value) { m_FPSLimit = value; }
+
+    protected:
+        double m_LastFrameTime = 0;
+
+    private:
+        bool m_ShouldHaveFPSLimit = true;
+        int32_t m_FPSLimit = 120;
+
     };
 }
