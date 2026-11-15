@@ -663,12 +663,24 @@ namespace Zeyrixon
 
     glm::mat4 World::GetWorldViewMatrix(entt::entity entity) const
     {
-        glm::mat4 cameraToWorld = GetWorldMatrix(entity);
-        for (int axis = 0; axis < 3; ++axis)   // a camera ignores scale
+        // Compose camera pose from translation and rotation only at every level. Normalizing
+        // the axes of GetWorldMatrix() removes scale from the view direction, but a scaled
+        // parent still scales a child's offset (and rotated non-uniform scales can shear axes).
+        glm::mat4 cameraToWorld(1.0f);
+        for (int hops = 0; entity != entt::null && m_Registry.valid(entity) && hops < k_MaxHierarchyDepth; ++hops)
         {
-            const float length = glm::length(glm::vec3(cameraToWorld[axis]));
-            if (length > 1e-6f)
-                cameraToWorld[axis] /= length;
+            if (const auto* transform = m_Registry.try_get<TransformComponent>(entity))
+            {
+                const glm::mat4 identity(1.0f);
+                const glm::mat4 localPose = glm::translate(identity, transform->Position)
+                    * glm::rotate(identity, transform->Rotation.z, glm::vec3(0.f, 0.f, 1.f))
+                    * glm::rotate(identity, transform->Rotation.y, glm::vec3(0.f, 1.f, 0.f))
+                    * glm::rotate(identity, transform->Rotation.x, glm::vec3(1.f, 0.f, 0.f));
+                cameraToWorld = localPose * cameraToWorld;
+            }
+
+            const auto* id = m_Registry.try_get<IDComponent>(entity);
+            entity = (id && id->ParentID != 0) ? FindHandleByID(id->ParentID) : entt::null;
         }
         return glm::inverse(cameraToWorld);
     }
