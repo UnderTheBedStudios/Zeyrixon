@@ -66,6 +66,14 @@ enum CursorMode
     Locked = 2
 }
 
+class Application
+{
+    bool DoesHaveFPSLimit() const;
+    void SetShouldHaveFPSLimit(bool value) const;
+    int GetFPSLimit() const;
+    void SetFPSLimit(int value) const;
+}
+
 /** This is an object that can be transformed and be a bunch of different things. */
 class Entity
 {
