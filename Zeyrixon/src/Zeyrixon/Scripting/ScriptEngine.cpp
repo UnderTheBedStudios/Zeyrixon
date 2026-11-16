@@ -10,6 +10,7 @@
 #include <Zeyrixon/Core/Input.h>
 #include <Zeyrixon/Core/KeyCodes.h>
 #include <Zeyrixon/Core/MouseButtonCodes.h>
+#include <Zeyrixon/Core/Application.h>
 
 #include <angelscript.h>
 #include <scriptstdstring/scriptstdstring.h>
@@ -434,6 +435,26 @@ namespace Zeyrixon
             s_CurrentWorld->SetMasterAudioVolume(volume);
         }
 
+        void SetShouldHaveFPSLimit(bool value)
+        {
+            Application::Get().GetWindow()->SetShouldhaveFPSLimit(value);
+        }
+
+        bool DoesHaveFPSLimit()
+        {
+            return Application::Get().GetWindow()->DoesHaveFPSLimit();
+        }
+
+        void SetFPSLimit(int value)
+        {
+            Application::Get().GetWindow()->SetFPSLimit(static_cast<int32_t>(value));
+        }
+
+        int GetFPSLimit()
+        {
+            return static_cast<int>(Application::Get().GetWindow()->GetFPSLimit());
+        }
+
         // ------------------------------------------------------------------------------------
         //  Engine state
         // ------------------------------------------------------------------------------------
@@ -760,6 +781,14 @@ namespace Zeyrixon
             AS_REG(engine->RegisterGlobalFunction("Entity InstantiatePrefab(const string &in path)", WRAP_FN(InstantiatePrefab), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("bool DestroyEntity(Entity)", WRAP_FN(DestroyScriptEntity), asCALL_GENERIC));
 
+            AS_REG(engine->SetDefaultNamespace(""));
+            return ok;
+        }
+
+        bool RegisterAudio(asIScriptEngine* engine)
+        {
+            bool ok = true;
+
             AS_REG(engine->SetDefaultNamespace("Audio"));
             AS_REG(engine->RegisterGlobalFunction("bool Play(Entity source)", WRAP_FN(PlayAudioFF), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("bool Play2D(const string &in soundPath, float volume = 1.0f, float pitch = 1.0f)", WRAP_FN(PlayAudio), asCALL_GENERIC));
@@ -767,6 +796,20 @@ namespace Zeyrixon
             AS_REG(engine->RegisterGlobalFunction("bool Play3D(const string &in soundPath, const Vec3 &in position, float volume, float pitch)", WRAP_FN(PlayAudioAt), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("bool Stop(Entity source)", WRAP_FN(StopAudioFF), asCALL_GENERIC));
             AS_REG(engine->RegisterGlobalFunction("void SetMasterVolume(float volume)", WRAP_FN(SetMasterAudioVolume), asCALL_GENERIC));
+
+            AS_REG(engine->SetDefaultNamespace(""));
+            return ok;
+        }
+
+        bool RegisterApplication(asIScriptEngine* engine)
+        {
+            bool ok = true;
+
+            AS_REG(engine->SetDefaultNamespace("Application"));
+            AS_REG(engine->RegisterGlobalFunction("bool DoesHaveFPSLimit()", WRAP_FN(DoesHaveFPSLimit), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("void SetShouldHaveFPSLimit(bool value)", WRAP_FN(SetShouldHaveFPSLimit), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("int GetFPSLimit()", WRAP_FN(GetFPSLimit), asCALL_GENERIC));
+            AS_REG(engine->RegisterGlobalFunction("void SetFPSLimit(int value)", WRAP_FN(SetFPSLimit), asCALL_GENERIC));
 
             AS_REG(engine->SetDefaultNamespace(""));
             return ok;
@@ -1012,6 +1055,8 @@ namespace Zeyrixon
         ok &= RegisterEntity(engine);
         ok &= RegisterLogAndInput(engine);
         ok &= RegisterWorld(engine);
+        ok &= RegisterAudio(engine);
+        ok &= RegisterApplication(engine);
         if (!ok)
             Z_CORE_ERROR("Some script API failed to register; see the errors above");
 
