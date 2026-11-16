@@ -1,4 +1,12 @@
-class string {}
+class string
+{
+    string opAdd(const string &in other) const;
+}
+class array<T>
+{
+    int length() { return 0; }
+    opIndex(uint& index) const;
+}
 
 /**
  * Zeyrixon script editor metadata
