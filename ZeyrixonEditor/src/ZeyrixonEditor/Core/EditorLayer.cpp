@@ -1382,7 +1382,10 @@ namespace Editor
             return;
         }
 
-        HandleUndoShortcuts();
+        // Ctrl+Z / Ctrl+Y undo the world, so they only apply while the Main tab is the one showing.
+        static bool s_MainTabWasOpen = true;
+        if (s_MainTabWasOpen)
+            HandleUndoShortcuts();
 
         static bool dockspaceOpen = true;
 
@@ -1401,22 +1404,82 @@ namespace Editor
         ImGui::Begin("EditorDockspaceHost", &dockspaceOpen, hostFlags);
         ImGui::PopStyleVar(3);
 
+        // Get the id here, before the tab bar pushes its own ID scope, so it stays the same as before
+        // and an existing imgui.ini layout keeps working.
         ImGuiID dockspaceId = ImGui::GetID("EditorDockspace");
-        if (!ImGui::DockBuilderGetNode(dockspaceId))
-            BuildDefaultLayout(dockspaceId);
-
-        ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f));
 
         DrawMenuBar();
 
+        /* The tab bar has to live INSIDE the host window (between its Begin and End). Calling it after
+           End() leaves ImGui with no current window, so it falls back to the implicit "Debug" window.
+           A tab item can't hold other windows either, so the "Main" tab instead holds the dockspace
+           that every panel docks into. */
+        if (!ImGui::DockBuilderGetNode(dockspaceId))
+            BuildDefaultLayout(dockspaceId);
+
+        bool mainTabOpen = false;
+        if (ImGui::BeginTabBar("EditorTabs", ImGuiTabBarFlags_AutoSelectNewTabs | ImGuiTabBarFlags_FittingPolicyScroll))
+        {
+            if (ImGui::BeginTabItem("Main"))
+            {
+                mainTabOpen = true;
+                ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f));
+                ImGui::EndTabItem();
+            }
+
+            // One tab per open behavior tree, in the order they were opened, right after Main.
+            for (auto& tab : m_BTEditors)
+            {
+                ImGuiTabItemFlags flags = ImGuiTabItemFlags_None;
+                if (tab->Dirty())
+                    flags |= ImGuiTabItemFlags_UnsavedDocument;
+                if (tab->RequestFocus)
+                {
+                    flags |= ImGuiTabItemFlags_SetSelected;
+                    tab->RequestFocus = false;
+                }
+
+                if (ImGui::BeginTabItem(tab->Label.c_str(), &tab->Open, flags))
+                {
+                    tab->Draw();
+                    ImGui::EndTabItem();
+                }
+            }
+            ImGui::EndTabBar();
+        }
+
+        // While another tab is showing, keep the Main dockspace alive so the panels stay docked
+        // where they were instead of being undocked.
+        if (!mainTabOpen)
+            ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_KeepAliveOnly);
+        s_MainTabWasOpen = mainTabOpen;
+
         ImGui::End();
 
-        DrawViewportPanel();
-        DrawWorldOutlinerPanel();
-        DrawPropertiesPanel();
-        DrawLoggerPanel();
-        DrawContentBrowserPanel();
-        DrawAssetsPanel();
+        // Closing a tab with unsaved changes is refused for now (it would silently lose them).
+        // Swap this for a Save / Discard / Cancel popup when you want one.
+        for (auto& tab : m_BTEditors)
+        {
+            if (!tab->Open && tab->Dirty())
+            {
+                tab->Open = true;
+                tab->Status = "Unsaved changes - save with Ctrl+S before closing.";
+            }
+        }
+        m_BTEditors.erase(std::remove_if(m_BTEditors.begin(), m_BTEditors.end(),
+            [](const std::unique_ptr<BTEditorTab>& tab) { return !tab->Open; }), m_BTEditors.end());
+
+        // Panels are their own windows, so they're submitted after the host closes. Skipping them while
+        // another tab is active hides them along with the Main tab.
+        if (mainTabOpen)
+        {
+            DrawViewportPanel();
+            DrawWorldOutlinerPanel();
+            DrawPropertiesPanel();
+            DrawLoggerPanel();
+            DrawContentBrowserPanel();
+            DrawAssetsPanel();
+        }
 
         if (m_PendingEdit && !ImGui::IsAnyItemActive())
             FlushPendingEdit();
@@ -2440,6 +2503,8 @@ namespace Editor
                 m_ContextAsset = path;
                 if (m_ContextAsset.extension() == ".zworld")
                     LoadWorld(m_ContextAsset.string());
+                else if (m_ContextAsset.extension() == ".zbeht")
+                    LoadBTEditor(m_ContextAsset.string());
             }
 
             // Right-click released over THIS cell: remember it and ask for the menu.
@@ -2612,6 +2677,22 @@ namespace Editor
                 newScript << R"(    })" << "\n";
                 newScript << R"(})" << "\n";
             }
+            if (ImGui::MenuItem("Create Behavior Tree"))
+            {
+                std::filesystem::path filepath =
+                    std::filesystem::path(m_SelectedDirectory) / "BehaviorTree.zbeht";
+
+                std::ofstream newbt(filepath);
+
+                if (!newbt)
+                    Z_EDITOR_WARN("Failed to create Behavior Tree!");
+
+                newbt << R"(<?xml version="1.0"?>)" << "\n";
+                newbt << R"(<BehaviorTree Name="NewBT">)" << "\n";
+                newbt << "</BehaviorTree>\n";
+
+                LoadBTEditor(filepath.string());
+            }
 
             ImGui::EndPopup();
         }
@@ -2626,6 +2707,7 @@ namespace Editor
             m_ActiveWorld->OnRuntimeStop();
         m_IsPlaying = false;
         m_WorldBeforePlaySwitch.reset();
+        m_BTEditors.clear();   // tabs from the previous project point at files that are no longer the project's
 
         Zeyrixon::ScriptEngine::SetAssetRoot(m_ActiveProject->GetAssetDirectory());
 
@@ -2650,6 +2732,30 @@ namespace Editor
 
         if (!m_ActiveWorld)
             Z_EDITOR_ERROR("Failed to load world for project '{0}'", m_ActiveProject->GetName());
+    }
+
+    void EditorLayer::LoadBTEditor(std::string btPath)
+    {
+        const fs::path path = fs::path(btPath).lexically_normal();
+
+        // Already open: just bring its tab to the front instead of opening a second copy.
+        for (auto& tab : m_BTEditors)
+        {
+            if (tab->Path == path)
+            {
+                tab->RequestFocus = true;
+                return;
+            }
+        }
+
+        auto tab = std::make_unique<BTEditorTab>();
+        if (!tab->Load(path))
+        {
+            Z_EDITOR_ERROR("Failed to open behavior tree '{0}'", btPath);
+            return;
+        }
+
+        m_BTEditors.push_back(std::move(tab));   // AutoSelectNewTabs focuses it on the next frame
     }
 
     void EditorLayer::Undo()

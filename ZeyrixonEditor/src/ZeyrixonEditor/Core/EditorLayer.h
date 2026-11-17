@@ -21,6 +21,8 @@
 
 #include <ZeyrixonEditor/Commands/CommandHistory.h>
 #include <ZeyrixonEditor/Commands/CommandsList.h>
+#include <ZeyrixonEditor/Core/BTEditorTab.h>
+#include <vector>
 #include <optional>
 #include <string>
 #include <pugixml.hpp>
@@ -46,6 +48,8 @@ namespace Editor
         void LoadStartupWorld();
         void LoadWorld(std::string worldPath);
 
+        void LoadBTEditor(std::string btPath);
+
     private:
         std::shared_ptr<Zeyrixon::OpenGLFramebuffer> m_Framebuffer;
         ImVec2 m_ViewportSize = { 0.0f, 0.0f };
@@ -54,6 +58,8 @@ namespace Editor
         bool m_ViewportHovered = false;
         ImVec2 m_ViewportMin = { 0.f, 0.f };
         int m_GizmoOperation = 0; // 0 = select (no gizmo), otherwise, it will be ImGuizmo::OPERATION
+
+        std::vector<std::unique_ptr<BTEditorTab>> m_BTEditors;
 
         void DrawGizmo();
         void DrawLightGizmos();   // icons at each light, plus range / direction outlines for the selected one
