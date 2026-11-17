@@ -19,7 +19,13 @@ namespace Editor
     class BTGraphDelegate : public GraphEditor::Delegate
     {
     public:
-        enum NodeType : GraphEditor::TemplateIndex { Root = 0, Composite = 1, Task = 2 };
+        enum NodeType : GraphEditor::TemplateIndex
+        {
+            Root = 0,
+            Selector = 1,
+            Sequence = 2,
+            Task = 3
+        };
 
         struct BTNode
         {
@@ -60,9 +66,10 @@ namespace Editor
                 return t;
             };
 
-            m_Templates[Root]      = make(IM_COL32(170, 60, 60, 255), 0, 1);
-            m_Templates[Composite] = make(IM_COL32(60, 110, 170, 255), 1, 1);
-            m_Templates[Task]      = make(IM_COL32(60, 150, 90, 255), 1, 0);
+            m_Templates[Root]       = make(IM_COL32(170, 60, 60, 255), 0, 1);
+            m_Templates[Selector]   = make(IM_COL32(60, 110, 170, 255), 1, 1);
+            m_Templates[Sequence]   = make(IM_COL32(160, 200, 250, 255), 1, 1);
+            m_Templates[Task]       = make(IM_COL32(60, 150, 90, 255), 1, 0);
         }
 
         // ---- file io -------------------------------------------------------------------------
@@ -72,15 +79,17 @@ namespace Editor
             switch (type)
             {
                 case Root:      return "Root";
-                case Composite: return "Composite";
+                case Selector:  return "Selector";
+                case Sequence:  return "Sequence";
                 default:        return "Task";
             }
         }
 
         static NodeType TypeFromString(const std::string& s)
         {
-            if (s == "Root")      return Root;
-            if (s == "Composite") return Composite;
+            if (s == "Root")        return Root;
+            if (s == "Selector")    return Selector;
+            if (s == "Sequence")    return Sequence;
             return Task;
         }
 
@@ -251,7 +260,7 @@ namespace Editor
 
         void CustomDraw(ImDrawList*, ImRect, GraphEditor::NodeIndex) override {}
 
-        const size_t GetTemplateCount() override { return 3; }
+        const size_t GetTemplateCount() override { return 4; }
         const GraphEditor::Template GetTemplate(GraphEditor::TemplateIndex index) override { return m_Templates[index]; }
 
         const size_t GetNodeCount() override { return Nodes.size(); }
@@ -270,7 +279,7 @@ namespace Editor
         const GraphEditor::Link GetLink(GraphEditor::LinkIndex index) override { return Links[index]; }
 
     private:
-        GraphEditor::Template m_Templates[3]{};
+        GraphEditor::Template m_Templates[4]{};
     };
 
     // One tab in the editor's tab bar.
@@ -361,8 +370,10 @@ namespace Editor
                 }
                 else
                 {
-                    if (ImGui::MenuItem("Add Composite"))
-                        Graph.AddNode("Composite", BTGraphDelegate::Composite, m_MenuGraphPos);
+                    if (ImGui::MenuItem("Add Selector"))
+                        Graph.AddNode("Selector", BTGraphDelegate::Selector, m_MenuGraphPos);
+                    if (ImGui::MenuItem("Add Sequence"))
+                        Graph.AddNode("Sequence", BTGraphDelegate::Sequence, m_MenuGraphPos);
                     if (ImGui::MenuItem("Add Task"))
                         Graph.AddNode("Task", BTGraphDelegate::Task, m_MenuGraphPos);
                 }
