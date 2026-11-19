@@ -342,7 +342,7 @@ namespace Zeyrixon
 
             for (auto& info : ComponentRegistry::Get().GetAll())
             {
-                pugi::xml_node componentNode = node.child(info.Name.c_str());
+                pugi::xml_node componentNode = node.child(info.XmlName.c_str());
 
                 // Core components always exist, with defaults if the file has no node.
                 // Everything else exists only if the file lists it.
@@ -436,7 +436,7 @@ namespace Zeyrixon
                 if (!info.Serialize || !info.Has(entity))
                     continue;
 
-                info.Serialize(entity, node.append_child(info.Name.c_str()));
+                info.Serialize(entity, node.append_child(info.XmlName.c_str()));
             }
 
             if (entity.HasComponent<TransformComponent>())
@@ -695,5 +695,55 @@ namespace Zeyrixon
         }
 
         return Entity{};
+    }
+
+    // ---- AIControllerComponent ----------------------------------------------------------------
+    // Here rather than in Components.h because they need Entity, which that header can't see.
+
+    void AIControllerComponent::Move(World& world, glm::vec3 destination, float acceptanceRadius)
+    {
+        if (CheckRigidBody(world, BodyType::Kinematic))
+        {
+            Z_TRACE("Entity wants to go here: {0}, With acceptance radius of: {1}", destination, acceptanceRadius);
+        }
+        else
+        {
+            Z_TRACE("Something could be wrong with your Rigidbody so the task failed!");
+        }
+    }
+
+    void AIControllerComponent::Rotate(World& world, glm::vec3 rotation)
+    {
+        if (CheckRigidBody(world, BodyType::Kinematic))
+        {
+            Z_TRACE("Entity wants to rotate to this direction: {0}", rotation);
+        }
+        else
+        {
+            Z_TRACE("Something could be wrong with your Rigidbody so the task failed!");
+        }
+    }
+
+    bool AIControllerComponent::CheckRigidBody(World& world, BodyType desiredType)
+    {
+        Entity entity = world.FindEntityByID(ControlledEntityID);
+        if (!entity)
+        {
+            Z_WARN("No Entity!");
+            return false;
+        }
+        if (!entity.HasComponent<RigidBodyComponent>())
+        {
+            Z_WARN("Entity has no Rigidbody Component!");
+            return false;
+        }
+
+        if (entity.GetComponent<RigidBodyComponent>().Type != desiredType)
+        {
+            Z_WARN("Entity is not of desired type!");
+            return false;
+        }
+
+        return true;
     }
 }

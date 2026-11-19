@@ -1,0 +1,77 @@
+--- a/GraphEditor.h
++++ b/GraphEditor.h
+@@ -96,6 +96,13 @@
+     ImU8 mOutputCount;
+     const char** mOutputNames; // can be nullptr. No text displayed.
+     ImU32* mOutputColors; // can be nullptr, default slot color will be used.
++
++    // Optional: where each slot sits inside the node, as a fraction of its rectangle
++    // ((0,0) = top-left, (1,1) = bottom-right, (0.5,0) = middle of the top edge).
++    // nullptr = the default layout (inputs down the left edge, outputs down the right edge).
++    // Otherwise the array needs one entry per slot. Links leave/enter along the nearest edge's direction.
++    const ImVec2* mInputPositions;
++    const ImVec2* mOutputPositions;
+ };
+ 
+ struct Node
+--- a/GraphEditor.cpp
++++ b/GraphEditor.cpp
+@@ -45,8 +45,34 @@
+     return (v >= 0.f) ? 1.f : -1.f;
+ }
+ 
++// Slot position from an optional per-slot fraction of the node rectangle (see Template::mInputPositions).
++static ImVec2 SlotPosFromFraction(const Node& node, const ImVec2& fraction, float factor)
++{
++    const ImVec2 size = node.mRect.GetSize() * factor;
++    return ImVec2(node.mRect.Min.x * factor + size.x * fraction.x,
++                  node.mRect.Min.y * factor + size.y * fraction.y);
++}
++
++// Which way a link should leave a slot: out of whichever edge the slot is closest to.
++// Without custom positions that is right for outputs and left for inputs, as it always was.
++static ImVec2 SlotLinkDirection(const ImVec2* positions, SlotIndex slotIndex, bool isOutput)
++{
++    if (!positions)
++        return ImVec2(isOutput ? 1.f : -1.f, 0.f);
++
++    const float dx = positions[slotIndex].x - 0.5f;
++    const float dy = positions[slotIndex].y - 0.5f;
++    if (fabsf(dy) > fabsf(dx))
++        return ImVec2(0.f, dy >= 0.f ? 1.f : -1.f);
++    return ImVec2(dx >= 0.f ? 1.f : -1.f, 0.f);
++}
++
+ static ImVec2 GetInputSlotPos(Delegate& delegate, const Node& node, SlotIndex slotIndex, float factor)
+ {
++    const Template nodeTemplate = delegate.GetTemplate(node.mTemplateIndex);
++    if (nodeTemplate.mInputPositions)
++        return SlotPosFromFraction(node, nodeTemplate.mInputPositions[slotIndex], factor);
++
+     ImVec2 Size = node.mRect.GetSize() * factor;
+     size_t InputsCount = delegate.GetTemplate(node.mTemplateIndex).mInputCount;
+     return ImVec2(node.mRect.Min.x * factor,
+@@ -55,6 +81,10 @@
+ 
+ static ImVec2 GetOutputSlotPos(Delegate& delegate, const Node& node, SlotIndex slotIndex, float factor)
+ {
++    const Template nodeTemplate = delegate.GetTemplate(node.mTemplateIndex);
++    if (nodeTemplate.mOutputPositions)
++        return SlotPosFromFraction(node, nodeTemplate.mOutputPositions[slotIndex], factor);
++
+     ImVec2 Size = node.mRect.GetSize() * factor;
+     size_t OutputsCount = delegate.GetTemplate(node.mTemplateIndex).mOutputCount;
+     return ImVec2(node.mRect.Min.x * factor + Size.x,
+@@ -186,8 +216,10 @@
+         if (options.mDisplayLinksAsCurves)
+         {
+             // curves
+-             drawList->AddBezierCubic(p1, p1 + ImVec2(50, 0) * factor, p2 + ImVec2(-50, 0) * factor, p2, 0xFF000000, options.mLineThickness * 1.5f * factor);
+-             drawList->AddBezierCubic(p1, p1 + ImVec2(50, 0) * factor, p2 + ImVec2(-50, 0) * factor, p2, col, options.mLineThickness * 1.5f * factor);
++             const ImVec2 outDir = SlotLinkDirection(delegate.GetTemplate(nodeInput.mTemplateIndex).mOutputPositions, link.mInputSlotIndex, true);
++             const ImVec2 inDir  = SlotLinkDirection(delegate.GetTemplate(nodeOutput.mTemplateIndex).mInputPositions, link.mOutputSlotIndex, false);
++             drawList->AddBezierCubic(p1, p1 + outDir * 50.f * factor, p2 + inDir * 50.f * factor, p2, 0xFF000000, options.mLineThickness * 1.5f * factor);
++             drawList->AddBezierCubic(p1, p1 + outDir * 50.f * factor, p2 + inDir * 50.f * factor, p2, col, options.mLineThickness * 1.5f * factor);
+              /*
+             ImVec2 p10 = p1 + ImVec2(20.f * factor, 0.f);
+             ImVec2 p20 = p2 - ImVec2(20.f * factor, 0.f);

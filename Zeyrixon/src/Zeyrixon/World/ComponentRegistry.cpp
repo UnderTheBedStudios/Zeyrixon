@@ -376,5 +376,19 @@ namespace Zeyrixon
             s.PixelArt = node.attribute("PixelArt").as_bool(s.PixelArt);
             s.SortingOrder = node.attribute("SortingOrder").as_int(s.SortingOrder);
         };
+
+        auto& aiController = Register<AIControllerComponent>("AI Controller", false, "AIController");
+        aiController.Serialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& a = e.GetComponent<AIControllerComponent>();
+            node.append_attribute("ControlledEntity") = static_cast<unsigned long long>(a.ControlledEntityID);
+            node.append_attribute("BehaviorTreePath") = a.BehaviorTreePath.c_str();
+        };
+        aiController.Deserialize = [](Entity e, pugi::xml_node node)
+        {
+            auto& a = e.GetComponent<AIControllerComponent>();
+            a.ControlledEntityID = node.attribute("ControlledEntity").as_ullong(a.ControlledEntityID);
+            a.BehaviorTreePath = node.attribute("BehaviorTreePath").as_string(a.BehaviorTreePath.c_str());
+        };
     }
 }

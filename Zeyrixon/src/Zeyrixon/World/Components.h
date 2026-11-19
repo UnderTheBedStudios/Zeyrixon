@@ -15,6 +15,8 @@
 
 namespace Zeyrixon
 {
+    class World;   // full definition in World.h; only referred to by AIControllerComponent
+
     /* The entity's ID, plus where it sits in the parent/child hierarchy. Never edit ParentID or ChildIDs
        by hand: use World::SetParent, which keeps both sides in step (and refuses loops). Only ParentID is
        saved; ChildIDs is rebuilt from it when a world loads. */
@@ -417,5 +419,20 @@ namespace Zeyrixon
                 Slots = std::move(result);
             return count;
         }
+    };
+
+    /* Drives one entity from a behavior tree. It refers to that entity by its IDComponent::ID rather than
+       holding an Entity, because Entity.h includes World.h, which includes this file, so Entity doesn't
+       exist yet here. The methods below are defined in World.cpp, where it does. */
+    struct AIControllerComponent
+    {
+        uint64_t ControlledEntityID = 0;     // 0 = no entity
+        std::string BehaviorTreePath = "";
+
+        void Move(World& world, glm::vec3 destination, float acceptanceRadius);
+        void Rotate(World& world, glm::vec3 rotation);
+
+    private:
+        bool CheckRigidBody(World& world, BodyType desiredType);
     };
 }

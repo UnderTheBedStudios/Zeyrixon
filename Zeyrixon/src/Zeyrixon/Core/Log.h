@@ -5,6 +5,8 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/ostr.h>
+#include <glm/glm.hpp>
+#include <spdlog/fmt/fmt.h>
 
 #include <Zeyrixon/Core/Core.h>
 
@@ -40,6 +42,27 @@ namespace Zeyrixon
         static std::shared_ptr<LogBuffer> m_Buffer;
     };
 }
+
+template<>
+struct fmt::formatter<glm::vec3> : fmt::formatter<float>
+{
+    template<typename FormatContext>
+    auto format(const glm::vec3& v, FormatContext& ctx) const -> decltype(ctx.out())
+    {
+        auto out = ctx.out();
+        *out++ = '(';
+        ctx.advance_to(out);
+        out = fmt::formatter<float>::format(v.x, ctx);
+        out = fmt::format_to(out, ", ");
+        ctx.advance_to(out);
+        out = fmt::formatter<float>::format(v.y, ctx);
+        out = fmt::format_to(out, ", ");
+        ctx.advance_to(out);
+        out = fmt::formatter<float>::format(v.z, ctx);
+        *out++ = ')';
+        return out;
+    }
+};
 
 //------------------------------ Core Log Macros ------------------------------
 

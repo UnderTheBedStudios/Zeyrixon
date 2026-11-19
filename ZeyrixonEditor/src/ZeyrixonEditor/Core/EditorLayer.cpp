@@ -758,6 +758,29 @@ namespace
                 }
             }
         });
+        SetInspector("AI Controller", [](Zeyrixon::Entity entity)
+        {
+            auto& aiController = entity.GetComponent<Zeyrixon::AIControllerComponent>();
+            aiController.ControlledEntityID = entity.GetComponent<Zeyrixon::IDComponent>().ID;
+
+            char pathBuffer[512]{};
+            std::strncpy(pathBuffer, aiController.BehaviorTreePath.c_str(), sizeof(pathBuffer) - 1);
+            if (ImGui::InputText("Behavior Tree File", pathBuffer, sizeof(pathBuffer)))
+                aiController.BehaviorTreePath = pathBuffer;
+
+            if (ImGui::Button("Browse Behavior Trees..."))
+            {
+                const char* patterns[] = { "*.zbeht" };
+                const char* chosen = tinyfd_openFileDialog("Choose Behavior Tree", nullptr, 4, patterns, "BehaviorTree", 0);
+                if (chosen)
+                {
+                    std::error_code ec;
+                    const fs::path relative = fs::relative(chosen, Zeyrixon::ScriptEngine::GetAssetRoot(), ec);
+                    aiController.BehaviorTreePath = !ec && !relative.empty() && *relative.begin() != ".."
+                        ? relative.generic_string() : std::string(chosen);
+                }
+            }
+        });
     }
 }
 

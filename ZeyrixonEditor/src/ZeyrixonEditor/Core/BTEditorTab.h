@@ -24,8 +24,57 @@ namespace Editor
             Root = 0,
             Selector = 1,
             Sequence = 2,
-            Task = 3
+            Task = 3,
+
+            TemplateCount   // keep this LAST: it sizes the template table
         };
+
+        static constexpr int kMaxSlots = 8;
+
+        /* One row per node type. Change Inputs / Outputs to add or remove slots (the circles) on that type,
+           up to kMaxSlots. Where they sit on the node is set by kVerticalSlots below. */
+        struct TypeInfo
+        {
+            const char* Name;
+            ImU32 Header;
+            int Inputs;
+            int Outputs;
+        };
+
+        static const TypeInfo& GetTypeInfo(NodeType type)
+        {
+            static const TypeInfo infos[TemplateCount] =
+            {
+                { "Root",     IM_COL32(170, 60, 60, 255),   0, 1 },
+                { "Selector", IM_COL32(60, 110, 170, 255),  1, 1 },
+                { "Sequence", IM_COL32(160, 200, 250, 255), 1, 1 },
+                { "Task",     IM_COL32(60, 150, 90, 255),   1, 0 },
+            };
+            return infos[type];
+        }
+
+        /* Where the slots (the circles links attach to) sit on a node.
+             true  : inputs along the TOP edge, outputs along the BOTTOM edge - the usual top-down tree.
+             false : GraphEditor's stock layout, inputs down the left edge and outputs down the right.
+           Needs the patched GraphEditor (Template::mInputPositions / mOutputPositions). It is only turned on
+           when ZEYRIXON_PATCHED_GRAPHEDITOR is defined (e.g. #define it above the #include of this header, or
+           add it to the project's defines once the patch is applied); otherwise the stock layout is used. */
+#ifdef ZEYRIXON_PATCHED_GRAPHEDITOR
+        static constexpr bool kVerticalSlots = true;
+#else
+        static constexpr bool kVerticalSlots = false;   // stock GraphEditor: left/right slots only
+#endif
+
+        /* Size of a node. The stock layout spaces slots down the node's height, so there it grows with the
+           slot count; with kVerticalSlots they're spread across its width instead, so that grows. */
+        static ImVec2 NodeSize(NodeType type)
+        {
+            const TypeInfo& info = GetTypeInfo(type);
+            const int slots = std::max(1, std::max(info.Inputs, info.Outputs));
+            if (kVerticalSlots)
+                return ImVec2(std::max(200.0f, 60.0f * static_cast<float>(slots)), 60.0f);
+            return ImVec2(200.0f, 24.0f + 30.0f * static_cast<float>(slots));
+        }
 
         struct BTNode
         {
@@ -47,56 +96,67 @@ namespace Editor
 
         BTGraphDelegate()
         {
-            static const char* parentNames[]   = { "Parent" };
-            static const char* childrenNames[] = { "Children" };
-            static ImU32 slotColors[]          = { IM_COL32(200, 200, 200, 255) };
+            static const char* inputNames[kMaxSlots]  = { "In 1", "In 2", "In 3", "In 4", "In 5", "In 6", "In 7", "In 8" };
+            static const char* outputNames[kMaxSlots] = { "Out 1", "Out 2", "Out 3", "Out 4", "Out 5", "Out 6", "Out 7", "Out 8" };
+            static ImU32 slotColors[kMaxSlots]        = { IM_COL32(200, 200, 200, 255), IM_COL32(200, 200, 200, 255),
+                                                          IM_COL32(200, 200, 200, 255), IM_COL32(200, 200, 200, 255),
+                                                          IM_COL32(200, 200, 200, 255), IM_COL32(200, 200, 200, 255),
+                                                          IM_COL32(200, 200, 200, 255), IM_COL32(200, 200, 200, 255) };
 
-            auto make = [&](ImU32 header, ImU8 inputs, ImU8 outputs)
+            // The name and color arrays must have at least as many entries as the slot count, or GraphEditor
+            // reads past their end. They're kMaxSlots long and the counts are clamped to that.
+            for (int i = 0; i < TemplateCount; ++i)
             {
-                GraphEditor::Template t{};
-                t.mHeaderColor = header;
-                t.mBackgroundColor = IM_COL32(40, 40, 40, 200);
-                t.mBackgroundColorOver = IM_COL32(60, 60, 60, 200);
-                t.mInputCount = inputs;
-                t.mInputNames = parentNames;
-                t.mInputColors = slotColors;
-                t.mOutputCount = outputs;
-                t.mOutputNames = childrenNames;
-                t.mOutputColors = slotColors;
-                return t;
-            };
+                const TypeInfo& info = GetTypeInfo(static_cast<NodeType>(i));
 
-            m_Templates[Root]       = make(IM_COL32(170, 60, 60, 255), 0, 1);
-            m_Templates[Selector]   = make(IM_COL32(60, 110, 170, 255), 1, 1);
-            m_Templates[Sequence]   = make(IM_COL32(160, 200, 250, 255), 1, 1);
-            m_Templates[Task]       = make(IM_COL32(60, 150, 90, 255), 1, 0);
+                GraphEditor::Template t{};
+                t.mHeaderColor = info.Header;
+                t.mBackgroundColor = IM_COL32(55, 55, 55, 255);
+                t.mBackgroundColorOver = IM_COL32(70, 70, 70, 255);
+                t.mInputCount = static_cast<ImU8>(std::min(info.Inputs, kMaxSlots));
+                t.mInputNames = inputNames;
+                t.mInputColors = slotColors;
+                t.mOutputCount = static_cast<ImU8>(std::min(info.Outputs, kMaxSlots));
+                t.mOutputNames = outputNames;
+                t.mOutputColors = slotColors;
+
+                /* Slot positions as a fraction of the node rectangle: (0,0) is its top-left corner and
+                   (1,1) its bottom-right. Change these to put a slot anywhere you like. Here: n inputs spread
+                   evenly along the top edge, n outputs along the bottom edge. */
+#ifdef ZEYRIXON_PATCHED_GRAPHEDITOR
+                {
+                    for (int slot = 0; slot < t.mInputCount; ++slot)
+                        m_InputPositions[i][slot] = ImVec2(static_cast<float>(slot + 1) / static_cast<float>(t.mInputCount + 1), 0.0f);
+                    for (int slot = 0; slot < t.mOutputCount; ++slot)
+                        m_OutputPositions[i][slot] = ImVec2(static_cast<float>(slot + 1) / static_cast<float>(t.mOutputCount + 1), 1.0f);
+                    t.mInputPositions = m_InputPositions[i];
+                    t.mOutputPositions = m_OutputPositions[i];
+                }
+#endif
+
+                m_Templates[i] = t;
+            }
         }
 
         // ---- file io -------------------------------------------------------------------------
 
         static const char* TypeToString(NodeType type)
         {
-            switch (type)
-            {
-                case Root:      return "Root";
-                case Selector:  return "Selector";
-                case Sequence:  return "Sequence";
-                default:        return "Task";
-            }
+            return GetTypeInfo(type).Name;
         }
 
         static NodeType TypeFromString(const std::string& s)
         {
-            if (s == "Root")        return Root;
-            if (s == "Selector")    return Selector;
-            if (s == "Sequence")    return Sequence;
+            for (int i = 0; i < TemplateCount; ++i)
+                if (s == GetTypeInfo(static_cast<NodeType>(i)).Name)
+                    return static_cast<NodeType>(i);
             return Task;
         }
 
         /* PLACEHOLDER SCHEMA - swap this for whatever your behavior tree runtime reads:
              <BehaviorTree Name="NewBT">
                <Node Type="Root" Name="Root" X="0" Y="0"/>
-               <Link Parent="0" Child="1"/>        (indices into the Node list, in order)
+               <Link Parent="0" ParentSlot="0" Child="1" ChildSlot="0"/>   (node indices, in order; slots default to 0)
              </BehaviorTree>
            An empty tree (what "Create Behavior Tree" writes) loads as just a Root node. */
         bool Load(const std::filesystem::path& path)
@@ -132,9 +192,9 @@ namespace Editor
 
                 GraphEditor::Link link{};
                 link.mInputNodeIndex = parent;
-                link.mInputSlotIndex = 0;
+                link.mInputSlotIndex = l.attribute("ParentSlot").as_uint(0);
                 link.mOutputNodeIndex = child;
-                link.mOutputSlotIndex = 0;
+                link.mOutputSlotIndex = l.attribute("ChildSlot").as_uint(0);
                 Links.push_back(link);
             }
 
@@ -167,7 +227,9 @@ namespace Editor
             {
                 pugi::xml_node link = root.append_child("Link");
                 link.append_attribute("Parent") = static_cast<unsigned long long>(l.mInputNodeIndex);
+                link.append_attribute("ParentSlot") = static_cast<unsigned long long>(l.mInputSlotIndex);
                 link.append_attribute("Child") = static_cast<unsigned long long>(l.mOutputNodeIndex);
+                link.append_attribute("ChildSlot") = static_cast<unsigned long long>(l.mOutputSlotIndex);
             }
 
             if (!doc.save_file(path.string().c_str()))
@@ -260,7 +322,7 @@ namespace Editor
 
         void CustomDraw(ImDrawList*, ImRect, GraphEditor::NodeIndex) override {}
 
-        const size_t GetTemplateCount() override { return 4; }
+        const size_t GetTemplateCount() override { return TemplateCount; }
         const GraphEditor::Template GetTemplate(GraphEditor::TemplateIndex index) override { return m_Templates[index]; }
 
         const size_t GetNodeCount() override { return Nodes.size(); }
@@ -270,7 +332,8 @@ namespace Editor
             GraphEditor::Node node{};
             node.mName = n.Name.c_str();
             node.mTemplateIndex = n.Type;
-            node.mRect = ImRect(ImVec2(n.X, n.Y), ImVec2(n.X + 200.0f, n.Y + 100.0f));
+            const ImVec2 size = NodeSize(n.Type);
+            node.mRect = ImRect(ImVec2(n.X, n.Y), ImVec2(n.X + size.x, n.Y + size.y));
             node.mSelected = n.Selected;
             return node;
         }
@@ -279,7 +342,9 @@ namespace Editor
         const GraphEditor::Link GetLink(GraphEditor::LinkIndex index) override { return Links[index]; }
 
     private:
-        GraphEditor::Template m_Templates[4]{};
+        GraphEditor::Template m_Templates[TemplateCount]{};
+        ImVec2 m_InputPositions[TemplateCount][kMaxSlots]{};    // referenced by m_Templates, so they must outlive it
+        ImVec2 m_OutputPositions[TemplateCount][kMaxSlots]{};
     };
 
     // One tab in the editor's tab bar.

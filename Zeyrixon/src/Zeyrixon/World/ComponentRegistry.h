@@ -14,7 +14,8 @@ namespace Zeyrixon
 {
     struct ComponentInfo
     {
-        std::string Name;   // XML node name and inspector header
+        std::string Name;   // Inspector header
+        std::string XmlName;
         bool Core = false;  // On every entity; never added or removed by hand
 
         std::function<bool(Entity)> Has;
@@ -38,10 +39,11 @@ namespace Zeyrixon
         /* Returns the new entry so the caller can fill in Serialize/Deserialize.
            Don't hold the reference across another Register call. */
         template<typename T>
-        ComponentInfo& Register(const std::string& name, bool core = false)
+        ComponentInfo& Register(const std::string& name, bool core = false, const std::string& xmlName = {})
         {
             ComponentInfo info;
             info.Name = name;
+            info.XmlName = xmlName.empty() ? name : xmlName;
             info.Core = core;
             info.Has    = [](Entity e) { return e.HasComponent<T>(); };
             info.Add    = [](Entity e) { e.AddComponent<T>(); };
