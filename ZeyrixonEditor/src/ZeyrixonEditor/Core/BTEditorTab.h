@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Zeyrixon/World/BehaviorTree.h>
+
 #include <GraphEditor.h>
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -83,12 +85,16 @@ namespace Editor
             float X = 0.0f;
             float Y = 0.0f;
             bool Selected = false;
+            unsigned int ID = 0;    // stable, written to the file; 0 means "not assigned yet"
         };
 
         std::vector<BTNode> Nodes;
         std::vector<GraphEditor::Link> Links;
         std::string TreeName = "NewBT";
         bool Dirty = false;
+
+        unsigned int NextID = 1;
+        unsigned int AllocateID() { return NextID++; }
 
         // Filled by RightClick (called from inside GraphEditor::Show), consumed by the tab afterwards.
         bool ContextMenuRequested = false;
@@ -171,6 +177,7 @@ namespace Editor
 
             Nodes.clear();
             Links.clear();
+            NextID = 1;
             TreeName = root.attribute("Name").as_string("NewBT");
 
             for (pugi::xml_node n : root.children("Node"))
@@ -180,8 +187,16 @@ namespace Editor
                 node.Type = TypeFromString(n.attribute("Type").as_string());
                 node.X = n.attribute("X").as_float();
                 node.Y = n.attribute("Y").as_float();
+                node.ID = n.attribute("ID").as_uint(0);
                 Nodes.push_back(std::move(node));
             }
+
+            // Keep the counter past every existing ID, then give an ID to any node that has none (older files).
+            for (const BTNode& n : Nodes)
+                NextID = std::max(NextID, n.ID + 1);
+            for (BTNode& n : Nodes)
+                if (n.ID == 0)
+                    n.ID = AllocateID();
 
             for (pugi::xml_node l : root.children("Link"))
             {
@@ -199,7 +214,7 @@ namespace Editor
             }
 
             if (Nodes.empty())
-                Nodes.push_back({ "Root", Root, 0.0f, 0.0f, false });
+                Nodes.push_back({ "Root", Root, 0.0f, 0.0f, false, AllocateID() });
 
             Dirty = false;
             return true;
@@ -221,6 +236,7 @@ namespace Editor
                 node.append_attribute("Name") = n.Name.c_str();
                 node.append_attribute("X") = n.X;
                 node.append_attribute("Y") = n.Y;
+                node.append_attribute("ID") = n.ID;
             }
 
             for (const GraphEditor::Link& l : Links)
@@ -243,7 +259,7 @@ namespace Editor
 
         void AddNode(const char* name, NodeType type, ImVec2 position)
         {
-            Nodes.push_back({ name, type, position.x, position.y, false });
+            Nodes.push_back({ name, type, position.x, position.y, false, AllocateID() });
             Dirty = true;
         }
 

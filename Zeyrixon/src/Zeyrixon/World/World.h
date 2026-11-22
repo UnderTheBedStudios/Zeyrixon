@@ -16,6 +16,7 @@
 namespace Zeyrixon
 {
     class Entity;
+    class BehaviorTree;
     class PhysicsWorld;
     class AudioSystem;
     struct RaycastHit;
@@ -54,6 +55,7 @@ namespace Zeyrixon
          Entity FindEntityByID(uint64_t id);                                           // invalid Entity if there's none
          entt::entity FindHandleByID(uint64_t id) const;                               // entt::null if there's none
          void DestroyEntity(Entity entity);                                            // also destroys all of its children, grandchildren...
+
 
          // ---- Hierarchy ----
          // A child's TransformComponent is LOCAL: relative to its parent. The world matrix is every
@@ -133,5 +135,6 @@ namespace Zeyrixon
          std::unordered_map<uint64_t, TransformSnapshot> m_RuntimeSnapshot;   // keyed by IDComponent::ID
          std::unordered_map<uint64_t, float> m_AnimationTimeSnapshot;         // same key: Animation time before Play
          std::unordered_set<uint64_t> m_RuntimeEntityIDs;                     // entities present before Play
+         std::vector<std::unique_ptr<BehaviorTree>> m_BehaviorTrees;
     };
 }

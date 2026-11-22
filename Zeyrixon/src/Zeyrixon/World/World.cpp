@@ -1,6 +1,7 @@
 #include <pch.h>
 
 #include <Zeyrixon/World/World.h>
+#include <Zeyrixon/World/BehaviorTree.h>
 #include <Zeyrixon/World/Entity.h>
 #include <Zeyrixon/World/Components.h>
 #include <Zeyrixon/Renderer/Mesh.h>
@@ -18,6 +19,7 @@
 
 #include <cstdio>
 #include <random>
+#include <filesystem>
 
 namespace
 {
@@ -129,6 +131,26 @@ namespace Zeyrixon
             return false;
         }
 
+        // Behavior trees are runtime state. Resolve asset-relative paths once, and keep each
+        // successfully loaded tree owned by this world for the duration of Play.
+        m_BehaviorTrees.clear();
+        const std::filesystem::path assetRoot(ScriptEngine::GetAssetRoot());
+        for (auto [handle, id, aiController] : m_Registry.view<IDComponent, AIControllerComponent>().each())
+        {
+            if (aiController.BehaviorTreePath.empty())
+                continue;
+
+            std::filesystem::path treePath(aiController.BehaviorTreePath);
+            if (treePath.is_relative() && !assetRoot.empty())
+                treePath = assetRoot / treePath;
+
+            const uint64_t controlledEntityID = aiController.ControlledEntityID != 0
+                ? aiController.ControlledEntityID : id.ID;
+            auto tree = std::make_unique<BehaviorTree>(treePath.string(), *this, controlledEntityID);
+            if (tree->IsValid())
+                m_BehaviorTrees.push_back(std::move(tree));
+        }
+
         // Animations start from the top (when they're set to play on start); the editor's time is put back on Stop.
         m_AnimationTimeSnapshot.clear();
         for (auto [handle, id, animation] : m_Registry.view<IDComponent, AnimationComponent>().each())
@@ -168,6 +190,7 @@ namespace Zeyrixon
             return;
 
         ScriptEngine::OnRuntimeStop(*this);
+        m_BehaviorTrees.clear();
         m_Audio.reset();
 
         // Remove entities created during Play, starting with the new roots in each hierarchy.
@@ -218,6 +241,9 @@ namespace Zeyrixon
             return;
 
         ScriptEngine::OnRuntimeUpdate(*this, dt);
+
+        for (const auto& behaviorTree : m_BehaviorTrees)
+            behaviorTree->BTUpdate(dt);
 
         // After the scripts, so a transform a script just changed is what the simulation starts from.
         if (m_Physics)
@@ -746,4 +772,5 @@ namespace Zeyrixon
 
         return true;
     }
+
 }
