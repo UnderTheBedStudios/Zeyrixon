@@ -13,20 +13,20 @@ namespace Zeyrixon
         pugi::xml_parse_result result = doc.load_file(behaviorTreePath.c_str());
         if (!result)
         {
-            Z_ERROR("Failed to load BehaviorTree '{0}': {1}", behaviorTreePath, result.description());
+            Z_CORE_ERROR("Failed to load BehaviorTree '{0}': {1}", behaviorTreePath, result.description());
             return;
         }
 
         pugi::xml_node root = doc.child("BehaviorTree");
         if (!root)
         {
-            Z_ERROR("BehaviorTree file '{0}' has no <BehaviorTree> root node", behaviorTreePath);
+            Z_CORE_ERROR("BehaviorTree file '{0}' has no <BehaviorTree> root node", behaviorTreePath);
             return;
         }
 
         if (!currentWorld.FindEntityByID(controlledEntityID))
         {
-            Z_ERROR("BehaviorTree has no entity to control! Attempted ID is: {0}", controlledEntityID);
+            Z_CORE_ERROR("BehaviorTree has no entity to control! Attempted ID is: {0}", controlledEntityID);
             return;
         }
 
@@ -60,11 +60,11 @@ namespace Zeyrixon
 
     void BehaviorTree::BTUpdate(DeltaTime dt)
     {
-        Z_TRACE("Behavior Tree {0} Updating with DeltaTime of: {1}", m_BehaviorTreeName, dt.GetSeconds());
+        Z_CORE_TRACE("Behavior Tree {0} Updating with DeltaTime of: {1}", m_BehaviorTreeName, dt.GetSeconds());
     }
 
     void BehaviorTree::RunTask(BTNode nodeInformation, TypeInfo informationType)
     {
-        Z_TRACE("Behavior Tree is Running: {0}", nodeInformation.Name.c_str());
+        Z_CORE_TRACE("Behavior Tree is Running: {0}", nodeInformation.Name.c_str());
     }
 }
