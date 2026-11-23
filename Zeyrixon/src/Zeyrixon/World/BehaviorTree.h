@@ -5,6 +5,7 @@
 #include <Zeyrixon/World/World.h>
 
 #include <string>
+#include <vector>
 
 namespace Zeyrixon
 {
@@ -33,6 +34,8 @@ namespace Zeyrixon
         float X = 0.0f;
         float Y = 0.0f;
         bool Selected = false;
+        int ID = 0;
+        int Priority = 0;
     };
 
     class BehaviorTree
@@ -53,7 +56,8 @@ namespace Zeyrixon
         bool m_IsValid = false;
         std::string m_BehaviorTreePath = "";
         std::string m_BehaviorTreeName = "BT";
-        TypeInfo m_LastNodeInfo;
-        BTNode m_LastNodeType;
+        int m_LastNodeIndex = -1;
+
+        std::vector<BTNode> m_AllNodes;
     };
 }

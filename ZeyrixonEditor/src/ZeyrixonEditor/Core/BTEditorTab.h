@@ -8,6 +8,7 @@
 #include <pugixml.hpp>
 
 #include <algorithm>
+#include <cstdio>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -33,8 +34,7 @@ namespace Editor
 
         static constexpr int kMaxSlots = 8;
 
-        /* One row per node type. Change Inputs / Outputs to add or remove slots (the circles) on that type,
-           up to kMaxSlots. Where they sit on the node is set by kVerticalSlots below. */
+        /* Parent outputs are on top and child inputs are on the bottom for bottom-to-top flow. */
         struct TypeInfo
         {
             const char* Name;
@@ -55,27 +55,10 @@ namespace Editor
             return infos[type];
         }
 
-        /* Where the slots (the circles links attach to) sit on a node.
-             true  : inputs along the TOP edge, outputs along the BOTTOM edge - the usual top-down tree.
-             false : GraphEditor's stock layout, inputs down the left edge and outputs down the right.
-           Needs the patched GraphEditor (Template::mInputPositions / mOutputPositions). It is only turned on
-           when ZEYRIXON_PATCHED_GRAPHEDITOR is defined (e.g. #define it above the #include of this header, or
-           add it to the project's defines once the patch is applied); otherwise the stock layout is used. */
-#ifdef ZEYRIXON_PATCHED_GRAPHEDITOR
-        static constexpr bool kVerticalSlots = true;
-#else
-        static constexpr bool kVerticalSlots = false;   // stock GraphEditor: left/right slots only
-#endif
-
-        /* Size of a node. The stock layout spaces slots down the node's height, so there it grows with the
-           slot count; with kVerticalSlots they're spread across its width instead, so that grows. */
         static ImVec2 NodeSize(NodeType type)
         {
-            const TypeInfo& info = GetTypeInfo(type);
-            const int slots = std::max(1, std::max(info.Inputs, info.Outputs));
-            if (kVerticalSlots)
-                return ImVec2(std::max(200.0f, 60.0f * static_cast<float>(slots)), 60.0f);
-            return ImVec2(200.0f, 24.0f + 30.0f * static_cast<float>(slots));
+            (void)type;
+            return ImVec2(200.0f, 60.0f);
         }
 
         struct BTNode
@@ -103,7 +86,7 @@ namespace Editor
         BTGraphDelegate()
         {
             static const char* inputNames[kMaxSlots]  = { "In 1", "In 2", "In 3", "In 4", "In 5", "In 6", "In 7", "In 8" };
-            static const char* outputNames[kMaxSlots] = { "Out 1", "Out 2", "Out 3", "Out 4", "Out 5", "Out 6", "Out 7", "Out 8" };
+            static const char* outputNames[kMaxSlots] = { "Out", "Out 2", "Out 3", "Out 4", "Out 5", "Out 6", "Out 7", "Out 8" };
             static ImU32 slotColors[kMaxSlots]        = { IM_COL32(200, 200, 200, 255), IM_COL32(200, 200, 200, 255),
                                                           IM_COL32(200, 200, 200, 255), IM_COL32(200, 200, 200, 255),
                                                           IM_COL32(200, 200, 200, 255), IM_COL32(200, 200, 200, 255),
@@ -126,19 +109,15 @@ namespace Editor
                 t.mOutputNames = outputNames;
                 t.mOutputColors = slotColors;
 
-                /* Slot positions as a fraction of the node rectangle: (0,0) is its top-left corner and
-                   (1,1) its bottom-right. Change these to put a slot anywhere you like. Here: n inputs spread
-                   evenly along the top edge, n outputs along the bottom edge. */
-#ifdef ZEYRIXON_PATCHED_GRAPHEDITOR
+                /* Inputs sit at the bottom and outputs at the top. */
                 {
                     for (int slot = 0; slot < t.mInputCount; ++slot)
-                        m_InputPositions[i][slot] = ImVec2(static_cast<float>(slot + 1) / static_cast<float>(t.mInputCount + 1), 0.0f);
+                        m_InputPositions[i][slot] = ImVec2(0.5f, 1.0f);
                     for (int slot = 0; slot < t.mOutputCount; ++slot)
-                        m_OutputPositions[i][slot] = ImVec2(static_cast<float>(slot + 1) / static_cast<float>(t.mOutputCount + 1), 1.0f);
+                        m_OutputPositions[i][slot] = ImVec2(0.5f, 0.0f);
                     t.mInputPositions = m_InputPositions[i];
                     t.mOutputPositions = m_OutputPositions[i];
                 }
-#endif
 
                 m_Templates[i] = t;
             }
@@ -179,6 +158,7 @@ namespace Editor
             Links.clear();
             NextID = 1;
             TreeName = root.attribute("Name").as_string("NewBT");
+            const bool needsVerticalMigration = std::string(root.attribute("VerticalFlow").as_string()) != "BottomToTop";
 
             for (pugi::xml_node n : root.children("Node"))
             {
@@ -216,7 +196,20 @@ namespace Editor
             if (Nodes.empty())
                 Nodes.push_back({ "Root", Root, 0.0f, 0.0f, false, AllocateID() });
 
-            Dirty = false;
+            if (needsVerticalMigration && Nodes.size() > 1)
+            {
+                float minY = Nodes.front().Y;
+                float maxY = Nodes.front().Y;
+                for (const BTNode& node : Nodes)
+                {
+                    minY = std::min(minY, node.Y);
+                    maxY = std::max(maxY, node.Y);
+                }
+                for (BTNode& node : Nodes)
+                    node.Y = minY + maxY - node.Y;
+            }
+
+            Dirty = needsVerticalMigration;
             return true;
         }
 
@@ -228,6 +221,7 @@ namespace Editor
 
             pugi::xml_node root = doc.append_child("BehaviorTree");
             root.append_attribute("Name") = TreeName.c_str();
+            root.append_attribute("VerticalFlow") = "BottomToTop";
 
             for (const BTNode& n : Nodes)
             {
@@ -237,6 +231,7 @@ namespace Editor
                 node.append_attribute("X") = n.X;
                 node.append_attribute("Y") = n.Y;
                 node.append_attribute("ID") = n.ID;
+                node.append_attribute("Priority") = GetPriority(n.ID - 1);
             }
 
             for (const GraphEditor::Link& l : Links)
@@ -336,7 +331,22 @@ namespace Editor
             }
         }
 
-        void CustomDraw(ImDrawList*, ImRect, GraphEditor::NodeIndex) override {}
+        void CustomDraw(ImDrawList* drawList, ImRect rectangle, GraphEditor::NodeIndex nodeIndex) override
+        {
+            const int priority = GetPriority(nodeIndex);
+            if (priority > 0)
+            {
+                const float radius = ImGui::GetFontSize() * 0.9f;
+                const ImVec2 center(rectangle.Max.x + 4.0f, rectangle.Min.y - radius + 2.0f);
+                drawList->AddCircleFilled(center, radius, IM_COL32(255, 255, 255, 255), 24);
+                drawList->AddCircle(center, radius, IM_COL32(20, 20, 20, 255), 24, 2.5f);
+                char label[16];
+                snprintf(label, sizeof(label), "%d", priority);
+                const ImVec2 textSize = ImGui::CalcTextSize(label);
+                drawList->AddText(ImVec2(center.x - textSize.x * 0.5f, center.y - textSize.y * 0.5f),
+                                  IM_COL32(20, 20, 20, 255), label);
+            }
+        }
 
         const size_t GetTemplateCount() override { return TemplateCount; }
         const GraphEditor::Template GetTemplate(GraphEditor::TemplateIndex index) override { return m_Templates[index]; }
@@ -356,6 +366,29 @@ namespace Editor
 
         const size_t GetLinkCount() override { return Links.size(); }
         const GraphEditor::Link GetLink(GraphEditor::LinkIndex index) override { return Links[index]; }
+
+        int GetPriority(GraphEditor::NodeIndex nodeIndex) const
+        {
+            for (const GraphEditor::Link& parentLink : Links)
+            {
+                if (parentLink.mOutputNodeIndex != nodeIndex)
+                    continue;
+
+                std::vector<size_t> siblings;
+                for (const GraphEditor::Link& link : Links)
+                    if (link.mInputNodeIndex == parentLink.mInputNodeIndex
+                        && std::find(siblings.begin(), siblings.end(), link.mOutputNodeIndex) == siblings.end())
+                        siblings.push_back(link.mOutputNodeIndex);
+
+                std::stable_sort(siblings.begin(), siblings.end(), [&](size_t left, size_t right)
+                {
+                    return Nodes[left].X < Nodes[right].X;
+                });
+                const auto found = std::find(siblings.begin(), siblings.end(), nodeIndex);
+                return found == siblings.end() ? 0 : static_cast<int>(found - siblings.begin()) + 1;
+            }
+            return 0;
+        }
 
     private:
         GraphEditor::Template m_Templates[TemplateCount]{};

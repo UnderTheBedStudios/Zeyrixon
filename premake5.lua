@@ -233,6 +233,7 @@ project("ZeyrixonEditor")
 		"%{prj.name}/vendor/tinyfiledialogs/tinyfiledialogs.c",
 		"%{prj.name}/vendor/tinyfiledialogs/tinyfiledialogs.h",
 	})
+	removefiles({ "%{prj.name}/vendor/ImGizmo/ImGuizmo/src/GraphEditor.cpp" })
 
 	includedirs
 	{

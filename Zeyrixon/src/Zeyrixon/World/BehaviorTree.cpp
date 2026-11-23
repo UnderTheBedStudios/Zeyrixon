@@ -1,5 +1,6 @@
 #include <Zeyrixon/World/BehaviorTree.h>
 #include <Zeyrixon/Core/Log.h>
+#include <Zeyrixon/World/Entity.h>
 
 #include <pugixml.hpp>
 
@@ -21,6 +22,31 @@ namespace Zeyrixon
         {
             Z_ERROR("BehaviorTree file '{0}' has no <BehaviorTree> root node", behaviorTreePath);
             return;
+        }
+
+        if (!currentWorld.FindEntityByID(controlledEntityID))
+        {
+            Z_ERROR("BehaviorTree has no entity to control! Attempted ID is: {0}", controlledEntityID);
+            return;
+        }
+
+        for (pugi::xml_node n : root.children("Node"))
+        {
+            BTNode node;
+            node.ID = n.attribute("ID").as_int();
+            node.Name = n.attribute("Name").as_string();
+            node.Priority = n.attribute("Priority").as_int();
+
+            if (n.attribute("Type").as_string() == "Selector")
+                node.Type = NodeType::Selector;
+            else if (n.attribute("Type").as_string() == "Sequence")
+                node.Type = NodeType::Sequence;
+            else if (n.attribute("Type").as_string() == "Task")
+                node.Type = NodeType::Task;
+            else
+                node.Type = NodeType::Root;
+
+            m_AllNodes.push_back(node);
         }
 
         m_BehaviorTreeName = root.attribute("Name").as_string("Untitled");
