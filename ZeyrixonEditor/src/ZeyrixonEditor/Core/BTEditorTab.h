@@ -223,15 +223,16 @@ namespace Editor
             root.append_attribute("Name") = TreeName.c_str();
             root.append_attribute("VerticalFlow") = "BottomToTop";
 
-            for (const BTNode& n : Nodes)
+            for (size_t nodeIndex = 0; nodeIndex < Nodes.size(); ++nodeIndex)
             {
+                const BTNode& n = Nodes[nodeIndex];
                 pugi::xml_node node = root.append_child("Node");
                 node.append_attribute("Type") = TypeToString(n.Type);
                 node.append_attribute("Name") = n.Name.c_str();
                 node.append_attribute("X") = n.X;
                 node.append_attribute("Y") = n.Y;
                 node.append_attribute("ID") = n.ID;
-                node.append_attribute("Priority") = GetPriority(n.ID - 1);
+                node.append_attribute("Priority") = GetPriority(nodeIndex);
             }
 
             for (const GraphEditor::Link& l : Links)
